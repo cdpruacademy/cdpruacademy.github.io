@@ -84,12 +84,41 @@ export function ProductTimeline() {
     } catch (_) {}
   };
 
+  const handleAddChannel = (broker: string, hex: string) => {
+    const updated = { ...colorMap, [broker]: hex };
+    setColorMap(updated);
+    try {
+      localStorage.setItem(BROKER_COLORS_KEY, JSON.stringify(updated));
+    } catch (_) {}
+  };
+
+  const handleDeleteChannel = (broker: string) => {
+    const updated = { ...colorMap };
+    delete updated[broker];
+    setColorMap(updated);
+    try {
+      localStorage.setItem(BROKER_COLORS_KEY, JSON.stringify(updated));
+    } catch (_) {}
+  };
+
   const handleResetColors = () => {
     setColorMap(DEFAULT_COLORS);
     try {
       localStorage.setItem(BROKER_COLORS_KEY, JSON.stringify(DEFAULT_COLORS));
     } catch (_) {}
   };
+
+  // Collect all brokers used in products across all months to prevent accidental data loss warnings
+  const allUsedBrokers = React.useMemo(() => {
+    const list: string[] = [];
+    if (monthlyStore) {
+      Object.values(monthlyStore).forEach((m) => {
+        (m.products || []).forEach((p) => { if (p.broker) list.push(p.broker); });
+        (m.enhancements || []).forEach((p) => { if (p.broker) list.push(p.broker); });
+      });
+    }
+    return list;
+  }, [monthlyStore]);
 
   const dashboardRef = useRef<HTMLDivElement>(null);
 
@@ -358,6 +387,7 @@ export function ProductTimeline() {
         onSave={handleSaveProduct}
         onDelete={deleteProduct}
         teamMembers={teamMembers}
+        availableBrokers={colorMap}
       />
 
       {/* Broker Color Customizer Modal */}
@@ -365,8 +395,11 @@ export function ProductTimeline() {
         isOpen={isColorModalOpen}
         onClose={() => setIsColorModalOpen(false)}
         onColorChange={handleColorChange}
+        onAddChannel={handleAddChannel}
+        onDeleteChannel={handleDeleteChannel}
         onResetColors={handleResetColors}
         currentColors={colorMap}
+        allProductsBrokers={allUsedBrokers}
       />
     </div>
   );

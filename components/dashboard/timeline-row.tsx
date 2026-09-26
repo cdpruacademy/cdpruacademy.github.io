@@ -29,14 +29,25 @@ export function TimelineRow({
 
   const isEnhancement = timelineType === "enhancement";
 
-  // Dynamic broker brand color (ttb = sky blue, uob = deep navy, etc.)
+  // Format date string to remove 4-digit year (e.g. "19 May 2026" -> "19 May", "TBC" -> "TBC")
+  const formatShortDate = (dateStr?: string): string => {
+    if (!dateStr) return "";
+    // Remove 4-digit years like 2024, 2025, 2026, 2567, 2568, 2569 (with optional preceding space or comma)
+    return dateStr
+      .replace(/[, ]*\b(20\d{2}|25\d{2})\b/g, "")
+      .trim();
+  };
+
+  // Dynamic broker brand color with priority to customColorMap
   const getBrokerHex = (broker: string): string => {
-    if (customColorMap[broker]) return customColorMap[broker];
-    if (broker.toLowerCase().includes("ttb")) return "#009FE3"; // ttb Sky Blue
-    if (broker.toLowerCase().includes("uob")) return "#0B2265"; // UOB Deep Navy
-    if (broker.toLowerCase().includes("agency")) return "#ED1C24"; // Prudential Red
-    if (broker.toLowerCase().includes("audit")) return "#1E293B"; // Dark Charcoal
-    return "#334155"; // Slate
+    if (customColorMap && customColorMap[broker]) return customColorMap[broker];
+    const lower = (broker || "").toLowerCase();
+    if (lower.includes("ttb")) return customColorMap?.["ttb"] || "#009FE3";
+    if (lower.includes("uob")) return customColorMap?.["UOB"] || "#0B2265";
+    if (lower.includes("agency")) return customColorMap?.["Agency"] || "#ED1C24";
+    if (lower.includes("audit")) return customColorMap?.["Audit"] || "#1E293B";
+    if (lower.includes("new broker")) return customColorMap?.["New Broker"] || "#334155";
+    return "#334155"; // Default Slate
   };
 
   const brokerColor = getBrokerHex(product.broker);
@@ -228,14 +239,14 @@ export function TimelineRow({
               {/* Date text label */}
               {milestone.date && (
                 <div className="text-[10px] md:text-[11px] font-medium text-[#475569] mt-1 whitespace-nowrap text-center">
-                  {milestone.date}
+                  {formatShortDate(milestone.date)}
                 </div>
               )}
 
               {/* CS Date if applicable */}
               {phase.key === "internal-training" && product.csDate && (
                 <div className="text-[10px] font-medium text-[#475569] mt-0.5 whitespace-nowrap">
-                  {product.csDate}
+                  {formatShortDate(product.csDate)}
                 </div>
               )}
             </div>
@@ -247,15 +258,15 @@ export function TimelineRow({
       <div className="flex flex-col justify-center text-right pr-2">
         {product.customRightLabel ? (
           <div className="text-[11px] font-bold text-[#475569] leading-tight">
-            {product.customRightLabel}
+            {formatShortDate(product.customRightLabel)}
           </div>
         ) : (
           <>
             <div className="text-[11px] font-medium text-[#475569] leading-tight">
-              Internal : {product.internalDate || "TBC"}
+              Internal : {formatShortDate(product.internalDate) || "TBC"}
             </div>
             <div className="text-[11px] font-bold text-[#16A34A] leading-tight mt-1">
-              Commercial : {product.commercialDate || "TBC"}
+              Commercial : {formatShortDate(product.commercialDate) || "TBC"}
             </div>
           </>
         )}

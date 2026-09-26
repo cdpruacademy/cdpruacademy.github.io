@@ -54,16 +54,16 @@ interface ProductFormModalProps {
   onSave: (product: Omit<ProductItem, "id">, id?: string) => void;
   onDelete?: (id: string) => void;
   teamMembers?: string[];
+  availableBrokers?: Record<string, string>;
 }
 
-const BROKER_OPTIONS = [
+const DEFAULT_BROKER_OPTIONS = [
   { value: "ttb", label: "ttb", color: "#009FE3" },
   { value: "ttb touch", label: "ttb touch", color: "#009FE3" },
   { value: "UOB", label: "UOB", color: "#0B2265" },
   { value: "Agency", label: "Agency (Prudential)", color: "#ED1C24" },
   { value: "Audit", label: "Audit", color: "#1E293B" },
   { value: "New Broker", label: "New Broker", color: "#334155" },
-  { value: "Other", label: "อื่นๆ (ระบุเอง)", color: "#64748B" },
 ];
 
 const DEFAULT_MEMBERS = [
@@ -89,8 +89,26 @@ export function ProductFormModal({
   onSave,
   onDelete,
   teamMembers,
+  availableBrokers,
 }: ProductFormModalProps) {
   const isEnhancement = timelineType === "enhancement";
+
+  // Build dynamic broker list from availableBrokers or fallback
+  const brokerOptions = React.useMemo(() => {
+    if (availableBrokers && Object.keys(availableBrokers).length > 0) {
+      const list = Object.entries(availableBrokers).map(([key, color]) => ({
+        value: key,
+        label: key,
+        color: color,
+      }));
+      list.push({ value: "Other", label: "อื่นๆ (ระบุเอง)", color: "#64748B" });
+      return list;
+    }
+    return [
+      ...DEFAULT_BROKER_OPTIONS,
+      { value: "Other", label: "อื่นๆ (ระบุเอง)", color: "#64748B" },
+    ];
+  }, [availableBrokers]);
 
   const effectiveMembers = teamMembers && teamMembers.length > 0 ? teamMembers : DEFAULT_MEMBERS;
   const teamOwnersList = effectiveMembers.map((m) => ({
@@ -131,7 +149,7 @@ export function ProductFormModal({
 
   useEffect(() => {
     if (productToEdit) {
-      const knownBroker = BROKER_OPTIONS.find((b) => b.value === productToEdit.broker);
+      const knownBroker = brokerOptions.find((b) => b.value === productToEdit.broker);
       if (knownBroker) {
         setBroker(productToEdit.broker);
         setCustomBroker("");
@@ -283,7 +301,7 @@ export function ProductFormModal({
     }
   };
 
-  const currentBrokerObj = BROKER_OPTIONS.find((b) => b.value === broker) || {
+  const currentBrokerObj = brokerOptions.find((b) => b.value === broker) || {
     color: "#64748B",
   };
 
@@ -382,7 +400,7 @@ export function ProductFormModal({
                       <SelectValue placeholder="เลือกช่องทาง" />
                     </SelectTrigger>
                     <SelectContent>
-                      {BROKER_OPTIONS.map((opt) => (
+                      {brokerOptions.map((opt) => (
                         <SelectItem key={opt.value} value={opt.value}>
                           <div className="flex items-center gap-2">
                             <span
