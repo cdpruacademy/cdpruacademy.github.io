@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useProducts } from "@/hooks/use-products";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import { ProductItem } from "@/lib/timeline-data";
 import { TimelineHeader, TimelineTrackHeader } from "./timeline-header";
 import { TimelineRow } from "./timeline-row";
+import { TimelineExportBoard } from "./timeline-export-board";
 import { ProductFormModal } from "./product-form-modal";
 import { BrokerColorModal } from "./broker-color-modal";
 import { useTeamMembers } from "@/hooks/use-team-members";
@@ -76,12 +77,101 @@ export function ProductTimeline() {
     } catch (_) {}
   }, []);
 
+  const dashboardRef = useRef<HTMLDivElement>(null);
+  const productExportRef = useRef<HTMLDivElement>(null);
+  const enhancementExportRef = useRef<HTMLDivElement>(null);
+  const isAutoSyncingRef = useRef(false);
+  const autoSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Capture snapshots from offscreen 2K boards and upload to Supabase Storage
+  const captureAndUploadSnapshots = useCallback(
+    async (showUserAlert = false) => {
+      if (!productExportRef.current || !enhancementExportRef.current) return;
+      try {
+        if (showUserAlert) setIsSendingLine(true);
+
+        // 1. Capture Product Image (width 1280, 2x retina)
+        const productDataUrl = await toPng(productExportRef.current, {
+          cacheBust: true,
+          pixelRatio: 2,
+          backgroundColor: "#ffffff",
+          width: 1280,
+        });
+
+        // 2. Capture Enhancement Image (width 1280, 2x retina)
+        const enhancementDataUrl = await toPng(enhancementExportRef.current, {
+          cacheBust: true,
+          pixelRatio: 2,
+          backgroundColor: "#ffffff",
+          width: 1280,
+        });
+
+        // 3. Upload both to Supabase Storage (upsert = true, overwrite monthly filenames)
+        const uploadRes = await saveBothTimelineSnapshots(
+          productDataUrl,
+          enhancementDataUrl,
+          selectedMonth,
+          asOfText
+        );
+
+        if (!uploadRes.success) {
+          throw new Error(uploadRes.error || "ไม่สามารถอัปโหลดภาพได้");
+        }
+
+        if (showUserAlert) {
+          alert(
+            `✅ อัปเดตรูปไทม์ไลน์ขึ้น Cloud สำเร็จครบทั้ง 2 ตาราง!\n\n` +
+            `• 🎯 New Product Timeline: บันทึกเรียบร้อย\n` +
+            `• ⚡ Enhancement Timeline: บันทึกเรียบร้อย\n` +
+            `• รอบเดือน: ${selectedMonth} (${asOfText})\n\n` +
+            `สมาชิกใน LINE สามารถพิมพ์ "CD รูป" เพื่อดูภาพทั้ง 2 ตารางได้ทันทีครับ`
+          );
+        } else {
+          console.log("Auto-snapshot background sync completed successfully");
+        }
+      } catch (err: any) {
+        console.error("Snapshot upload error:", err);
+        if (showUserAlert) {
+          alert("เกิดข้อผิดพลาดในการบันทึกรูปภาพ: " + (err?.message || err));
+        }
+      } finally {
+        if (showUserAlert) setIsSendingLine(false);
+      }
+    },
+    [selectedMonth, asOfText]
+  );
+
+  // Silent debounced background auto-snapshot trigger (1.5s delay)
+  const triggerBackgroundAutoSnapshot = useCallback(() => {
+    if (autoSyncTimeoutRef.current) {
+      clearTimeout(autoSyncTimeoutRef.current);
+    }
+    autoSyncTimeoutRef.current = setTimeout(() => {
+      if (isAutoSyncingRef.current) return;
+      isAutoSyncingRef.current = true;
+      captureAndUploadSnapshots(false).finally(() => {
+        isAutoSyncingRef.current = false;
+      });
+    }, 1500);
+  }, [captureAndUploadSnapshots]);
+
+  // Initial load auto-refresh: after cloud data finishes loading, update snapshot so Monday cron has fresh images
+  useEffect(() => {
+    if (isLoaded) {
+      const timer = setTimeout(() => {
+        triggerBackgroundAutoSnapshot();
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoaded, triggerBackgroundAutoSnapshot]);
+
   const handleColorChange = (broker: string, hex: string) => {
     const updated = { ...colorMap, [broker]: hex };
     setColorMap(updated);
     try {
       localStorage.setItem(BROKER_COLORS_KEY, JSON.stringify(updated));
     } catch (_) {}
+    triggerBackgroundAutoSnapshot();
   };
 
   const handleAddChannel = (broker: string, hex: string) => {
@@ -90,6 +180,7 @@ export function ProductTimeline() {
     try {
       localStorage.setItem(BROKER_COLORS_KEY, JSON.stringify(updated));
     } catch (_) {}
+    triggerBackgroundAutoSnapshot();
   };
 
   const handleDeleteChannel = (broker: string) => {
@@ -99,6 +190,7 @@ export function ProductTimeline() {
     try {
       localStorage.setItem(BROKER_COLORS_KEY, JSON.stringify(updated));
     } catch (_) {}
+    triggerBackgroundAutoSnapshot();
   };
 
   const handleResetColors = () => {
@@ -106,6 +198,7 @@ export function ProductTimeline() {
     try {
       localStorage.setItem(BROKER_COLORS_KEY, JSON.stringify(DEFAULT_COLORS));
     } catch (_) {}
+    triggerBackgroundAutoSnapshot();
   };
 
   // Collect all brokers used in products across all months to prevent accidental data loss warnings
@@ -119,8 +212,6 @@ export function ProductTimeline() {
     }
     return list;
   }, [monthlyStore]);
-
-  const dashboardRef = useRef<HTMLDivElement>(null);
 
   const handleOpenAdd = () => {
     setProductToEdit(null);
@@ -138,6 +229,22 @@ export function ProductTimeline() {
     } else {
       addProduct(data);
     }
+    triggerBackgroundAutoSnapshot();
+  };
+
+  const handleDeleteProduct = (id: string) => {
+    deleteProduct(id);
+    triggerBackgroundAutoSnapshot();
+  };
+
+  const handleAsOfChange = (text: string) => {
+    setAsOfText(text);
+    triggerBackgroundAutoSnapshot();
+  };
+
+  const handleResetDefault = () => {
+    resetToDefault();
+    triggerBackgroundAutoSnapshot();
   };
 
   // Clean Image Export (Completely Filters Out All Buttons)
@@ -182,85 +289,8 @@ export function ProductTimeline() {
     }
   };
 
-  const handleSendToLine = async () => {
-    if (!dashboardRef.current) return;
-    setIsSendingLine(true);
-    const originalType = timelineType;
-
-    try {
-      const el = dashboardRef.current;
-      const exportWidth = Math.max(el.scrollWidth, 1200);
-
-      // 1. Ensure we render & capture New Product Timeline
-      if (timelineType !== "product") {
-        setTimelineType("product");
-        await new Promise((resolve) => setTimeout(resolve, 200));
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-
-      const productDataUrl = await toPng(el, {
-        cacheBust: true,
-        pixelRatio: 2,
-        backgroundColor: "#ffffff",
-        width: exportWidth,
-        filter: (node) => {
-          if (node.classList && node.classList.contains("export-hide")) {
-            return false;
-          }
-          return true;
-        },
-      });
-
-      // 2. Switch to render & capture Enhancement Timeline
-      setTimelineType("enhancement");
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      const enhancementDataUrl = await toPng(el, {
-        cacheBust: true,
-        pixelRatio: 2,
-        backgroundColor: "#ffffff",
-        width: exportWidth,
-        filter: (node) => {
-          if (node.classList && node.classList.contains("export-hide")) {
-            return false;
-          }
-          return true;
-        },
-      });
-
-      // 3. Revert back to user's original tab
-      if (originalType !== "enhancement") {
-        setTimelineType(originalType);
-      }
-
-      // 4. Upload both to Supabase Storage (fixed monthly filenames with upsert)
-      const uploadRes = await saveBothTimelineSnapshots(
-        productDataUrl,
-        enhancementDataUrl,
-        selectedMonth,
-        asOfText
-      );
-
-      if (!uploadRes.success) {
-        throw new Error(uploadRes.error || "ไม่สามารถอัปโหลดภาพได้");
-      }
-
-      alert(
-        `✅ อัปเดตรูปไทม์ไลน์ขึ้น Cloud สำเร็จครบทั้ง 2 ตาราง!\n\n` +
-        `• 🎯 New Product Timeline: บันทึกเรียบร้อย\n` +
-        `• ⚡ Enhancement Timeline: บันทึกเรียบร้อย\n` +
-        `• รอบเดือน: ${selectedMonth} (${asOfText})\n\n` +
-        `สมาชิกใน LINE สามารถพิมพ์ "CD รูป" เพื่อดูภาพทั้ง 2 ตารางได้ทันทีครับ`
-      );
-    } catch (err: any) {
-      console.error("Failed to upload/send timeline images to LINE", err);
-      // Ensure we restore view on error too
-      setTimelineType(originalType);
-      alert("เกิดข้อผิดพลาดในการบันทึกรูปภาพ: " + (err?.message || err));
-    } finally {
-      setIsSendingLine(false);
-    }
+  const handleSendToLine = () => {
+    captureAndUploadSnapshots(true);
   };
 
   return (
@@ -279,13 +309,13 @@ export function ProductTimeline() {
           availableMonths={availableMonths}
           onAddNewMonth={addNewMonth}
           asOfText={asOfText}
-          onAsOfChange={setAsOfText}
+          onAsOfChange={handleAsOfChange}
           onAddClick={handleOpenAdd}
           onExportAllClick={handleExportAll}
           onExportExcel={exportExcel}
           onExportJSON={exportJSON}
           onOpenColorModal={() => setIsColorModalOpen(true)}
-          onResetClick={resetToDefault}
+          onResetClick={handleResetDefault}
           onSendLineClick={handleSendToLine}
           isSendingLine={isSendingLine}
           isExporting={isExportingAll}
@@ -351,7 +381,7 @@ export function ProductTimeline() {
                   timelineType={timelineType}
                   isAdmin={isAdmin}
                   onEdit={handleOpenEdit}
-                  onDelete={deleteProduct}
+                  onDelete={handleDeleteProduct}
                   customColorMap={colorMap}
                 />
               ))
@@ -385,7 +415,7 @@ export function ProductTimeline() {
         selectedMonth={selectedMonth}
         productToEdit={productToEdit}
         onSave={handleSaveProduct}
-        onDelete={deleteProduct}
+        onDelete={handleDeleteProduct}
         teamMembers={teamMembers}
         availableBrokers={colorMap}
       />
@@ -401,6 +431,31 @@ export function ProductTimeline() {
         currentColors={colorMap}
         allProductsBrokers={allUsedBrokers}
       />
+
+      {/* Hidden Off-Screen Container for Seamless 2K Auto-Snapshots without Screen Flickering */}
+      <div
+        className="fixed top-0 pointer-events-none select-none overflow-hidden"
+        style={{ left: "-99999px", width: "1280px", zIndex: -9999 }}
+        aria-hidden="true"
+      >
+        <TimelineExportBoard
+          ref={productExportRef}
+          timelineType="product"
+          selectedMonth={selectedMonth}
+          asOfText={asOfText}
+          items={monthlyStore?.[selectedMonth]?.products || []}
+          colorMap={colorMap}
+        />
+        <div style={{ height: "40px" }} />
+        <TimelineExportBoard
+          ref={enhancementExportRef}
+          timelineType="enhancement"
+          selectedMonth={selectedMonth}
+          asOfText={asOfText}
+          items={monthlyStore?.[selectedMonth]?.enhancements || []}
+          colorMap={colorMap}
+        />
+      </div>
     </div>
   );
 }
