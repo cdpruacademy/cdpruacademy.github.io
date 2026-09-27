@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
@@ -6,12 +6,12 @@ import { cn } from "@/lib/utils";
 import { Eye, EyeOff, X } from "lucide-react";
 
 const inputVariants = cva(
-  "flex w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 transition-all shadow-xs",
+  "flex w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ED1C24] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 transition-all shadow-xs",
   {
     variants: {
       variant: {
         default: "border-gray-300",
-        destructive: "border-red-500 focus-visible:ring-red-500",
+        destructive: "border-[#ED1C24] focus-visible:ring-[#ED1C24]",
         ghost: "border-transparent bg-gray-100 focus-visible:bg-white focus-visible:border-gray-300",
       },
       size: {

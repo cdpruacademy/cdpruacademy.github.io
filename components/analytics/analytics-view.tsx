@@ -647,7 +647,7 @@ export function AnalyticsView() {
                 onClick={() => setSelectedMember(isSelected ? null : member)}
                 className={`shrink-0 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   isSelected
-                    ? "text-white shadow-sm ring-2 ring-red-400/40"
+                    ? "text-white shadow-sm ring-2 ring-black/20 ring-offset-1"
                     : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
                 }`}
                 style={isSelected ? { backgroundColor: color } : undefined}
@@ -718,7 +718,7 @@ export function AnalyticsView() {
             <div className="text-2xl sm:text-3xl font-black text-[#ED1C24] tracking-tight">
               {newProductCount}
             </div>
-            <div className="text-[11px] text-red-600/70 font-medium">
+            <div className="text-[11px] text-[#ED1C24]/80 font-medium">
               {totalProjects > 0 ? ((newProductCount / totalProjects) * 100).toFixed(0) : 0}% ของงานทั้งหมด
             </div>
           </div>
@@ -808,7 +808,7 @@ export function AnalyticsView() {
                 onClick={() => setSelectedPeriod(stat.month)}
                 className={`group flex flex-col items-center p-2 rounded-xl border transition-all text-center cursor-pointer ${
                   isSelected
-                    ? "border-[#ED1C24] bg-red-50/50 shadow-xs ring-2 ring-red-400/20"
+                    ? "border-[#ED1C24] bg-red-50/50 shadow-xs ring-2 ring-[#ED1C24]/20"
                     : "border-gray-200 hover:border-gray-300 hover:bg-slate-50"
                 }`}
                 title={`คลิกดูสถิติเดือน ${stat.month} (ทั้งหมด ${stat.totalCount} รายการ)`}
@@ -955,7 +955,7 @@ export function AnalyticsView() {
                         {displayChannelVal}
                       </span>
                       {activeHoveredChannel && totalChannelCount > 0 && (
-                        <span className="text-xs font-bold text-red-600">
+                        <span className="text-xs font-bold text-[#ED1C24]">
                           {displayChannelPct}%
                         </span>
                       )}
@@ -1010,7 +1010,7 @@ export function AnalyticsView() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                <Users className="w-4 h-4 text-red-600" />
+                <Users className="w-4 h-4 text-[#ED1C24]" />
                 <span>
                   {selectedMember
                     ? `สถานะงานของ ${selectedMember} ${isAnnual ? "(ภาพรวมทั้งปี)" : `(${selectedPeriod})`}`
@@ -1080,7 +1080,7 @@ export function AnalyticsView() {
                         </span>
                       )}
                       {selectedMember && totalMemberWorkload > 0 && (
-                        <span className="text-xs font-bold text-red-600">
+                        <span className="text-xs font-bold text-[#ED1C24]">
                           {displayMemberPct}
                         </span>
                       )}
@@ -1137,7 +1137,7 @@ export function AnalyticsView() {
                         {pct}%
                       </span>
                       {isTeamMember && (
-                        <ExternalLink className="w-3 h-3 text-gray-400 group-hover:text-red-500 shrink-0" />
+                        <ExternalLink className="w-3 h-3 text-gray-400 group-hover:text-[#ED1C24] shrink-0" />
                       )}
                     </div>
                   </div>
@@ -1396,7 +1396,7 @@ export function AnalyticsView() {
                       value={modalSearchQuery}
                       onChange={(e) => setModalSearchQuery(e.target.value)}
                       placeholder="ค้นหาชื่อโครงการ, ช่องทาง..."
-                      className="w-full pl-7 pr-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-red-400"
+                      className="w-full pl-7 pr-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-[#ED1C24]"
                     />
                   </div>
                 </div>

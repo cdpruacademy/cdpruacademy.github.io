@@ -200,7 +200,7 @@ export function TimelineHeader({
                   {isCurrent && (
                     <span
                       className={`text-[9px] px-1 py-0.2 rounded font-semibold ${
-                        isSelected ? "bg-white/30 text-white" : "bg-red-100 text-red-600"
+                        isSelected ? "bg-white/30 text-white" : "bg-red-50 text-[#ED1C24]"
                       }`}
                     >
                       ปัจจุบัน
@@ -450,7 +450,7 @@ export function TimelineHeader({
               value={newMonthInput}
               onChange={(e) => setNewMonthInput(e.target.value)}
               placeholder="เช่น JAN 2027"
-              className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+              className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#ED1C24]"
               autoFocus
             />
             <div className="flex items-center justify-end gap-2 pt-2">

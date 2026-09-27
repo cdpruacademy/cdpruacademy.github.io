@@ -365,7 +365,7 @@ export function ProductFormModal({
             {/* Section 1: Basic Information */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-xs font-bold text-gray-700 tracking-wider uppercase">
-                <Layers className="w-3.5 h-3.5 text-red-500" />
+                <Layers className="w-3.5 h-3.5 text-[#ED1C24]" />
                 <span>1. ข้อมูลพื้นฐาน (Basic Information)</span>
               </div>
 
@@ -382,7 +382,7 @@ export function ProductFormModal({
                     onClear={() => setName("")}
                   />
                   {errors.name && (
-                    <p className="text-xs text-red-500 font-medium">{errors.name}</p>
+                    <p className="text-xs text-[#ED1C24] font-medium">{errors.name}</p>
                   )}
                 </div>
 
@@ -437,7 +437,7 @@ export function ProductFormModal({
                           className={cn(
                             "flex items-center gap-2 p-2 rounded-lg border cursor-pointer select-none transition-all text-xs font-medium",
                             isChecked
-                              ? "bg-red-50/80 border-red-200 text-red-700 font-semibold"
+                              ? "bg-red-50/80 border-red-200 text-[#ED1C24] font-semibold"
                               : "bg-white border-gray-200 text-gray-700 hover:bg-gray-100/70"
                           )}
                         >
@@ -451,7 +451,7 @@ export function ProductFormModal({
                                 setSelectedOwners(selectedOwners.filter((id) => id !== t.id));
                               }
                             }}
-                            className="w-4 h-4 text-[#ED1C24] rounded border-gray-300 focus:ring-red-500"
+                            className="w-4 h-4 text-[#ED1C24] rounded border-gray-300 focus:ring-[#ED1C24]"
                           />
                           <span>{t.label}</span>
                         </label>
@@ -471,7 +471,7 @@ export function ProductFormModal({
                   </div>
 
                   {errors.owner && (
-                    <p className="text-xs text-red-500 font-medium">{errors.owner}</p>
+                    <p className="text-xs text-[#ED1C24] font-medium">{errors.owner}</p>
                   )}
                 </div>
               </div>
@@ -571,7 +571,7 @@ export function ProductFormModal({
                                 },
                               }))
                             }
-                            className="w-4 h-4 text-[#ED1C24] rounded border-gray-300 focus:ring-red-500"
+                            className="w-4 h-4 text-[#ED1C24] rounded border-gray-300 focus:ring-[#ED1C24]"
                           />
                           <span className="text-xs font-bold text-gray-800">
                             {phase.label.replace("\n", " ")}
@@ -673,7 +673,7 @@ export function ProductFormModal({
                 <div>
                   {isConfirmingDelete ? (
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-red-600 font-semibold flex items-center gap-1">
+                      <span className="text-xs text-[#ED1C24] font-semibold flex items-center gap-1">
                         <AlertTriangle className="w-3.5 h-3.5" />
                         ยืนยันการลบ?
                       </span>
@@ -700,7 +700,7 @@ export function ProductFormModal({
                       variant="ghost"
                       size="sm"
                       onClick={() => setIsConfirmingDelete(true)}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50 text-xs gap-1.5 h-9"
+                      className="text-[#ED1C24] hover:text-[#D4181F] hover:bg-red-50 text-xs gap-1.5 h-9"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       <span className="hidden sm:inline">ลบรายการนี้</span>

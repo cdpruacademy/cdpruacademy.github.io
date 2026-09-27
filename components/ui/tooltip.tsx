@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import * as React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
@@ -14,7 +14,7 @@ const tooltipVariants = cva(
         default: "bg-gray-900 text-white border-gray-800",
         dark: "bg-gray-900 text-white border-gray-800",
         light: "bg-white text-gray-800 border-gray-200",
-        destructive: "bg-red-600 text-white border-red-700",
+        destructive: "bg-[#ED1C24] text-white border-[#B3141A]",
       },
       size: {
         sm: "px-2 py-1 text-xs",

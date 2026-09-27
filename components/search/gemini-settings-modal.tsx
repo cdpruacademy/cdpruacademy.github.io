@@ -110,7 +110,7 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
               <button
                 type="button"
                 onClick={handleClear}
-                className="text-xs text-red-600 hover:text-red-700 underline"
+                className="text-xs text-[#ED1C24] hover:text-[#D4181F] underline"
               >
                 ลบ Key
               </button>

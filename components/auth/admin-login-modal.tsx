@@ -73,11 +73,11 @@ export function AdminLoginModal({
               }}
               placeholder="รหัสผ่าน Admin..."
               className={`w-full text-sm border rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-[#ED1C24] ${
-                error ? "border-red-500 bg-red-50/30" : "border-gray-300"
+                error ? "border-[#ED1C24] bg-red-50/30" : "border-gray-300"
               }`}
             />
             {error && (
-              <div className="flex items-center gap-1.5 text-xs text-red-600 mt-1.5">
+              <div className="flex items-center gap-1.5 text-xs text-[#ED1C24] mt-1.5">
                 <AlertCircle className="w-3.5 h-3.5" />
                 <span>รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง</span>
               </div>

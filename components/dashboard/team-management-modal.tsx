@@ -97,7 +97,7 @@ export function TeamManagementModal({
         {/* Header */}
         <div className="px-6 py-4 bg-slate-50 border-b border-gray-200 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-red-100 text-[#ED1C24] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-red-50 text-[#ED1C24] flex items-center justify-center">
               <Users className="w-4 h-4" />
             </div>
             <div>
@@ -122,7 +122,7 @@ export function TeamManagementModal({
         <div className="p-6 space-y-4">
           {/* Error notice */}
           {errorMessage && (
-            <div className="flex items-center gap-2 p-2.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl">
+            <div className="flex items-center gap-2 p-2.5 bg-red-50 border border-red-200 text-[#ED1C24] text-xs rounded-xl">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMessage}</span>
             </div>
@@ -138,7 +138,7 @@ export function TeamManagementModal({
                 if (errorMessage) setErrorMessage(null);
               }}
               placeholder="เช่น Somchai K. หรือ สมชาย"
-              className="flex-1 text-xs border border-gray-300 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-[#ED1C24]"
+              className="flex-1 text-xs border border-gray-300 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#ED1C24]/20 focus:border-[#ED1C24]"
             />
             <div className="relative flex items-center" title="เลือกสีประจำตัว">
               <input
@@ -177,7 +177,7 @@ export function TeamManagementModal({
                         type="text"
                         value={tempEditName}
                         onChange={(e) => setTempEditName(e.target.value)}
-                        className="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-red-500"
+                        className="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-[#ED1C24]"
                         autoFocus
                       />
                       <button
@@ -232,7 +232,7 @@ export function TeamManagementModal({
                           type="button"
                           onClick={() => handleDelete(member)}
                           disabled={teamMembers.length <= 1}
-                          className="p-1 text-gray-400 hover:text-red-600 rounded-md hover:bg-white transition-colors disabled:opacity-30 disabled:hover:text-gray-400"
+                          className="p-1 text-gray-400 hover:text-[#ED1C24] rounded-md hover:bg-white transition-colors disabled:opacity-30 disabled:hover:text-gray-400"
                           title="ลบออกจากระบบ"
                         >
                           <Trash2 className="w-3.5 h-3.5" />

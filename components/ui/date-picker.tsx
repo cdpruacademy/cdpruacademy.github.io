@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import * as React from "react";
 import { useState, useRef, useEffect } from "react";
@@ -120,7 +120,7 @@ export function DatePicker({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "w-full flex items-center justify-between gap-2 px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white hover:bg-gray-50/80 transition-all shadow-2xs focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 text-left",
+          "w-full flex items-center justify-between gap-2 px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white hover:bg-gray-50/80 transition-all shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#ED1C24]/20 focus:border-[#ED1C24] text-left",
           value ? "text-gray-900 font-medium" : "text-gray-400"
         )}
       >
@@ -193,7 +193,7 @@ export function DatePicker({
                     "h-7 w-7 rounded-lg flex items-center justify-center font-medium transition-all text-xs",
                     selected
                       ? "bg-[#ED1C24] text-white font-bold shadow-xs"
-                      : "text-gray-700 hover:bg-red-50 hover:text-red-600"
+                      : "text-gray-700 hover:bg-red-50 hover:text-[#ED1C24]"
                   )}
                 >
                   {day}
@@ -217,7 +217,7 @@ export function DatePicker({
                   const now = new Date();
                   handleSelectDay(now.getDate());
                 }}
-                className="text-red-600 hover:underline font-medium"
+                className="text-[#ED1C24] hover:text-[#D4181F] hover:underline font-medium"
               >
                 วันนี้
               </button>

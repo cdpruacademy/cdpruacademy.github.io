@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
@@ -47,7 +47,7 @@ const Label = React.forwardRef<HTMLLabelElement, LabelProps>(
         {children}
         {required && (
           <span
-            className="text-destructive ml-1 text-red-500 font-bold"
+            className="text-destructive ml-1 text-[#ED1C24] font-bold"
             aria-label="required"
           >
             *

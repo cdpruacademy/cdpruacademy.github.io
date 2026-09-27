@@ -98,7 +98,7 @@ export function AppNav() {
                     type="button"
                     onClick={logout}
                     title="ออกจากโหมด Admin"
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-1.5 text-gray-400 hover:text-[#ED1C24] hover:bg-red-50 rounded-lg transition-colors"
                   >
                     <LogOut className="w-4 h-4" />
                   </button>

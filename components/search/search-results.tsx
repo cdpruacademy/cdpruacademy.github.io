@@ -437,7 +437,7 @@ export function KnowledgeSearch() {
             <form onSubmit={handleSaveQuestion} className="space-y-4 mt-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  คำถาม <span className="text-red-500">*</span>
+                  คำถาม <span className="text-[#ED1C24]">*</span>
                 </label>
                 <input
                   type="text"
@@ -451,7 +451,7 @@ export function KnowledgeSearch() {
 
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  คำตอบ / คำอธิบาย <span className="text-red-500">*</span>
+                  คำตอบ / คำอธิบาย <span className="text-[#ED1C24]">*</span>
                 </label>
                 <textarea
                   required

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
@@ -8,7 +8,7 @@ import { type LucideIcon, ChevronDown, Check } from "lucide-react";
 import { motion } from "motion/react";
 
 const selectTriggerVariants = cva(
-  "flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 shadow-xs",
+  "flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#ED1C24] focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 shadow-xs",
   {
     variants: {
       variant: {
@@ -187,7 +187,7 @@ const SelectItem = React.forwardRef<
       {Icon && <Icon size={16} className="shrink-0" />}
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
     </div>
-    <span className="absolute right-2.5 flex h-3.5 w-3.5 items-center justify-center text-red-600">
+    <span className="absolute right-2.5 flex h-3.5 w-3.5 items-center justify-center text-[#ED1C24]">
       <SelectPrimitive.ItemIndicator>
         <Check size={16} />
       </SelectPrimitive.ItemIndicator>

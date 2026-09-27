@@ -135,7 +135,7 @@ export function TimelineRow({
           <button
             type="button"
             onClick={() => onDelete(product.id)}
-            className="p-1 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+            className="p-1 text-gray-600 hover:text-[#ED1C24] hover:bg-red-50 rounded transition-colors"
             title="ลบแถวนี้ (Admin)"
           >
             <Trash2 className="w-3.5 h-3.5" />
