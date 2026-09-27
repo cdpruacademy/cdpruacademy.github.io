@@ -9,7 +9,7 @@ import { DonutChart, DonutChartSegment } from "@/components/ui/donut-chart";
 import { TeamManagementModal } from "@/components/dashboard/team-management-modal";
 import { AdminLoginModal } from "@/components/auth/admin-login-modal";
 import { motion, AnimatePresence } from "motion/react";
-import { ProductItem } from "@/lib/timeline-data";
+import { ProductItem, PhaseKey } from "@/lib/timeline-data";
 import {
   BarChart3,
   Users,
@@ -26,9 +26,12 @@ import {
   ChevronRight,
   ShieldCheck,
   CheckCircle2,
+  AlertCircle,
   Tag,
   ArrowLeft,
   RotateCcw,
+  Target,
+  UserCheck,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -61,8 +64,10 @@ export function AnalyticsView() {
 
   const {
     teamMembers,
+    memberColors,
     addMember,
     updateMember,
+    updateMemberColor,
     deleteMember,
     resetToDefault: resetTeamMembers,
   } = useTeamMembers();
@@ -85,6 +90,10 @@ export function AnalyticsView() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<"all" | "product" | "enhancement">("all");
+
+  // Bottom Tracker Section States (Option A)
+  const [activeBottomTab, setActiveBottomTab] = useState<"status" | "workload">("status");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "completed">("all");
   const [selectedMemberFilter, setSelectedMemberFilter] = useState<string | null>(null);
 
   // Hover states for Donut charts
@@ -175,6 +184,61 @@ export function AnalyticsView() {
     return [...products, ...enhancements];
   }, [products, enhancements, selectedTypeFilter]);
 
+  // Compute status detail for each item (Completed vs Pending & current waiting phase)
+  const itemsWithStatus = useMemo(() => {
+    return activeItems.map((item) => {
+      const launchM = item.milestones?.launch;
+      const isCompleted = launchM?.status === "completed";
+
+      let currentPhaseLabel = isCompleted ? "เปิดตัวแล้ว (Launched)" : "รอดำเนินการ";
+      if (!isCompleted) {
+        const phases: { key: PhaseKey; label: string }[] = [
+          { key: "kick-off", label: "Kick-off" },
+          { key: "first-draft", label: "First Draft" },
+          { key: "first-draft-elearning", label: "First Draft e-Learning" },
+          { key: "final-approval", label: "Final Approval" },
+          { key: "final-elearning", label: "Final e-Learning" },
+          { key: "internal-training", label: "Internal Training" },
+          { key: "launch", label: "Launch" },
+        ];
+        for (const p of phases) {
+          const m = item.milestones?.[p.key];
+          if (m && m.status !== "completed") {
+            currentPhaseLabel = `รอ ${p.label}`;
+            break;
+          }
+        }
+      }
+
+      return {
+        ...item,
+        isCompleted,
+        currentPhaseLabel,
+      };
+    });
+  }, [activeItems]);
+
+  const pendingItems = useMemo(() => itemsWithStatus.filter((i) => !i.isCompleted), [itemsWithStatus]);
+  const completedItems = useMemo(() => itemsWithStatus.filter((i) => i.isCompleted), [itemsWithStatus]);
+
+  // Items filtered for Tab 1 (Status View)
+  const displayedStatusItems = useMemo(() => {
+    if (statusFilter === "pending") return pendingItems;
+    if (statusFilter === "completed") return completedItems;
+    return itemsWithStatus;
+  }, [itemsWithStatus, statusFilter, pendingItems, completedItems]);
+
+  // Items filtered for Tab 2 (Workload View)
+  const displayedMemberItems = useMemo(() => {
+    if (!selectedMemberFilter) return itemsWithStatus;
+    const query = selectedMemberFilter.toLowerCase();
+    const shortName = query.split(" ")[0];
+    return itemsWithStatus.filter((item) => {
+      const resp = (item.owner || "").toLowerCase();
+      return resp.includes(query) || resp.includes(shortName);
+    });
+  }, [itemsWithStatus, selectedMemberFilter]);
+
   // Total KPIs
   const totalProjects = products.length + enhancements.length;
   const newProductCount = products.length;
@@ -227,42 +291,37 @@ export function AnalyticsView() {
       ? ((activeHoveredChannel.value / totalChannelCount) * 100).toFixed(0)
       : "100";
 
-  // 2. Team Member Workload Breakdown
-  const memberCounts = useMemo(() => {
-    const map: Record<string, number> = {};
+  // 2. Team Member Workload Breakdown (Uses memberColors from hook!)
+  const memberStats = useMemo(() => {
+    const stats: Record<string, { total: number; completed: number; pending: number }> = {};
     teamMembers.forEach((m) => {
-      map[m] = 0;
+      stats[m] = { total: 0, completed: 0, pending: 0 };
     });
-    activeItems.forEach((item) => {
+
+    itemsWithStatus.forEach((item) => {
       const resp = (item.owner || "").toLowerCase();
       teamMembers.forEach((member) => {
         const shortName = member.split(" ")[0].toLowerCase();
         if (resp.includes(shortName) || resp.includes(member.toLowerCase())) {
-          map[member] = (map[member] || 0) + 1;
+          stats[member].total += 1;
+          if (item.isCompleted) {
+            stats[member].completed += 1;
+          } else {
+            stats[member].pending += 1;
+          }
         }
       });
     });
-    return map;
-  }, [activeItems, teamMembers]);
-
-  const memberColors = [
-    "#ED1C24",
-    "#0066CC",
-    "#009FE3",
-    "#0B2265",
-    "#8B5CF6",
-    "#10B981",
-    "#F59E0B",
-    "#EC4899",
-  ];
+    return stats;
+  }, [itemsWithStatus, teamMembers]);
 
   const memberSegments: DonutChartSegment[] = useMemo(() => {
-    return teamMembers.map((member, idx) => ({
+    return teamMembers.map((member) => ({
       label: member,
-      value: memberCounts[member] || 0,
-      color: memberColors[idx % memberColors.length],
+      value: memberStats[member]?.total || 0,
+      color: memberColors[member] || "#ED1C24",
     }));
-  }, [teamMembers, memberCounts]);
+  }, [teamMembers, memberStats, memberColors]);
 
   const totalMemberWorkload = memberSegments.reduce((s, m) => s + m.value, 0);
   const activeHoveredMember = memberSegments.find((s) => s.label === hoveredMember);
@@ -272,17 +331,6 @@ export function AnalyticsView() {
     totalMemberWorkload > 0 && activeHoveredMember
       ? ((activeHoveredMember.value / totalMemberWorkload) * 100).toFixed(0)
       : "100";
-
-  // Filtered Task list by selected person
-  const detailedTasks = useMemo(() => {
-    if (!selectedMemberFilter) return activeItems;
-    const query = selectedMemberFilter.toLowerCase();
-    const shortName = query.split(" ")[0];
-    return activeItems.filter((item) => {
-      const resp = (item.owner || "").toLowerCase();
-      return resp.includes(query) || resp.includes(shortName);
-    });
-  }, [activeItems, selectedMemberFilter]);
 
   // If Not Admin, render Security Lock Gate
   if (!isAdmin) {
@@ -809,128 +857,324 @@ export function AnalyticsView() {
         </div>
       </div>
 
-      {/* 6. Detailed Task List Filtered by Responsible Person */}
-      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+      {/* 6. Option A: Dedicated Project Status & Workload Tracker Section */}
+      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-xs space-y-5">
+        {/* Section Header & View Tabs */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-100">
           <div>
             <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-              <Filter className="w-4 h-4 text-[#ED1C24]" />
-              <span>
-                รายการงานจำแนกตามผู้รับผิดชอบ {isAnnual ? "(ภาพรวมทั้งปี)" : `(${selectedPeriod})`}
-              </span>
+              <Target className="w-4 h-4 text-[#ED1C24]" />
+              <span>ติดตามสถานะโครงการ & ภาระงาน (Project Delivery & Workload Tracker)</span>
             </h3>
             <p className="text-xs text-gray-500">
-              คลิกเลือกชื่อคนในทีมเพื่อดูรายการงานทั้งหมดที่รับผิดชอบ
+              {isAnnual
+                ? "ตรวจสอบสถานะงานที่ค้างและภาระงานสะสมตลอดทั้งปี"
+                : `ตรวจสอบสถานะโครงการที่ยังไม่เสร็จ และงานที่เสร็จสมบูรณ์ในรอบเดือน ${selectedPeriod}`}
             </p>
           </div>
 
-          {/* Quick Filter Pills */}
-          <div className="flex flex-wrap gap-1.5">
+          {/* View Mode Switcher: Tab 1 (Status) vs Tab 2 (Workload by Owner) */}
+          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl shrink-0">
             <button
               type="button"
-              onClick={() => setSelectedMemberFilter(null)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                selectedMemberFilter === null
-                  ? "bg-[#ED1C24] text-white shadow-xs"
-                  : "bg-slate-50 text-gray-700 border border-gray-200 hover:bg-slate-100"
+              onClick={() => setActiveBottomTab("status")}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeBottomTab === "status"
+                  ? "bg-white text-gray-900 shadow-2xs"
+                  : "text-gray-500 hover:text-gray-800"
               }`}
             >
-              ทั้งหมด ({activeItems.length})
+              <Clock className="w-3.5 h-3.5 text-amber-600" />
+              <span>ติดตามสถานะงาน ({itemsWithStatus.length})</span>
             </button>
-
-            {teamMembers.map((member) => {
-              const count = memberCounts[member] || 0;
-              const isSelected = selectedMemberFilter === member;
-              return (
-                <button
-                  key={member}
-                  type="button"
-                  onClick={() =>
-                    setSelectedMemberFilter(isSelected ? null : member)
-                  }
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                    isSelected
-                      ? "bg-[#ED1C24] text-white shadow-xs ring-2 ring-red-400/30"
-                      : "bg-slate-50 text-gray-700 border border-gray-200 hover:bg-slate-100"
-                  }`}
-                >
-                  <span>{member}</span>
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                      isSelected
-                        ? "bg-white/30 text-white font-black"
-                        : "bg-gray-200 text-gray-700"
-                    }`}
-                  >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
+            <button
+              type="button"
+              onClick={() => setActiveBottomTab("workload")}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeBottomTab === "workload"
+                  ? "bg-white text-gray-900 shadow-2xs"
+                  : "text-gray-500 hover:text-gray-800"
+              }`}
+            >
+              <Users className="w-3.5 h-3.5 text-blue-600" />
+              <span>ภาระงานรายบุคคล ({teamMembers.length})</span>
+            </button>
           </div>
         </div>
 
-        {/* Task Cards Grid */}
-        {detailedTasks.length === 0 ? (
-          <div className="text-center py-12 text-gray-400 text-xs">
-            ไม่พบงานที่มอบหมายให้ผู้รับผิดชอบท่านนี้ {isAnnual ? "ตลอดทั้งปี" : `ในรอบเดือน ${selectedPeriod}`}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {detailedTasks.map((item) => {
-              const brokerColor = colorMap[item.broker] || "#334155";
-              const hasElearning = Object.values(item.milestones || {}).some(
-                (m) =>
-                  m?.isElearningIcon ||
-                  m?.phase === "first-draft-elearning" ||
-                  m?.phase === "final-elearning"
-              );
-              return (
-                <div
-                  key={item.id}
-                  style={{ borderLeftColor: brokerColor }}
-                  className="bg-slate-50/80 hover:bg-slate-100/80 p-3.5 rounded-xl border border-slate-200/80 border-l-4 shadow-2xs transition-all space-y-2.5"
-                >
-                  <div className="flex items-center justify-between gap-1 text-[11px]">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span
-                        style={{ color: brokerColor }}
-                        className="font-bold tracking-tight shrink-0"
-                      >
-                        [{item.broker}]
-                      </span>
-                      {/* Active Month Badge in Annual View */}
-                      {isAnnual && item.activeMonths && item.activeMonths.length > 0 && (
-                        <span className="text-[10px] font-semibold text-slate-500 bg-white px-1.5 py-0.2 rounded border border-slate-200 truncate">
-                          {item.activeMonths.join(", ")}
+        {/* TAB 1: STATUS TRACKER (Directly answers Question 3: Which items are pending!) */}
+        {activeBottomTab === "status" && (
+          <div className="space-y-4">
+            {/* Status Filter Buttons */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setStatusFilter("all")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  statusFilter === "all"
+                    ? "bg-slate-800 text-white shadow-xs"
+                    : "bg-slate-50 text-gray-600 border border-gray-200 hover:bg-slate-100"
+                }`}
+              >
+                ทั้งหมด ({itemsWithStatus.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStatusFilter("pending")}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  statusFilter === "pending"
+                    ? "bg-amber-600 text-white shadow-xs ring-2 ring-amber-400/30"
+                    : "bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100"
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>ยังไม่เสร็จ / กำลังดำเนินการ ({pendingItems.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStatusFilter("completed")}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  statusFilter === "completed"
+                    ? "bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-400/30"
+                    : "bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100"
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>เสร็จสมบูรณ์แล้ว ({completedItems.length})</span>
+              </button>
+            </div>
+
+            {/* Task Cards Grid */}
+            {displayedStatusItems.length === 0 ? (
+              <div className="text-center py-12 text-gray-400 text-xs bg-slate-50 rounded-2xl border border-dashed border-gray-200">
+                {statusFilter === "pending"
+                  ? "🎉 ยอดเยี่ยม! ไม่มีโครงการที่ค้างอยู่ ทุกรายการเปิดตัวเสร็จสมบูรณ์แล้ว"
+                  : statusFilter === "completed"
+                  ? "ยังไม่มีโครงการที่เปิดตัวเสร็จสมบูรณ์ในช่วงเวลานี้"
+                  : "ไม่พบโครงการในช่วงเวลาที่เลือก"}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {displayedStatusItems.map((item) => {
+                  const brokerColor = colorMap[item.broker] || "#334155";
+                  const hasElearning = Object.values(item.milestones || {}).some(
+                    (m) =>
+                      m?.isElearningIcon ||
+                      m?.phase === "first-draft-elearning" ||
+                      m?.phase === "final-elearning"
+                  );
+                  return (
+                    <div
+                      key={item.id}
+                      style={{ borderLeftColor: brokerColor }}
+                      className="bg-slate-50/80 hover:bg-slate-100/80 p-3.5 rounded-xl border border-slate-200/80 border-l-4 shadow-2xs transition-all space-y-2.5"
+                    >
+                      {/* Top Header: Channel + Active Month + Status Pill */}
+                      <div className="flex items-center justify-between gap-1 text-[11px]">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span
+                            style={{ color: brokerColor }}
+                            className="font-bold tracking-tight shrink-0"
+                          >
+                            [{item.broker}]
+                          </span>
+                          {isAnnual && item.activeMonths && item.activeMonths.length > 0 && (
+                            <span className="text-[10px] font-semibold text-slate-500 bg-white px-1.5 py-0.2 rounded border border-slate-200 truncate">
+                              {item.activeMonths.join(", ")}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Status Badge */}
+                        {item.isCompleted ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                            <CheckCircle2 className="w-3 h-3" /> เสร็จสมบูรณ์
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 shrink-0">
+                            <Clock className="w-3 h-3 animate-pulse text-amber-600" /> {item.currentPhaseLabel}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Project Name */}
+                      <div className="text-xs font-bold text-gray-900 line-clamp-2">
+                        {item.name}
+                      </div>
+
+                      {/* Owner and Launch Info */}
+                      <div className="flex items-center justify-between text-[11px] pt-0.5">
+                        <span className="font-semibold text-gray-600 bg-white px-2 py-0.5 rounded-md border border-gray-200 truncate max-w-[180px]">
+                          👤 {item.owner}
                         </span>
-                      )}
+                        {hasElearning && (
+                          <span className="px-2 py-0.5 bg-purple-50 text-purple-700 font-bold rounded-md border border-purple-200 flex items-center gap-1 text-[10px]">
+                            <GraduationCap className="w-3 h-3" /> eLearning
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Dates Row */}
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[10px] border-t border-slate-200/60">
+                        <span className="px-2 py-0.5 bg-white text-gray-600 rounded-md border border-gray-200">
+                          Internal: {item.internalDate || "TBC"}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-md border font-bold ${
+                          item.isCompleted
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-red-50 text-[#ED1C24] border-red-200"
+                        }`}>
+                          Target: {item.commercialDate || item.customRightLabel || "TBC"}
+                        </span>
+                      </div>
                     </div>
-                    <span className="font-semibold text-gray-500 bg-white px-2 py-0.5 rounded-md border border-gray-200 shrink-0">
-                      {item.owner}
-                    </span>
-                  </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
-                  <div className="text-xs font-bold text-gray-900 line-clamp-2">
-                    {item.name}
-                  </div>
+        {/* TAB 2: WORKLOAD BY OWNER (Directly organizes tasks by responsible person) */}
+        {activeBottomTab === "workload" && (
+          <div className="space-y-4">
+            {/* Quick Member Filter Pills */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedMemberFilter(null)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  selectedMemberFilter === null
+                    ? "bg-[#ED1C24] text-white shadow-xs"
+                    : "bg-slate-50 text-gray-700 border border-gray-200 hover:bg-slate-100"
+                }`}
+              >
+                สมาชิกทุกคน ({activeItems.length})
+              </button>
 
-                  <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[10px]">
-                    <span className="px-2 py-0.5 bg-white text-gray-600 rounded-md border border-gray-200">
-                      Internal: {item.internalDate || "TBC"}
+              {teamMembers.map((member) => {
+                const stat = memberStats[member] || { total: 0, completed: 0, pending: 0 };
+                const isSelected = selectedMemberFilter === member;
+                const memberColor = memberColors[member] || "#ED1C24";
+
+                return (
+                  <button
+                    key={member}
+                    type="button"
+                    onClick={() => setSelectedMemberFilter(isSelected ? null : member)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                      isSelected
+                        ? "bg-[#ED1C24] text-white shadow-xs ring-2 ring-red-400/30"
+                        : "bg-slate-50 text-gray-700 border border-gray-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10"
+                      style={{ backgroundColor: memberColor }}
+                    />
+                    <span>{member}</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                        isSelected
+                          ? "bg-white/30 text-white"
+                          : "bg-gray-200 text-gray-700"
+                      }`}
+                    >
+                      {stat.total}
                     </span>
-                    <span className="px-2 py-0.5 bg-red-50 text-[#ED1C24] font-bold rounded-md border border-red-200">
-                      Launch: {item.commercialDate || item.customRightLabel || "TBC"}
-                    </span>
-                    {hasElearning && (
-                      <span className="px-2 py-0.5 bg-purple-50 text-purple-700 font-bold rounded-md border border-purple-200 flex items-center gap-1">
-                        <GraduationCap className="w-3 h-3" /> eLearning
+                    {stat.pending > 0 && (
+                      <span className={`text-[9px] px-1 py-0.2 rounded font-semibold ${
+                        isSelected ? "bg-amber-300 text-amber-900" : "bg-amber-100 text-amber-800"
+                      }`}>
+                        ค้าง {stat.pending}
                       </span>
                     )}
-                  </div>
-                </div>
-              );
-            })}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Member Tasks Grid */}
+            {displayedMemberItems.length === 0 ? (
+              <div className="text-center py-12 text-gray-400 text-xs bg-slate-50 rounded-2xl border border-dashed border-gray-200">
+                ไม่พบงานที่มอบหมายให้ผู้รับผิดชอบท่านนี้ {isAnnual ? "ตลอดทั้งปี" : `ในรอบเดือน ${selectedPeriod}`}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {displayedMemberItems.map((item) => {
+                  const brokerColor = colorMap[item.broker] || "#334155";
+                  const hasElearning = Object.values(item.milestones || {}).some(
+                    (m) =>
+                      m?.isElearningIcon ||
+                      m?.phase === "first-draft-elearning" ||
+                      m?.phase === "final-elearning"
+                  );
+                  return (
+                    <div
+                      key={item.id}
+                      style={{ borderLeftColor: brokerColor }}
+                      className="bg-slate-50/80 hover:bg-slate-100/80 p-3.5 rounded-xl border border-slate-200/80 border-l-4 shadow-2xs transition-all space-y-2.5"
+                    >
+                      <div className="flex items-center justify-between gap-1 text-[11px]">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span
+                            style={{ color: brokerColor }}
+                            className="font-bold tracking-tight shrink-0"
+                          >
+                            [{item.broker}]
+                          </span>
+                          {isAnnual && item.activeMonths && item.activeMonths.length > 0 && (
+                            <span className="text-[10px] font-semibold text-slate-500 bg-white px-1.5 py-0.2 rounded border border-slate-200 truncate">
+                              {item.activeMonths.join(", ")}
+                            </span>
+                          )}
+                        </div>
+
+                        {item.isCompleted ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                            <CheckCircle2 className="w-3 h-3" /> เสร็จแล้ว
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 shrink-0">
+                            <Clock className="w-3 h-3 text-amber-600" /> {item.currentPhaseLabel}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="text-xs font-bold text-gray-900 line-clamp-2">
+                        {item.name}
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] pt-0.5">
+                        <span className="font-semibold text-gray-600 bg-white px-2 py-0.5 rounded-md border border-gray-200 truncate max-w-[180px]">
+                          👤 {item.owner}
+                        </span>
+                        {hasElearning && (
+                          <span className="px-2 py-0.5 bg-purple-50 text-purple-700 font-bold rounded-md border border-purple-200 flex items-center gap-1 text-[10px]">
+                            <GraduationCap className="w-3 h-3" /> eLearning
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[10px] border-t border-slate-200/60">
+                        <span className="px-2 py-0.5 bg-white text-gray-600 rounded-md border border-gray-200">
+                          Internal: {item.internalDate || "TBC"}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-md border font-bold ${
+                          item.isCompleted
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-red-50 text-[#ED1C24] border-red-200"
+                        }`}>
+                          Target: {item.commercialDate || item.customRightLabel || "TBC"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -940,8 +1184,10 @@ export function AnalyticsView() {
         isOpen={isTeamModalOpen}
         onClose={() => setIsTeamModalOpen(false)}
         teamMembers={teamMembers}
+        memberColors={memberColors}
         onAddMember={addMember}
         onUpdateMember={updateMember}
+        onUpdateMemberColor={updateMemberColor}
         onDeleteMember={deleteMember}
         onResetToDefault={resetTeamMembers}
       />
