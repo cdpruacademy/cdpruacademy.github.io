@@ -15,23 +15,22 @@ import {
   Users,
   Layers,
   GraduationCap,
-  Sparkles,
-  Filter,
   Package,
   Boxes,
   Lock,
   Calendar,
   Clock,
-  ExternalLink,
-  ChevronRight,
   ShieldCheck,
   CheckCircle2,
   AlertCircle,
   Tag,
-  ArrowLeft,
   RotateCcw,
   Target,
+  Search,
+  Check,
   UserCheck,
+  ChevronRight,
+  Filter,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -50,16 +49,20 @@ interface AggregatedItem extends ProductItem {
   activeMonths?: string[];
 }
 
+// Helper to match project owner with team member name
+const isOwnerMatch = (itemOwner: string | undefined, memberName: string) => {
+  if (!itemOwner) return false;
+  const lowerOwner = itemOwner.toLowerCase();
+  const lowerMember = memberName.toLowerCase();
+  const shortName = lowerMember.split(" ")[0]; // e.g. "nitikan" from "Nitikan B."
+  return lowerOwner.includes(lowerMember) || lowerOwner.includes(shortName);
+};
+
 export function AnalyticsView() {
   const { isAdmin, login } = useAdminAuth();
   const {
     monthlyStore,
-    selectedMonth,
-    setSelectedMonth,
     availableMonths,
-    timelineType,
-    setTimelineType,
-    isLoaded,
   } = useProducts();
 
   const {
@@ -87,37 +90,30 @@ export function AnalyticsView() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>("ALL_YEAR");
   const isAnnual = selectedPeriod === "ALL_YEAR";
 
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
+  // Global Member Selector (แบบที่ 1): null means All Team
+  const [selectedMember, setSelectedMember] = useState<string | null>(null);
+
+  // Type filter: All vs New Product vs Enhancement
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<"all" | "product" | "enhancement">("all");
 
-  // Bottom Tracker Section States (Option A)
-  const [activeBottomTab, setActiveBottomTab] = useState<"status" | "workload">("status");
-  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "completed">("all");
-  const [selectedMemberFilter, setSelectedMemberFilter] = useState<string | null>(null);
+  // Delivery Status Filter: "pending" (default so unfinished items show first) vs "completed" vs "all"
+  const [statusFilter, setStatusFilter] = useState<"pending" | "completed" | "all">("pending");
+
+  // Search input for projects list
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
 
   // Hover states for Donut charts
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
   const [hoveredMember, setHoveredMember] = useState<string | null>(null);
 
-  // Aggregate Data based on selectedPeriod (Annual vs Single Month)
-  const { products, enhancements, monthlyStats } = useMemo(() => {
+  // 1. Raw Aggregate Data based on selectedPeriod (Annual vs Single Month)
+  const { rawProducts, rawEnhancements } = useMemo(() => {
     if (!monthlyStore) {
-      return { products: [], enhancements: [], monthlyStats: [] };
+      return { rawProducts: [], rawEnhancements: [] };
     }
-
-    // Monthly stats for the Trend Bar
-    const stats = availableMonths.map((m) => {
-      const mData = monthlyStore[m] || { products: [], enhancements: [] };
-      const pCount = (mData.products || []).length;
-      const eCount = (mData.enhancements || []).length;
-      return {
-        month: m,
-        productsCount: pCount,
-        enhancementsCount: eCount,
-        totalCount: pCount + eCount,
-      };
-    });
 
     // Single Month Scope
     if (!isAnnual) {
@@ -131,9 +127,8 @@ export function AnalyticsView() {
         activeMonths: [selectedPeriod],
       }));
       return {
-        products: pList,
-        enhancements: eList,
-        monthlyStats: stats,
+        rawProducts: pList,
+        rawEnhancements: eList,
       };
     }
 
@@ -171,20 +166,50 @@ export function AnalyticsView() {
     });
 
     return {
-      products: Array.from(productMap.values()),
-      enhancements: Array.from(enhancementMap.values()),
-      monthlyStats: stats,
+      rawProducts: Array.from(productMap.values()),
+      rawEnhancements: Array.from(enhancementMap.values()),
     };
   }, [monthlyStore, availableMonths, isAnnual, selectedPeriod]);
 
-  // Filtered by type (Product vs Enhancement vs All)
+  // 2. Global Filter by selectedMember (แบบที่ 1)
+  const products = useMemo(() => {
+    if (!selectedMember) return rawProducts;
+    return rawProducts.filter((p) => isOwnerMatch(p.owner, selectedMember));
+  }, [rawProducts, selectedMember]);
+
+  const enhancements = useMemo(() => {
+    if (!selectedMember) return rawEnhancements;
+    return rawEnhancements.filter((e) => isOwnerMatch(e.owner, selectedMember));
+  }, [rawEnhancements, selectedMember]);
+
+  // Monthly stats for the Trend Bar (also reflects selectedMember)
+  const monthlyStats = useMemo(() => {
+    if (!monthlyStore) return [];
+    return availableMonths.map((m) => {
+      const mData = monthlyStore[m] || { products: [], enhancements: [] };
+      const pList = selectedMember
+        ? (mData.products || []).filter((p) => isOwnerMatch(p.owner, selectedMember))
+        : mData.products || [];
+      const eList = selectedMember
+        ? (mData.enhancements || []).filter((e) => isOwnerMatch(e.owner, selectedMember))
+        : mData.enhancements || [];
+      return {
+        month: m,
+        productsCount: pList.length,
+        enhancementsCount: eList.length,
+        totalCount: pList.length + eList.length,
+      };
+    });
+  }, [monthlyStore, availableMonths, selectedMember]);
+
+  // 3. Filtered by type (Product vs Enhancement vs All)
   const activeItems = useMemo(() => {
     if (selectedTypeFilter === "product") return products;
     if (selectedTypeFilter === "enhancement") return enhancements;
     return [...products, ...enhancements];
   }, [products, enhancements, selectedTypeFilter]);
 
-  // Compute status detail for each item (Completed vs Pending & current waiting phase)
+  // 4. Compute status detail for each item (Completed vs Pending & current waiting phase)
   const itemsWithStatus = useMemo(() => {
     return activeItems.map((item) => {
       const launchM = item.milestones?.launch;
@@ -221,23 +246,22 @@ export function AnalyticsView() {
   const pendingItems = useMemo(() => itemsWithStatus.filter((i) => !i.isCompleted), [itemsWithStatus]);
   const completedItems = useMemo(() => itemsWithStatus.filter((i) => i.isCompleted), [itemsWithStatus]);
 
-  // Items filtered for Tab 1 (Status View)
+  // 5. Filtered items for display in the Delivery Status section
   const displayedStatusItems = useMemo(() => {
-    if (statusFilter === "pending") return pendingItems;
-    if (statusFilter === "completed") return completedItems;
-    return itemsWithStatus;
-  }, [itemsWithStatus, statusFilter, pendingItems, completedItems]);
+    let list = itemsWithStatus;
+    if (statusFilter === "pending") list = pendingItems;
+    else if (statusFilter === "completed") list = completedItems;
 
-  // Items filtered for Tab 2 (Workload View)
-  const displayedMemberItems = useMemo(() => {
-    if (!selectedMemberFilter) return itemsWithStatus;
-    const query = selectedMemberFilter.toLowerCase();
-    const shortName = query.split(" ")[0];
-    return itemsWithStatus.filter((item) => {
-      const resp = (item.owner || "").toLowerCase();
-      return resp.includes(query) || resp.includes(shortName);
-    });
-  }, [itemsWithStatus, selectedMemberFilter]);
+    if (!searchQuery.trim()) return list;
+
+    const q = searchQuery.toLowerCase();
+    return list.filter(
+      (item) =>
+        item.name.toLowerCase().includes(q) ||
+        (item.broker || "").toLowerCase().includes(q) ||
+        (item.owner || "").toLowerCase().includes(q)
+    );
+  }, [itemsWithStatus, statusFilter, pendingItems, completedItems, searchQuery]);
 
   // Total KPIs
   const totalProjects = products.length + enhancements.length;
@@ -252,7 +276,7 @@ export function AnalyticsView() {
     )
   ).length;
 
-  // 1. Channel Breakdown Segments (Dynamic with customized colorMap)
+  // 6. Channel Breakdown Segments (Dynamic with customized colorMap)
   const channelCounts = useMemo(() => {
     const map: Record<string, number> = {};
     activeItems.forEach((item) => {
@@ -291,18 +315,25 @@ export function AnalyticsView() {
       ? ((activeHoveredChannel.value / totalChannelCount) * 100).toFixed(0)
       : "100";
 
-  // 2. Team Member Workload Breakdown (Uses memberColors from hook!)
+  // 7. Team Member Workload Breakdown
+  // Unfiltered items (all team) to calculate team-wide stats and member button numbers
+  const allTeamItemsWithStatus = useMemo(() => {
+    const all = [...rawProducts, ...rawEnhancements];
+    return all.map((item) => {
+      const isCompleted = item.milestones?.launch?.status === "completed";
+      return { ...item, isCompleted };
+    });
+  }, [rawProducts, rawEnhancements]);
+
   const memberStats = useMemo(() => {
     const stats: Record<string, { total: number; completed: number; pending: number }> = {};
     teamMembers.forEach((m) => {
       stats[m] = { total: 0, completed: 0, pending: 0 };
     });
 
-    itemsWithStatus.forEach((item) => {
-      const resp = (item.owner || "").toLowerCase();
+    allTeamItemsWithStatus.forEach((item) => {
       teamMembers.forEach((member) => {
-        const shortName = member.split(" ")[0].toLowerCase();
-        if (resp.includes(shortName) || resp.includes(member.toLowerCase())) {
+        if (isOwnerMatch(item.owner, member)) {
           stats[member].total += 1;
           if (item.isCompleted) {
             stats[member].completed += 1;
@@ -313,24 +344,43 @@ export function AnalyticsView() {
       });
     });
     return stats;
-  }, [itemsWithStatus, teamMembers]);
+  }, [allTeamItemsWithStatus, teamMembers]);
 
+  // Chart B segments:
+  // If selectedMember is null: Show all team workload
+  // If selectedMember is chosen: Show that member's completion status (เสร็จ vs ค้าง)
   const memberSegments: DonutChartSegment[] = useMemo(() => {
+    if (selectedMember) {
+      const mStat = memberStats[selectedMember] || { total: 0, completed: 0, pending: 0 };
+      return [
+        { label: "เสร็จสมบูรณ์แล้ว", value: mStat.completed, color: "#10B981" },
+        { label: "ยังไม่เสร็จ / ค้างอยู่", value: mStat.pending, color: "#F59E0B" },
+      ];
+    }
     return teamMembers.map((member) => ({
       label: member,
       value: memberStats[member]?.total || 0,
       color: memberColors[member] || "#ED1C24",
     }));
-  }, [teamMembers, memberStats, memberColors]);
+  }, [selectedMember, teamMembers, memberStats, memberColors]);
 
   const totalMemberWorkload = memberSegments.reduce((s, m) => s + m.value, 0);
   const activeHoveredMember = memberSegments.find((s) => s.label === hoveredMember);
   const displayMemberVal = activeHoveredMember?.value ?? totalMemberWorkload;
-  const displayMemberLabel = activeHoveredMember?.label ?? "ภาระงานรวม";
+  const displayMemberLabel = activeHoveredMember?.label ?? (selectedMember ? "รวมโครงการ" : "ภาระงานรวม");
   const displayMemberPct =
     totalMemberWorkload > 0 && activeHoveredMember
       ? ((activeHoveredMember.value / totalMemberWorkload) * 100).toFixed(0)
+      : selectedMember && totalMemberWorkload > 0
+      ? `${(((memberStats[selectedMember]?.completed || 0) / totalMemberWorkload) * 100).toFixed(0)}% เสร็จแล้ว`
       : "100";
+
+  // Helper to get owner color
+  const getOwnerColor = (ownerName: string | undefined) => {
+    if (!ownerName) return "#64748B";
+    const matched = teamMembers.find((m) => isOwnerMatch(ownerName, m));
+    return matched ? memberColors[matched] || "#ED1C24" : "#64748B";
+  };
 
   // If Not Admin, render Security Lock Gate
   if (!isAdmin) {
@@ -455,13 +505,120 @@ export function AnalyticsView() {
         </div>
       </div>
 
-      {/* 2. Four Hero KPI Summary Cards */}
+      {/* 2. Interactive Team Member Selector Bar (แบบที่ 1: Global Filter) */}
+      <div className="bg-white rounded-2xl p-3 sm:p-4 border border-gray-200 shadow-xs space-y-2.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-xs font-bold text-gray-800">
+            <Users className="w-4 h-4 text-[#ED1C24]" />
+            <span>เลือกดูสถิติรายบุคคล หรือ ทั้งทีม:</span>
+            {selectedMember ? (
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: memberColors[selectedMember] || "#ED1C24" }}
+                />
+                กำลังกรองข้อมูลของ: <span className="text-[#ED1C24] underline">{selectedMember}</span>
+              </span>
+            ) : (
+              <span className="text-[11px] font-normal text-gray-500">
+                (คลิกเลือกชื่อทีมงานเพื่อเปลี่ยนข้อมูลทั้งหน้าเป็นของคนนั้น)
+              </span>
+            )}
+          </div>
+
+          {selectedMember && (
+            <button
+              type="button"
+              onClick={() => setSelectedMember(null)}
+              className="inline-flex items-center gap-1 text-[11px] font-bold text-[#ED1C24] hover:text-[#B3141A] transition-colors"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>รีเซ็ตกลับเป็นทั้งทีม (All Team)</span>
+            </button>
+          )}
+        </div>
+
+        {/* Member Buttons Row */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 scrollbar-thin">
+          {/* Button: All Team */}
+          <button
+            type="button"
+            onClick={() => setSelectedMember(null)}
+            className={`shrink-0 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+              selectedMember === null
+                ? "bg-slate-900 text-white shadow-sm ring-2 ring-slate-900/30"
+                : "bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200"
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>👥 ทั้งทีม (All Team)</span>
+            <span
+              className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                selectedMember === null ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
+              }`}
+            >
+              {allTeamItemsWithStatus.length}
+            </span>
+          </button>
+
+          {/* Buttons: Each Team Member */}
+          {teamMembers.map((member) => {
+            const isSelected = selectedMember === member;
+            const color = memberColors[member] || "#ED1C24";
+            const stat = memberStats[member] || { total: 0, completed: 0, pending: 0 };
+
+            return (
+              <button
+                key={member}
+                type="button"
+                onClick={() => setSelectedMember(isSelected ? null : member)}
+                className={`shrink-0 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                  isSelected
+                    ? "text-white shadow-sm ring-2 ring-red-400/40"
+                    : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
+                }`}
+                style={isSelected ? { backgroundColor: color } : undefined}
+              >
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10"
+                  style={{ backgroundColor: isSelected ? "#FFFFFF" : color }}
+                />
+                <span className="truncate max-w-[130px]">{member}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                    isSelected ? "bg-black/20 text-white" : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  {stat.total}
+                </span>
+                {stat.pending > 0 && (
+                  <span
+                    className={`text-[9px] px-1.5 py-0.2 rounded font-semibold ${
+                      isSelected
+                        ? "bg-black/30 text-amber-200"
+                        : "bg-amber-50 text-amber-800 border border-amber-200"
+                    }`}
+                  >
+                    ค้าง {stat.pending}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 3. Four Hero KPI Summary Cards (Reflects selectedMember) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Card 1: Total Projects */}
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-xs flex items-center justify-between">
           <div className="space-y-1">
             <span className="text-xs font-semibold text-gray-500">
-              {isAnnual ? "โครงการสะสม (ทั้งปี)" : `โครงการทั้งหมด (${selectedPeriod})`}
+              {selectedMember
+                ? `โครงการของ ${selectedMember}`
+                : isAnnual
+                ? "โครงการสะสม (ทั้งปี)"
+                : `โครงการทั้งหมด (${selectedPeriod})`}
             </span>
             <div className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
               {totalProjects}
@@ -530,16 +687,21 @@ export function AnalyticsView() {
         </div>
       </div>
 
-      {/* 3. Monthly Project Volume Trend Bar (Clickable Bars to Filter Month) */}
+      {/* 4. Monthly Project Volume Trend Bar (Clickable Bars to Filter Month) */}
       <div className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
               <BarChart3 className="w-4 h-4 text-[#ED1C24]" />
-              <span>แนวโน้มและปริมาณโครงการรายเดือน (Monthly Project Volume)</span>
+              <span>
+                แนวโน้มและปริมาณโครงการรายเดือน (Monthly Project Volume)
+                {selectedMember && <span className="text-[#ED1C24] font-black"> : {selectedMember}</span>}
+              </span>
             </h3>
             <p className="text-xs text-gray-500">
-              คลิกที่แท่งของแต่ละเดือนเพื่อเจาะลึกดูสถิติเฉพาะเดือนนั้นๆ ได้ทันที
+              {selectedMember
+                ? `แสดงจำนวนโครงการของ ${selectedMember} ในแต่ละรอบเดือน (คลิกแท่งเพื่อกรองเฉพาะเดือนนั้น)`
+                : "คลิกที่แท่งของแต่ละเดือนเพื่อเจาะลึกดูสถิติเฉพาะเดือนนั้นๆ ได้ทันที"}
             </p>
           </div>
           {/* Legend */}
@@ -635,7 +797,7 @@ export function AnalyticsView() {
         </div>
       </div>
 
-      {/* 4. Scope Switcher */}
+      {/* 5. Scope Switcher */}
       <div className="flex items-center gap-1.5 p-1 bg-gray-100/90 rounded-xl w-fit">
         <button
           type="button"
@@ -674,7 +836,7 @@ export function AnalyticsView() {
         </button>
       </div>
 
-      {/* 5. Two Donut Charts Side-by-Side */}
+      {/* 6. Two Donut Charts Side-by-Side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Chart A: Channel / Partner Breakdown */}
         <div className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-xs space-y-4">
@@ -683,6 +845,7 @@ export function AnalyticsView() {
               <Tag className="w-4 h-4 text-blue-600" />
               <span>
                 สัดส่วนโครงการแยกตามช่องทาง {isAnnual ? "(ภาพรวมทั้งปี)" : `(${selectedPeriod})`}
+                {selectedMember && <span className="text-blue-600 font-bold"> : {selectedMember}</span>}
               </span>
             </h3>
             <p className="text-xs text-gray-500">
@@ -765,20 +928,33 @@ export function AnalyticsView() {
           </div>
         </div>
 
-        {/* Chart B: Team Workload Breakdown */}
+        {/* Chart B: Team Workload or Selected Member Status Breakdown */}
         <div className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
                 <Users className="w-4 h-4 text-red-600" />
                 <span>
-                  การกระจายภาระงานรายบุคคล {isAnnual ? "(ภาพรวมทั้งปี)" : `(${selectedPeriod})`}
+                  {selectedMember
+                    ? `สถานะงานของ ${selectedMember} ${isAnnual ? "(ภาพรวมทั้งปี)" : `(${selectedPeriod})`}`
+                    : `การกระจายภาระงานทั้งทีม ${isAnnual ? "(ภาพรวมทั้งปี)" : `(${selectedPeriod})`}`}
                 </span>
               </h3>
               <p className="text-xs text-gray-500">
-                สัดส่วนจำนวนโครงการที่คนในทีมได้รับมอบหมาย
+                {selectedMember
+                  ? "สัดส่วนงานที่เสร็จสมบูรณ์แล้ว เทียบกับงานที่ยังค้างอยู่"
+                  : "สัดส่วนจำนวนโครงการที่คนในทีมได้รับมอบหมาย (คลิกชื่อเพื่อกรอง)"}
               </p>
             </div>
+            {selectedMember && (
+              <button
+                type="button"
+                onClick={() => setSelectedMember(null)}
+                className="text-[11px] font-bold text-[#ED1C24] hover:underline"
+              >
+                ดูทั้งทีม
+              </button>
+            )}
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-6 pt-2">
@@ -805,9 +981,9 @@ export function AnalyticsView() {
                       <span className="text-3xl font-black text-gray-900 leading-tight">
                         {displayMemberVal}
                       </span>
-                      {activeHoveredMember && totalMemberWorkload > 0 && (
+                      {totalMemberWorkload > 0 && (
                         <span className="text-xs font-bold text-red-600">
-                          {displayMemberPct}%
+                          {displayMemberPct}
                         </span>
                       )}
                     </motion.div>
@@ -826,6 +1002,11 @@ export function AnalyticsView() {
                 return (
                   <div
                     key={segment.label}
+                    onClick={() => {
+                      if (!selectedMember && teamMembers.includes(segment.label)) {
+                        setSelectedMember(segment.label);
+                      }
+                    }}
                     onMouseEnter={() => setHoveredMember(segment.label)}
                     onMouseLeave={() => setHoveredMember(null)}
                     className={`flex items-center justify-between p-2 rounded-xl text-xs transition-all cursor-pointer ${
@@ -857,324 +1038,279 @@ export function AnalyticsView() {
         </div>
       </div>
 
-      {/* 6. Option A: Dedicated Project Status & Workload Tracker Section */}
+      {/* 7. Dedicated Project Delivery Tracker Section (Clear Status Summary + Visual Cards แบบ B) */}
       <div className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-xs space-y-5">
-        {/* Section Header & View Tabs */}
+        {/* Section Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-100">
           <div>
-            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-              <Target className="w-4 h-4 text-[#ED1C24]" />
-              <span>ติดตามสถานะโครงการ & ภาระงาน (Project Delivery & Workload Tracker)</span>
+            <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <Target className="w-5 h-5 text-[#ED1C24]" />
+              <span>ติดตามสถานะการส่งมอบโครงการ (Project Delivery Status)</span>
             </h3>
             <p className="text-xs text-gray-500">
-              {isAnnual
-                ? "ตรวจสอบสถานะงานที่ค้างและภาระงานสะสมตลอดทั้งปี"
-                : `ตรวจสอบสถานะโครงการที่ยังไม่เสร็จ และงานที่เสร็จสมบูรณ์ในรอบเดือน ${selectedPeriod}`}
+              {selectedMember
+                ? `ตรวจสอบโครงการที่ค้างและงานที่เสร็จสมบูรณ์ของ ${selectedMember} (${isAnnual ? "ตลอดทั้งปี" : `รอบเดือน ${selectedPeriod}`})`
+                : `สรุปภาพรวมความคืบหน้าการส่งมอบโครงการของทีม (${isAnnual ? "ตลอดทั้งปี" : `รอบเดือน ${selectedPeriod}`})`}
             </p>
           </div>
 
-          {/* View Mode Switcher: Tab 1 (Status) vs Tab 2 (Workload by Owner) */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl shrink-0">
-            <button
-              type="button"
-              onClick={() => setActiveBottomTab("status")}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeBottomTab === "status"
-                  ? "bg-white text-gray-900 shadow-2xs"
-                  : "text-gray-500 hover:text-gray-800"
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5 text-amber-600" />
-              <span>ติดตามสถานะงาน ({itemsWithStatus.length})</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveBottomTab("workload")}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeBottomTab === "workload"
-                  ? "bg-white text-gray-900 shadow-2xs"
-                  : "text-gray-500 hover:text-gray-800"
-              }`}
-            >
-              <Users className="w-3.5 h-3.5 text-blue-600" />
-              <span>ภาระงานรายบุคคล ({teamMembers.length})</span>
-            </button>
+          {/* Search Box */}
+          <div className="relative w-full sm:w-64">
+            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="ค้นหาชื่อโครงการ, ช่องทาง, ผู้รับผิดชอบ..."
+              className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-red-400/20 focus:border-[#ED1C24]"
+            />
           </div>
         </div>
 
-        {/* TAB 1: STATUS TRACKER (Directly answers Question 3: Which items are pending!) */}
-        {activeBottomTab === "status" && (
-          <div className="space-y-4">
-            {/* Status Filter Buttons */}
-            <div className="flex flex-wrap items-center gap-2">
+        {/* 2 Big Prominent Summary Cards (เสร็จ vs ค้าง) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Card 1: Pending & In Progress */}
+          <button
+            type="button"
+            onClick={() => setStatusFilter("pending")}
+            className={`text-left p-4 sm:p-5 rounded-2xl border-2 transition-all relative overflow-hidden group cursor-pointer ${
+              statusFilter === "pending"
+                ? "bg-gradient-to-br from-amber-50/80 via-white to-orange-50/40 border-amber-400 ring-4 ring-amber-400/20 shadow-md"
+                : "bg-white hover:bg-amber-50/30 border-gray-200 hover:border-amber-300 shadow-2xs"
+            }`}
+          >
+            <div className="flex items-start justify-between">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                  <span className="text-xs font-black uppercase tracking-wider text-amber-800">
+                    ยังไม่เสร็จ / ค้างอยู่
+                  </span>
+                </div>
+                <div className="text-3xl sm:text-4xl font-black text-amber-600 tracking-tight">
+                  {pendingItems.length}{" "}
+                  <span className="text-sm font-bold text-amber-700/80">โครงการ</span>
+                </div>
+                <p className="text-[11px] text-amber-900/70">
+                  {statusFilter === "pending"
+                    ? "✓ กำลังแสดงรายการงานด้านล่างนี้"
+                    : "👉 คลิกเพื่อเปิดดูโครงการที่ค้างและขั้นตอนที่รอ"}
+                </p>
+              </div>
+
+              <div
+                className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${
+                  statusFilter === "pending"
+                    ? "bg-amber-500 text-white shadow-sm"
+                    : "bg-amber-100 text-amber-600 group-hover:bg-amber-200"
+                }`}
+              >
+                <Clock className="w-6 h-6" />
+              </div>
+            </div>
+          </button>
+
+          {/* Card 2: Completed / Launched */}
+          <button
+            type="button"
+            onClick={() => setStatusFilter("completed")}
+            className={`text-left p-4 sm:p-5 rounded-2xl border-2 transition-all relative overflow-hidden group cursor-pointer ${
+              statusFilter === "completed"
+                ? "bg-gradient-to-br from-emerald-50/80 via-white to-teal-50/40 border-emerald-400 ring-4 ring-emerald-400/20 shadow-md"
+                : "bg-white hover:bg-emerald-50/30 border-gray-200 hover:border-emerald-300 shadow-2xs"
+            }`}
+          >
+            <div className="flex items-start justify-between">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                  <span className="text-xs font-black uppercase tracking-wider text-emerald-800">
+                    เสร็จสมบูรณ์แล้ว
+                  </span>
+                </div>
+                <div className="text-3xl sm:text-4xl font-black text-emerald-600 tracking-tight">
+                  {completedItems.length}{" "}
+                  <span className="text-sm font-bold text-emerald-700/80">โครงการ</span>
+                </div>
+                <p className="text-[11px] text-emerald-900/70">
+                  {statusFilter === "completed"
+                    ? "✓ กำลังแสดงรายการงานด้านล่างนี้"
+                    : "👉 คลิกเพื่อเปิดดูโครงการที่เปิดตัวสำเร็จเรียบร้อย"}
+                </p>
+              </div>
+
+              <div
+                className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${
+                  statusFilter === "completed"
+                    ? "bg-emerald-500 text-white shadow-sm"
+                    : "bg-emerald-100 text-emerald-600 group-hover:bg-emerald-200"
+                }`}
+              >
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+            </div>
+          </button>
+        </div>
+
+        {/* Status Indicator & View All Pill */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+          <div className="flex items-center gap-2 text-xs font-bold text-gray-700">
+            {statusFilter === "pending" && (
+              <span className="inline-flex items-center gap-1.5 text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                <Clock className="w-3.5 h-3.5 text-amber-600" />
+                กำลังแสดง: โครงการที่ยังไม่เสร็จ ({displayedStatusItems.length} รายการ)
+              </span>
+            )}
+            {statusFilter === "completed" && (
+              <span className="inline-flex items-center gap-1.5 text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                กำลังแสดง: โครงการที่เสร็จสมบูรณ์แล้ว ({displayedStatusItems.length} รายการ)
+              </span>
+            )}
+            {statusFilter === "all" && (
+              <span className="inline-flex items-center gap-1.5 text-slate-800 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg">
+                <Layers className="w-3.5 h-3.5 text-slate-600" />
+                กำลังแสดง: โครงการทั้งหมด ({displayedStatusItems.length} รายการ)
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {statusFilter !== "all" ? (
               <button
                 type="button"
                 onClick={() => setStatusFilter("all")}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  statusFilter === "all"
-                    ? "bg-slate-800 text-white shadow-xs"
-                    : "bg-slate-50 text-gray-600 border border-gray-200 hover:bg-slate-100"
-                }`}
+                className="text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1 rounded-lg transition-colors"
               >
-                ทั้งหมด ({itemsWithStatus.length})
+                ดูโครงการทั้งหมด ({itemsWithStatus.length})
               </button>
-
+            ) : (
               <button
                 type="button"
                 onClick={() => setStatusFilter("pending")}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  statusFilter === "pending"
-                    ? "bg-amber-600 text-white shadow-xs ring-2 ring-amber-400/30"
-                    : "bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100"
-                }`}
+                className="text-xs font-bold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-1 rounded-lg transition-colors"
               >
-                <Clock className="w-3.5 h-3.5" />
-                <span>ยังไม่เสร็จ / กำลังดำเนินการ ({pendingItems.length})</span>
+                สลับไปดูเฉพาะงานที่ค้าง ({pendingItems.length})
               </button>
-
-              <button
-                type="button"
-                onClick={() => setStatusFilter("completed")}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  statusFilter === "completed"
-                    ? "bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-400/30"
-                    : "bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100"
-                }`}
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>เสร็จสมบูรณ์แล้ว ({completedItems.length})</span>
-              </button>
-            </div>
-
-            {/* Task Cards Grid */}
-            {displayedStatusItems.length === 0 ? (
-              <div className="text-center py-12 text-gray-400 text-xs bg-slate-50 rounded-2xl border border-dashed border-gray-200">
-                {statusFilter === "pending"
-                  ? "🎉 ยอดเยี่ยม! ไม่มีโครงการที่ค้างอยู่ ทุกรายการเปิดตัวเสร็จสมบูรณ์แล้ว"
-                  : statusFilter === "completed"
-                  ? "ยังไม่มีโครงการที่เปิดตัวเสร็จสมบูรณ์ในช่วงเวลานี้"
-                  : "ไม่พบโครงการในช่วงเวลาที่เลือก"}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {displayedStatusItems.map((item) => {
-                  const brokerColor = colorMap[item.broker] || "#334155";
-                  const hasElearning = Object.values(item.milestones || {}).some(
-                    (m) =>
-                      m?.isElearningIcon ||
-                      m?.phase === "first-draft-elearning" ||
-                      m?.phase === "final-elearning"
-                  );
-                  return (
-                    <div
-                      key={item.id}
-                      style={{ borderLeftColor: brokerColor }}
-                      className="bg-slate-50/80 hover:bg-slate-100/80 p-3.5 rounded-xl border border-slate-200/80 border-l-4 shadow-2xs transition-all space-y-2.5"
-                    >
-                      {/* Top Header: Channel + Active Month + Status Pill */}
-                      <div className="flex items-center justify-between gap-1 text-[11px]">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span
-                            style={{ color: brokerColor }}
-                            className="font-bold tracking-tight shrink-0"
-                          >
-                            [{item.broker}]
-                          </span>
-                          {isAnnual && item.activeMonths && item.activeMonths.length > 0 && (
-                            <span className="text-[10px] font-semibold text-slate-500 bg-white px-1.5 py-0.2 rounded border border-slate-200 truncate">
-                              {item.activeMonths.join(", ")}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Status Badge */}
-                        {item.isCompleted ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
-                            <CheckCircle2 className="w-3 h-3" /> เสร็จสมบูรณ์
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 shrink-0">
-                            <Clock className="w-3 h-3 animate-pulse text-amber-600" /> {item.currentPhaseLabel}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Project Name */}
-                      <div className="text-xs font-bold text-gray-900 line-clamp-2">
-                        {item.name}
-                      </div>
-
-                      {/* Owner and Launch Info */}
-                      <div className="flex items-center justify-between text-[11px] pt-0.5">
-                        <span className="font-semibold text-gray-600 bg-white px-2 py-0.5 rounded-md border border-gray-200 truncate max-w-[180px]">
-                          👤 {item.owner}
-                        </span>
-                        {hasElearning && (
-                          <span className="px-2 py-0.5 bg-purple-50 text-purple-700 font-bold rounded-md border border-purple-200 flex items-center gap-1 text-[10px]">
-                            <GraduationCap className="w-3 h-3" /> eLearning
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Dates Row */}
-                      <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[10px] border-t border-slate-200/60">
-                        <span className="px-2 py-0.5 bg-white text-gray-600 rounded-md border border-gray-200">
-                          Internal: {item.internalDate || "TBC"}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded-md border font-bold ${
-                          item.isCompleted
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : "bg-red-50 text-[#ED1C24] border-red-200"
-                        }`}>
-                          Target: {item.commercialDate || item.customRightLabel || "TBC"}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
             )}
           </div>
-        )}
+        </div>
 
-        {/* TAB 2: WORKLOAD BY OWNER (Directly organizes tasks by responsible person) */}
-        {activeBottomTab === "workload" && (
-          <div className="space-y-4">
-            {/* Quick Member Filter Pills */}
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedMemberFilter(null)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  selectedMemberFilter === null
-                    ? "bg-[#ED1C24] text-white shadow-xs"
-                    : "bg-slate-50 text-gray-700 border border-gray-200 hover:bg-slate-100"
-                }`}
-              >
-                สมาชิกทุกคน ({activeItems.length})
-              </button>
+        {/* Task Cards Grid: แบบ B (Visual Cards) */}
+        {displayedStatusItems.length === 0 ? (
+          <div className="text-center py-12 text-gray-500 text-xs bg-slate-50 rounded-2xl border border-dashed border-gray-200 space-y-2">
+            <div className="text-2xl">
+              {statusFilter === "pending" ? "🎉" : statusFilter === "completed" ? "📦" : "🔍"}
+            </div>
+            <div className="font-bold text-gray-700">
+              {statusFilter === "pending"
+                ? "ยอดเยี่ยมมาก! ไม่มีโครงการที่ค้างอยู่ ทุกรายการเปิดตัวเสร็จสมบูรณ์แล้ว"
+                : statusFilter === "completed"
+                ? "ยังไม่มีโครงการที่เปิดตัวเสร็จสมบูรณ์ในช่วงเวลานี้"
+                : "ไม่พบโครงการที่ตรงกับเงื่อนไขการค้นหา"}
+            </div>
+            {selectedMember && (
+              <p className="text-[11px] text-gray-400">
+                (กำลังดูเฉพาะของ {selectedMember} — สามารถคลิก &apos;ทั้งทีม&apos; ด้านบนเพื่อดูภาพรวมทั้งหมดได้)
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {displayedStatusItems.map((item) => {
+              const brokerColor = colorMap[item.broker] || "#334155";
+              const ownerColor = getOwnerColor(item.owner);
+              const hasElearning = Object.values(item.milestones || {}).some(
+                (m) =>
+                  m?.isElearningIcon ||
+                  m?.phase === "first-draft-elearning" ||
+                  m?.phase === "final-elearning"
+              );
 
-              {teamMembers.map((member) => {
-                const stat = memberStats[member] || { total: 0, completed: 0, pending: 0 };
-                const isSelected = selectedMemberFilter === member;
-                const memberColor = memberColors[member] || "#ED1C24";
+              return (
+                <div
+                  key={item.id}
+                  style={{ borderLeftColor: brokerColor }}
+                  className="bg-white hover:bg-slate-50/90 p-4 rounded-2xl border border-gray-200 border-l-4 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between space-y-3"
+                >
+                  {/* Row 1: Channel Tag + Active Month + Status Pill */}
+                  <div className="flex items-center justify-between gap-1.5 text-[11px]">
+                    <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                      <span
+                        style={{ color: brokerColor, backgroundColor: `${brokerColor}15` }}
+                        className="font-black px-2 py-0.5 rounded-md text-[11px] tracking-tight shrink-0"
+                      >
+                        {item.broker}
+                      </span>
+                      {isAnnual && item.activeMonths && item.activeMonths.length > 0 && (
+                        <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 truncate">
+                          {item.activeMonths.join(", ")}
+                        </span>
+                      )}
+                    </div>
 
-                return (
-                  <button
-                    key={member}
-                    type="button"
-                    onClick={() => setSelectedMemberFilter(isSelected ? null : member)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                      isSelected
-                        ? "bg-[#ED1C24] text-white shadow-xs ring-2 ring-red-400/30"
-                        : "bg-slate-50 text-gray-700 border border-gray-200 hover:bg-slate-100"
-                    }`}
-                  >
-                    <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10"
-                      style={{ backgroundColor: memberColor }}
-                    />
-                    <span>{member}</span>
-                    <span
-                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                        isSelected
-                          ? "bg-white/30 text-white"
-                          : "bg-gray-200 text-gray-700"
-                      }`}
-                    >
-                      {stat.total}
-                    </span>
-                    {stat.pending > 0 && (
-                      <span className={`text-[9px] px-1 py-0.2 rounded font-semibold ${
-                        isSelected ? "bg-amber-300 text-amber-900" : "bg-amber-100 text-amber-800"
-                      }`}>
-                        ค้าง {stat.pending}
+                    {/* Waiting Phase or Completed Badge */}
+                    {item.isCompleted ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> เสร็จสมบูรณ์
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 shrink-0">
+                        <Clock className="w-3 h-3 animate-pulse text-amber-600" /> {item.currentPhaseLabel}
                       </span>
                     )}
-                  </button>
-                );
-              })}
-            </div>
+                  </div>
 
-            {/* Member Tasks Grid */}
-            {displayedMemberItems.length === 0 ? (
-              <div className="text-center py-12 text-gray-400 text-xs bg-slate-50 rounded-2xl border border-dashed border-gray-200">
-                ไม่พบงานที่มอบหมายให้ผู้รับผิดชอบท่านนี้ {isAnnual ? "ตลอดทั้งปี" : `ในรอบเดือน ${selectedPeriod}`}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {displayedMemberItems.map((item) => {
-                  const brokerColor = colorMap[item.broker] || "#334155";
-                  const hasElearning = Object.values(item.milestones || {}).some(
-                    (m) =>
-                      m?.isElearningIcon ||
-                      m?.phase === "first-draft-elearning" ||
-                      m?.phase === "final-elearning"
-                  );
-                  return (
-                    <div
-                      key={item.id}
-                      style={{ borderLeftColor: brokerColor }}
-                      className="bg-slate-50/80 hover:bg-slate-100/80 p-3.5 rounded-xl border border-slate-200/80 border-l-4 shadow-2xs transition-all space-y-2.5"
-                    >
-                      <div className="flex items-center justify-between gap-1 text-[11px]">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span
-                            style={{ color: brokerColor }}
-                            className="font-bold tracking-tight shrink-0"
-                          >
-                            [{item.broker}]
-                          </span>
-                          {isAnnual && item.activeMonths && item.activeMonths.length > 0 && (
-                            <span className="text-[10px] font-semibold text-slate-500 bg-white px-1.5 py-0.2 rounded border border-slate-200 truncate">
-                              {item.activeMonths.join(", ")}
-                            </span>
-                          )}
-                        </div>
+                  {/* Row 2: Project Name */}
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-bold text-gray-900 leading-snug line-clamp-2">
+                      {item.name}
+                    </h4>
+                  </div>
 
-                        {item.isCompleted ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
-                            <CheckCircle2 className="w-3 h-3" /> เสร็จแล้ว
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 shrink-0">
-                            <Clock className="w-3 h-3 text-amber-600" /> {item.currentPhaseLabel}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="text-xs font-bold text-gray-900 line-clamp-2">
-                        {item.name}
-                      </div>
-
-                      <div className="flex items-center justify-between text-[11px] pt-0.5">
-                        <span className="font-semibold text-gray-600 bg-white px-2 py-0.5 rounded-md border border-gray-200 truncate max-w-[180px]">
-                          👤 {item.owner}
-                        </span>
-                        {hasElearning && (
-                          <span className="px-2 py-0.5 bg-purple-50 text-purple-700 font-bold rounded-md border border-purple-200 flex items-center gap-1 text-[10px]">
-                            <GraduationCap className="w-3 h-3" /> eLearning
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[10px] border-t border-slate-200/60">
-                        <span className="px-2 py-0.5 bg-white text-gray-600 rounded-md border border-gray-200">
-                          Internal: {item.internalDate || "TBC"}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded-md border font-bold ${
-                          item.isCompleted
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : "bg-red-50 text-[#ED1C24] border-red-200"
-                        }`}>
-                          Target: {item.commercialDate || item.customRightLabel || "TBC"}
-                        </span>
-                      </div>
+                  {/* Row 3: Owner & eLearning Tag */}
+                  <div className="flex items-center justify-between text-[11px] pt-1 border-t border-gray-100">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10"
+                        style={{ backgroundColor: ownerColor }}
+                      />
+                      <span className="font-semibold text-gray-700 truncate max-w-[170px]">
+                        👤 {item.owner || "ยังไม่ระบุ"}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+
+                    {hasElearning && (
+                      <span className="px-2 py-0.5 bg-purple-50 text-purple-700 font-bold rounded-md border border-purple-200 flex items-center gap-1 text-[10px] shrink-0">
+                        <GraduationCap className="w-3 h-3" /> eLearning
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Row 4: Key Milestone Dates */}
+                  <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-dashed border-gray-100 text-[10px]">
+                    <div className="bg-slate-50 rounded-lg p-1.5 px-2">
+                      <span className="text-[9px] text-gray-400 block font-medium">Internal Training</span>
+                      <span className="font-bold text-gray-700 truncate block">
+                        {item.internalDate || "TBC"}
+                      </span>
+                    </div>
+                    <div
+                      className={`rounded-lg p-1.5 px-2 ${
+                        item.isCompleted
+                          ? "bg-emerald-50 text-emerald-800 border border-emerald-100"
+                          : "bg-red-50 text-[#ED1C24] border border-red-100"
+                      }`}
+                    >
+                      <span className="text-[9px] opacity-75 block font-medium">Target Launch</span>
+                      <span className="font-bold truncate block">
+                        {item.commercialDate || item.customRightLabel || "TBC"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
