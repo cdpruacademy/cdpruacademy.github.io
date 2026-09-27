@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useProducts } from "@/hooks/use-products";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import { useTeamMembers } from "@/hooks/use-team-members";
@@ -9,6 +9,7 @@ import { DonutChart, DonutChartSegment } from "@/components/ui/donut-chart";
 import { TeamManagementModal } from "@/components/dashboard/team-management-modal";
 import { AdminLoginModal } from "@/components/auth/admin-login-modal";
 import { motion, AnimatePresence } from "motion/react";
+import { ProductItem } from "@/lib/timeline-data";
 import {
   BarChart3,
   Users,
@@ -26,8 +27,12 @@ import {
   ShieldCheck,
   CheckCircle2,
   Tag,
+  ArrowLeft,
+  RotateCcw,
 } from "lucide-react";
 import Link from "next/link";
+
+const BROKER_COLORS_KEY = "pru_broker_colors_map_v1";
 
 const DEFAULT_COLORS: Record<string, string> = {
   ttb: "#009FE3",
@@ -37,6 +42,10 @@ const DEFAULT_COLORS: Record<string, string> = {
   "New Broker": "#334155",
   Audit: "#1E293B",
 };
+
+interface AggregatedItem extends ProductItem {
+  activeMonths?: string[];
+}
 
 export function AnalyticsView() {
   const { isAdmin, login } = useAdminAuth();
@@ -58,6 +67,21 @@ export function AnalyticsView() {
     resetToDefault: resetTeamMembers,
   } = useTeamMembers();
 
+  // Load custom channel colors from localStorage
+  const [colorMap, setColorMap] = useState<Record<string, string>>(DEFAULT_COLORS);
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(BROKER_COLORS_KEY);
+      if (stored) {
+        setColorMap({ ...DEFAULT_COLORS, ...JSON.parse(stored) });
+      }
+    } catch (_) {}
+  }, []);
+
+  // Timeframe Scope: Default to "ALL_YEAR" (Annual Overview)
+  const [selectedPeriod, setSelectedPeriod] = useState<string>("ALL_YEAR");
+  const isAnnual = selectedPeriod === "ALL_YEAR";
+
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<"all" | "product" | "enhancement">("all");
@@ -67,12 +91,84 @@ export function AnalyticsView() {
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
   const [hoveredMember, setHoveredMember] = useState<string | null>(null);
 
-  // Get items for the selected month
-  const currentMonthData = monthlyStore[selectedMonth] || { products: [], enhancements: [] };
-  const products = currentMonthData.products || [];
-  const enhancements = currentMonthData.enhancements || [];
+  // Aggregate Data based on selectedPeriod (Annual vs Single Month)
+  const { products, enhancements, monthlyStats } = useMemo(() => {
+    if (!monthlyStore) {
+      return { products: [], enhancements: [], monthlyStats: [] };
+    }
 
-  // Filtered by type
+    // Monthly stats for the Trend Bar
+    const stats = availableMonths.map((m) => {
+      const mData = monthlyStore[m] || { products: [], enhancements: [] };
+      const pCount = (mData.products || []).length;
+      const eCount = (mData.enhancements || []).length;
+      return {
+        month: m,
+        productsCount: pCount,
+        enhancementsCount: eCount,
+        totalCount: pCount + eCount,
+      };
+    });
+
+    // Single Month Scope
+    if (!isAnnual) {
+      const mData = monthlyStore[selectedPeriod] || { products: [], enhancements: [] };
+      const pList: AggregatedItem[] = (mData.products || []).map((p) => ({
+        ...p,
+        activeMonths: [selectedPeriod],
+      }));
+      const eList: AggregatedItem[] = (mData.enhancements || []).map((e) => ({
+        ...e,
+        activeMonths: [selectedPeriod],
+      }));
+      return {
+        products: pList,
+        enhancements: eList,
+        monthlyStats: stats,
+      };
+    }
+
+    // Annual Scope: Aggregate all months and deduplicate distinct projects
+    const productMap = new Map<string, AggregatedItem>();
+    const enhancementMap = new Map<string, AggregatedItem>();
+
+    availableMonths.forEach((m) => {
+      const mData = monthlyStore[m];
+      if (!mData) return;
+
+      (mData.products || []).forEach((p) => {
+        const key = `${p.name.trim().toLowerCase()}___${(p.broker || "").trim().toLowerCase()}`;
+        if (!productMap.has(key)) {
+          productMap.set(key, { ...p, activeMonths: [m] });
+        } else {
+          const existing = productMap.get(key)!;
+          if (existing.activeMonths && !existing.activeMonths.includes(m)) {
+            existing.activeMonths.push(m);
+          }
+        }
+      });
+
+      (mData.enhancements || []).forEach((e) => {
+        const key = `${e.name.trim().toLowerCase()}___${(e.broker || "").trim().toLowerCase()}`;
+        if (!enhancementMap.has(key)) {
+          enhancementMap.set(key, { ...e, activeMonths: [m] });
+        } else {
+          const existing = enhancementMap.get(key)!;
+          if (existing.activeMonths && !existing.activeMonths.includes(m)) {
+            existing.activeMonths.push(m);
+          }
+        }
+      });
+    });
+
+    return {
+      products: Array.from(productMap.values()),
+      enhancements: Array.from(enhancementMap.values()),
+      monthlyStats: stats,
+    };
+  }, [monthlyStore, availableMonths, isAnnual, selectedPeriod]);
+
+  // Filtered by type (Product vs Enhancement vs All)
   const activeItems = useMemo(() => {
     if (selectedTypeFilter === "product") return products;
     if (selectedTypeFilter === "enhancement") return enhancements;
@@ -92,7 +188,7 @@ export function AnalyticsView() {
     )
   ).length;
 
-  // 1. Channel Breakdown Segments
+  // 1. Channel Breakdown Segments (Dynamic with customized colorMap)
   const channelCounts = useMemo(() => {
     const map: Record<string, number> = {};
     activeItems.forEach((item) => {
@@ -104,13 +200,14 @@ export function AnalyticsView() {
 
   const channelSegments: DonutChartSegment[] = useMemo(() => {
     const entries = Object.entries(channelCounts);
-    const palette = ["#009FE3", "#0B2265", "#ED1C24", "#334155", "#8B5CF6", "#10B981", "#F59E0B"];
+    const palette = ["#009FE3", "#0B2265", "#ED1C24", "#334155", "#8B5CF6", "#10B981", "#F59E0B", "#E11D48"];
     return entries.map(([channel, count], idx) => {
-      let color = DEFAULT_COLORS[channel];
+      let color = colorMap[channel];
       if (!color) {
-        if (channel.toLowerCase().includes("ttb")) color = "#009FE3";
-        else if (channel.toLowerCase().includes("uob")) color = "#0B2265";
-        else if (channel.toLowerCase().includes("agency")) color = "#ED1C24";
+        const lower = channel.toLowerCase();
+        if (lower.includes("ttb")) color = colorMap["ttb"] || "#009FE3";
+        else if (lower.includes("uob")) color = colorMap["UOB"] || "#0B2265";
+        else if (lower.includes("agency")) color = colorMap["Agency"] || "#ED1C24";
         else color = palette[idx % palette.length];
       }
       return {
@@ -119,7 +216,7 @@ export function AnalyticsView() {
         color,
       };
     });
-  }, [channelCounts]);
+  }, [channelCounts, colorMap]);
 
   const totalChannelCount = channelSegments.reduce((s, c) => s + c.value, 0);
   const activeHoveredChannel = channelSegments.find((s) => s.label === hoveredChannel);
@@ -235,7 +332,7 @@ export function AnalyticsView() {
       {/* 1. Header Banner */}
       <div className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#ED1C24] to-[#B3141A] text-white flex items-center justify-center shadow-sm">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#ED1C24] to-[#B3141A] text-white flex items-center justify-center shadow-sm shrink-0">
             <BarChart3 className="w-6 h-6" />
           </div>
           <div>
@@ -248,28 +345,46 @@ export function AnalyticsView() {
               </span>
             </div>
             <p className="text-xs text-gray-500">
-              วิเคราะห์สถิติ สัดส่วนโครงการ และติดตามภาระงานรายบุคคลของฝ่ายพัฒนาหลักสูตร
+              {isAnnual
+                ? "วิเคราะห์สถิติ สัดส่วนโครงการ และติดตามภาระงานสะสมตลอดทั้งปีของฝ่ายพัฒนาหลักสูตร"
+                : `สรุปสถิติโครงการและภาระงานเฉพาะรอบเดือน ${selectedPeriod}`}
             </p>
           </div>
         </div>
 
-        {/* Controls: Month Selector & Team Manage Button */}
+        {/* Controls: Timeframe Selector & Actions */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Month Selector */}
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
-            <Clock className="w-3.5 h-3.5 text-gray-500" />
+          {/* Timeframe Selector (Annual or Monthly) */}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-2xs">
+            <Calendar className="w-3.5 h-3.5 text-[#ED1C24]" />
             <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(e.target.value)}
               className="text-xs font-bold bg-transparent text-gray-800 focus:outline-none cursor-pointer"
             >
-              {availableMonths.map((m) => (
-                <option key={m} value={m}>
-                  รอบเดือน: {m}
-                </option>
-              ))}
+              <option value="ALL_YEAR">🌟 ภาพรวมทั้งปี (All Year)</option>
+              <optgroup label="── เลือกรายเดือน ──">
+                {availableMonths.map((m) => (
+                  <option key={m} value={m}>
+                    รอบเดือน: {m}
+                  </option>
+                ))}
+              </optgroup>
             </select>
           </div>
+
+          {/* Quick Back to Annual View Button (if single month is active) */}
+          {!isAnnual && (
+            <button
+              type="button"
+              onClick={() => setSelectedPeriod("ALL_YEAR")}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-[#ED1C24] bg-red-50 hover:bg-red-100 rounded-xl border border-red-200 transition-colors shadow-2xs"
+              title="กลับไปดูภาพรวมทั้งปี"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>ภาพรวมทั้งปี</span>
+            </button>
+          )}
 
           {/* Manage Team Button */}
           <button
@@ -298,13 +413,13 @@ export function AnalyticsView() {
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-xs flex items-center justify-between">
           <div className="space-y-1">
             <span className="text-xs font-semibold text-gray-500">
-              โครงการทั้งหมด ({selectedMonth})
+              {isAnnual ? "โครงการสะสม (ทั้งปี)" : `โครงการทั้งหมด (${selectedPeriod})`}
             </span>
             <div className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
               {totalProjects}
             </div>
             <div className="text-[11px] text-gray-400">
-              ทั้ง New Product & Enhancement
+              {isAnnual ? "นับตามโครงการที่ไม่ซ้ำ (Unique)" : "ทั้ง New Product & Enhancement"}
             </div>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-slate-100 text-gray-700 flex items-center justify-center">
@@ -316,7 +431,7 @@ export function AnalyticsView() {
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-red-100 shadow-xs flex items-center justify-between">
           <div className="space-y-1">
             <span className="text-xs font-semibold text-[#ED1C24]">
-              New Product
+              {isAnnual ? "New Product (ทั้งปี)" : "New Product"}
             </span>
             <div className="text-2xl sm:text-3xl font-black text-[#ED1C24] tracking-tight">
               {newProductCount}
@@ -334,7 +449,7 @@ export function AnalyticsView() {
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-blue-100 shadow-xs flex items-center justify-between">
           <div className="space-y-1">
             <span className="text-xs font-semibold text-[#0066CC]">
-              Enhancement
+              {isAnnual ? "Enhancement (ทั้งปี)" : "Enhancement"}
             </span>
             <div className="text-2xl sm:text-3xl font-black text-[#0066CC] tracking-tight">
               {enhancementCount}
@@ -352,7 +467,7 @@ export function AnalyticsView() {
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-purple-100 shadow-xs flex items-center justify-between">
           <div className="space-y-1">
             <span className="text-xs font-semibold text-purple-700">
-              มีหลักสูตร eLearning
+              {isAnnual ? "มี eLearning (ทั้งปี)" : "มีหลักสูตร eLearning"}
             </span>
             <div className="text-2xl sm:text-3xl font-black text-purple-800 tracking-tight">
               {totalElearning}
@@ -367,7 +482,112 @@ export function AnalyticsView() {
         </div>
       </div>
 
-      {/* 3. Scope Switcher */}
+      {/* 3. Monthly Project Volume Trend Bar (Clickable Bars to Filter Month) */}
+      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-[#ED1C24]" />
+              <span>แนวโน้มและปริมาณโครงการรายเดือน (Monthly Project Volume)</span>
+            </h3>
+            <p className="text-xs text-gray-500">
+              คลิกที่แท่งของแต่ละเดือนเพื่อเจาะลึกดูสถิติเฉพาะเดือนนั้นๆ ได้ทันที
+            </p>
+          </div>
+          {/* Legend */}
+          <div className="flex items-center gap-4 text-xs font-semibold">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-xs bg-[#ED1C24]" />
+              <span className="text-gray-600">New Product</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-xs bg-[#0066CC]" />
+              <span className="text-gray-600">Enhancement</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Bar Columns Container */}
+        <div className="grid grid-cols-4 sm:grid-cols-7 lg:grid-cols-12 gap-2 pt-2">
+          {monthlyStats.map((stat) => {
+            const isSelected = selectedPeriod === stat.month;
+            const maxVal = Math.max(...monthlyStats.map((s) => s.totalCount), 1);
+            const heightPct = Math.round((stat.totalCount / maxVal) * 100);
+
+            return (
+              <button
+                key={stat.month}
+                type="button"
+                onClick={() => setSelectedPeriod(stat.month)}
+                className={`group flex flex-col items-center p-2 rounded-xl border transition-all text-center cursor-pointer ${
+                  isSelected
+                    ? "border-[#ED1C24] bg-red-50/50 shadow-xs ring-2 ring-red-400/20"
+                    : "border-gray-200 hover:border-gray-300 hover:bg-slate-50"
+                }`}
+                title={`คลิกดูสถิติเดือน ${stat.month} (ทั้งหมด ${stat.totalCount} รายการ)`}
+              >
+                {/* Total Count Pill */}
+                <span
+                  className={`text-[11px] font-black px-1.5 py-0.5 rounded-md ${
+                    stat.totalCount > 0
+                      ? isSelected
+                        ? "bg-[#ED1C24] text-white"
+                        : "bg-slate-100 text-gray-800 group-hover:bg-slate-200"
+                      : "text-gray-300"
+                  }`}
+                >
+                  {stat.totalCount}
+                </span>
+
+                {/* Vertical Bar Track */}
+                <div className="w-6 h-20 bg-slate-100 rounded-lg overflow-hidden flex flex-col justify-end my-1.5 p-0.5">
+                  {stat.totalCount > 0 && (
+                    <div
+                      style={{ height: `${Math.max(heightPct, 18)}%` }}
+                      className="w-full flex flex-col justify-end rounded overflow-hidden"
+                    >
+                      {/* Product segment */}
+                      {stat.productsCount > 0 && (
+                        <div
+                          style={{
+                            height: `${(stat.productsCount / stat.totalCount) * 100}%`,
+                          }}
+                          className="w-full bg-[#ED1C24]"
+                          title={`New Product: ${stat.productsCount}`}
+                        />
+                      )}
+                      {/* Enhancement segment */}
+                      {stat.enhancementsCount > 0 && (
+                        <div
+                          style={{
+                            height: `${(stat.enhancementsCount / stat.totalCount) * 100}%`,
+                          }}
+                          className="w-full bg-[#0066CC]"
+                          title={`Enhancement: ${stat.enhancementsCount}`}
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Month Label */}
+                <span
+                  className={`text-[10px] font-bold truncate w-full ${
+                    isSelected ? "text-[#ED1C24]" : "text-gray-700"
+                  }`}
+                >
+                  {stat.month.split(" ")[0]}
+                </span>
+                <span className="text-[9px] text-gray-400">
+                  {stat.month.split(" ")[1]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 4. Scope Switcher */}
       <div className="flex items-center gap-1.5 p-1 bg-gray-100/90 rounded-xl w-fit">
         <button
           type="button"
@@ -406,14 +626,16 @@ export function AnalyticsView() {
         </button>
       </div>
 
-      {/* 4. Two Donut Charts Side-by-Side */}
+      {/* 5. Two Donut Charts Side-by-Side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Chart A: Channel / Partner Breakdown */}
         <div className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-xs space-y-4">
           <div>
             <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
               <Tag className="w-4 h-4 text-blue-600" />
-              <span>สัดส่วนโครงการแยกตามช่องทาง (Channel / Partner)</span>
+              <span>
+                สัดส่วนโครงการแยกตามช่องทาง {isAnnual ? "(ภาพรวมทั้งปี)" : `(${selectedPeriod})`}
+              </span>
             </h3>
             <p className="text-xs text-gray-500">
               วิเคราะห์ความหนาแน่นของงานในแต่ละพาร์ทเนอร์
@@ -501,7 +723,9 @@ export function AnalyticsView() {
             <div>
               <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
                 <Users className="w-4 h-4 text-red-600" />
-                <span>การกระจายภาระงานรายบุคคล (Team Workload)</span>
+                <span>
+                  การกระจายภาระงานรายบุคคล {isAnnual ? "(ภาพรวมทั้งปี)" : `(${selectedPeriod})`}
+                </span>
               </h3>
               <p className="text-xs text-gray-500">
                 สัดส่วนจำนวนโครงการที่คนในทีมได้รับมอบหมาย
@@ -585,13 +809,15 @@ export function AnalyticsView() {
         </div>
       </div>
 
-      {/* 5. Detailed Task List Filtered by Responsible Person */}
+      {/* 6. Detailed Task List Filtered by Responsible Person */}
       <div className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
           <div>
             <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
               <Filter className="w-4 h-4 text-[#ED1C24]" />
-              <span>รายการงานจำแนกตามผู้รับผิดชอบ (Tasks by Owner)</span>
+              <span>
+                รายการงานจำแนกตามผู้รับผิดชอบ {isAnnual ? "(ภาพรวมทั้งปี)" : `(${selectedPeriod})`}
+              </span>
             </h3>
             <p className="text-xs text-gray-500">
               คลิกเลือกชื่อคนในทีมเพื่อดูรายการงานทั้งหมดที่รับผิดชอบ
@@ -647,12 +873,12 @@ export function AnalyticsView() {
         {/* Task Cards Grid */}
         {detailedTasks.length === 0 ? (
           <div className="text-center py-12 text-gray-400 text-xs">
-            ไม่พบงานที่มอบหมายให้ผู้รับผิดชอบท่านนี้ในรอบเดือน {selectedMonth}
+            ไม่พบงานที่มอบหมายให้ผู้รับผิดชอบท่านนี้ {isAnnual ? "ตลอดทั้งปี" : `ในรอบเดือน ${selectedPeriod}`}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {detailedTasks.map((item) => {
-              const brokerColor = DEFAULT_COLORS[item.broker] || "#334155";
+              const brokerColor = colorMap[item.broker] || "#334155";
               const hasElearning = Object.values(item.milestones || {}).some(
                 (m) =>
                   m?.isElearningIcon ||
@@ -666,13 +892,21 @@ export function AnalyticsView() {
                   className="bg-slate-50/80 hover:bg-slate-100/80 p-3.5 rounded-xl border border-slate-200/80 border-l-4 shadow-2xs transition-all space-y-2.5"
                 >
                   <div className="flex items-center justify-between gap-1 text-[11px]">
-                    <span
-                      style={{ color: brokerColor }}
-                      className="font-bold tracking-tight"
-                    >
-                      [{item.broker}]
-                    </span>
-                    <span className="font-semibold text-gray-500 bg-white px-2 py-0.5 rounded-md border border-gray-200">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span
+                        style={{ color: brokerColor }}
+                        className="font-bold tracking-tight shrink-0"
+                      >
+                        [{item.broker}]
+                      </span>
+                      {/* Active Month Badge in Annual View */}
+                      {isAnnual && item.activeMonths && item.activeMonths.length > 0 && (
+                        <span className="text-[10px] font-semibold text-slate-500 bg-white px-1.5 py-0.2 rounded border border-slate-200 truncate">
+                          {item.activeMonths.join(", ")}
+                        </span>
+                      )}
+                    </div>
+                    <span className="font-semibold text-gray-500 bg-white px-2 py-0.5 rounded-md border border-gray-200 shrink-0">
                       {item.owner}
                     </span>
                   </div>
