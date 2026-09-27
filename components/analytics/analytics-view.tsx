@@ -24,9 +24,7 @@ import {
   CheckCircle2,
   Tag,
   RotateCcw,
-  Target,
   Search,
-  Check,
   UserCheck,
   ExternalLink,
   Info,
@@ -99,13 +97,7 @@ export function AnalyticsView() {
   // Type filter: All vs New Product vs Enhancement
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<"all" | "product" | "enhancement">("all");
 
-  // Delivery Status Filter: "pending" (default so unfinished items show first) vs "completed" vs "all"
-  const [statusFilter, setStatusFilter] = useState<"pending" | "completed" | "all">("pending");
-
-  // Search input for projects list on page
-  const [searchQuery, setSearchQuery] = useState("");
-
-  // Delivery Status Popup Modal State (User Request: ทำเป็น Popup เมื่อคลิกที่คนในกล่องภาระงาน)
+  // Delivery Status Popup Modal State (User Request: เปิดเป็น Popup ไม่ต้องเลื่อนจอ)
   const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
   const [modalMember, setModalMember] = useState<string | null>(null);
   const [modalStatusFilter, setModalStatusFilter] = useState<"pending" | "completed" | "all">("pending");
@@ -264,26 +256,6 @@ export function AnalyticsView() {
     return activeItems.map(buildItemStatus);
   }, [activeItems]);
 
-  const pendingItems = useMemo(() => itemsWithStatus.filter((i) => !i.isCompleted), [itemsWithStatus]);
-  const completedItems = useMemo(() => itemsWithStatus.filter((i) => i.isCompleted), [itemsWithStatus]);
-
-  // 5. Filtered items for display in the Delivery Status section on page
-  const displayedStatusItems = useMemo(() => {
-    let list = itemsWithStatus;
-    if (statusFilter === "pending") list = pendingItems;
-    else if (statusFilter === "completed") list = completedItems;
-
-    if (!searchQuery.trim()) return list;
-
-    const q = searchQuery.toLowerCase();
-    return list.filter(
-      (item) =>
-        item.name.toLowerCase().includes(q) ||
-        (item.broker || "").toLowerCase().includes(q) ||
-        (item.owner || "").toLowerCase().includes(q)
-    );
-  }, [itemsWithStatus, statusFilter, pendingItems, completedItems, searchQuery]);
-
   // Total KPIs
   const totalProjects = products.length + enhancements.length;
   const newProductCount = products.length;
@@ -297,7 +269,7 @@ export function AnalyticsView() {
     )
   ).length;
 
-  // 6. Channel Breakdown Segments
+  // 5. Channel Breakdown Segments
   const channelCounts = useMemo(() => {
     const map: Record<string, number> = {};
     activeItems.forEach((item) => {
@@ -336,11 +308,20 @@ export function AnalyticsView() {
       ? ((activeHoveredChannel.value / totalChannelCount) * 100).toFixed(0)
       : "100";
 
-  // 7. Team Member Workload Breakdown (Unfiltered by member to calculate team-wide stats)
+  // 6. Team Member Workload Breakdown (Unfiltered by member to calculate team-wide stats)
   const allTeamItemsWithStatus = useMemo(() => {
     const all = [...rawProducts, ...rawEnhancements];
     return all.map(buildItemStatus);
   }, [rawProducts, rawEnhancements]);
+
+  const allTeamPendingCount = useMemo(
+    () => allTeamItemsWithStatus.filter((i) => !i.isCompleted).length,
+    [allTeamItemsWithStatus]
+  );
+  const allTeamCompletedCount = useMemo(
+    () => allTeamItemsWithStatus.filter((i) => i.isCompleted).length,
+    [allTeamItemsWithStatus]
+  );
 
   const memberStats = useMemo(() => {
     const stats: Record<
@@ -414,7 +395,7 @@ export function AnalyticsView() {
     setIsDeliveryModalOpen(true);
   };
 
-  // 8. Items for the Popup Modal
+  // 7. Items for the Popup Modal
   const modalItems = useMemo(() => {
     if (!modalMember || modalMember === "ALL_TEAM") {
       return allTeamItemsWithStatus;
@@ -564,23 +545,31 @@ export function AnalyticsView() {
         </div>
       </div>
 
-      {/* 2. Interactive Team Member Selector Bar (แบบที่ 1: Global Filter) */}
-      <div className="bg-white rounded-2xl p-3 sm:p-4 border border-gray-200 shadow-xs space-y-2.5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      {/* 2. Interactive Team Member Selector Bar (แบบที่ 1: Global Filter with Complete Overview) */}
+      <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-gray-200 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div className="flex items-center gap-2 text-xs font-bold text-gray-800 flex-wrap">
             <Users className="w-4 h-4 text-[#ED1C24]" />
             <span>เลือกดูสถิติรายบุคคล หรือ ทั้งทีม:</span>
             {selectedMember ? (
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md">
                 <span
                   className="w-2 h-2 rounded-full"
                   style={{ backgroundColor: memberColors[selectedMember] || "#ED1C24" }}
                 />
-                กำลังกรองข้อมูลของ: <span className="text-[#ED1C24] underline">{selectedMember}</span>
+                กำลังดูของ: <span className="text-[#ED1C24] font-black">{selectedMember}</span>
+                <span className="text-gray-400 font-normal">|</span>
+                <span>รวม {memberStats[selectedMember]?.total || 0} งาน</span>
+                <span className="text-amber-700">(ค้าง {memberStats[selectedMember]?.pending || 0})</span>
+                <span className="text-emerald-700">(เสร็จ {memberStats[selectedMember]?.completed || 0})</span>
               </span>
             ) : (
-              <span className="text-[11px] font-normal text-gray-500">
-                (คลิกเลือกชื่อทีมงานเพื่อเปลี่ยนข้อมูลทั้งหน้าเป็นของคนนั้น)
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md">
+                <span>ภาพรวมทั้งทีม:</span>
+                <span className="text-[#ED1C24] font-black">รวม {rawUniqueProjectsCount} โครงการ</span>
+                <span className="text-gray-400 font-normal">|</span>
+                <span className="text-amber-700 font-bold">ค้าง {allTeamPendingCount}</span>
+                <span className="text-emerald-700 font-bold">เสร็จ {allTeamCompletedCount}</span>
               </span>
             )}
           </div>
@@ -590,20 +579,22 @@ export function AnalyticsView() {
             <button
               type="button"
               onClick={() => handleOpenDeliveryModal(selectedMember)}
-              className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 px-2.5 py-1 rounded-lg transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[#ED1C24] hover:bg-[#D4181F] px-3 py-1.5 rounded-xl shadow-2xs transition-all cursor-pointer"
+              title="เปิดหน้าต่าง Popup ติดตามสถานะงานและโครงการที่ค้าง"
             >
-              <ExternalLink className="w-3 h-3 text-[#ED1C24]" />
-              <span>เปิดสรุปงานแบบ Popup</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>เปิดดูสถานะงาน (Popup)</span>
             </button>
 
             {selectedMember && (
               <button
                 type="button"
                 onClick={() => setSelectedMember(null)}
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-[#ED1C24] hover:text-[#B3141A] transition-colors ml-1"
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-gray-500 hover:text-[#ED1C24] transition-colors ml-1"
+                title="กลับไปดูภาพรวมทั้งทีม"
               >
                 <RotateCcw className="w-3 h-3" />
-                <span>รีเซ็ต (All Team)</span>
+                <span>ดูทั้งทีม</span>
               </button>
             )}
           </div>
@@ -615,7 +606,7 @@ export function AnalyticsView() {
           <button
             type="button"
             onClick={() => setSelectedMember(null)}
-            className={`shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+            className={`shrink-0 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               selectedMember === null
                 ? "bg-slate-900 text-white shadow-sm ring-2 ring-slate-900/30"
                 : "bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200"
@@ -628,8 +619,19 @@ export function AnalyticsView() {
                 selectedMember === null ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
               }`}
             >
-              {allTeamItemsWithStatus.length}
+              {rawUniqueProjectsCount} โครงการ
             </span>
+            {allTeamPendingCount > 0 && (
+              <span
+                className={`text-[9px] px-1.5 py-0.2 rounded font-semibold ${
+                  selectedMember === null
+                    ? "bg-amber-400 text-amber-950 font-black"
+                    : "bg-amber-50 text-amber-800 border border-amber-200"
+                }`}
+              >
+                ค้าง {allTeamPendingCount}
+              </span>
+            )}
           </button>
 
           {/* Buttons: Each Team Member */}
@@ -643,7 +645,7 @@ export function AnalyticsView() {
                 key={member}
                 type="button"
                 onClick={() => setSelectedMember(isSelected ? null : member)}
-                className={`shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                className={`shrink-0 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   isSelected
                     ? "text-white shadow-sm ring-2 ring-red-400/40"
                     : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
@@ -911,7 +913,7 @@ export function AnalyticsView() {
         </button>
       </div>
 
-      {/* 6. Two Donut Charts Side-by-Side */}
+      {/* 6. Two Donut Charts Side-by-Side (Page Finishes Here Cleanly) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Chart A: Channel / Partner Breakdown */}
         <div className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-200 shadow-xs space-y-4">
@@ -1026,7 +1028,7 @@ export function AnalyticsView() {
             <button
               type="button"
               onClick={() => handleOpenDeliveryModal(selectedMember)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-[#ED1C24] text-xs font-bold rounded-xl border border-red-200 shadow-2xs transition-colors self-start sm:self-auto shrink-0"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-[#ED1C24] text-xs font-bold rounded-xl border border-red-200 shadow-2xs transition-colors self-start sm:self-auto shrink-0 cursor-pointer"
               title="เปิดหน้าต่าง Popup ติดตามสถานะงานและรายละเอียดโครงการ"
             >
               <ExternalLink className="w-3.5 h-3.5" />
@@ -1039,7 +1041,7 @@ export function AnalyticsView() {
             <div className="flex items-start gap-2 p-2.5 bg-blue-50/70 border border-blue-200/60 rounded-xl text-xs text-blue-900">
               <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
               <div className="text-[11px] leading-relaxed">
-                <strong>ทำไมยอดรวมถึงเป็น {totalMemberWorkload} ภาระงาน?</strong> เนื่องจากมี {coOwnedProjectsCount} โครงการที่มีผู้รับผิดชอบร่วมกัน 2 คน (Co-owners) เช่น ทำร่วมกัน 2 ท่าน จึงทำให้ยอดภาระงานรายบุคคลนับรวมได้ {totalMemberWorkload} งาน จากโครงการจริง {rawUniqueProjectsCount} โครงการ
+                <strong>ทำไมยอดรวมถึงเป็น {totalMemberWorkload} ภาระงาน?</strong> เนื่องจากมี {coOwnedProjectsCount} โครงการที่มีผู้รับผิดชอบร่วมกัน 2 คน (Co-owners) จึงทำให้ยอดภาระงานรายบุคคลนับรวมได้ {totalMemberWorkload} งาน จากโครงการจริงทั้งหมด {rawUniqueProjectsCount} โครงการ
               </div>
             </div>
           )}
@@ -1146,300 +1148,7 @@ export function AnalyticsView() {
         </div>
       </div>
 
-      {/* 7. Dedicated Project Delivery Tracker Section on Page */}
-      <div className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-200 shadow-xs space-y-5">
-        {/* Section Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-100">
-          <div>
-            <div className="flex items-center gap-2">
-              <Target className="w-5 h-5 text-[#ED1C24]" />
-              <h3 className="text-base font-bold text-gray-900">
-                ติดตามสถานะการส่งมอบโครงการ (Project Delivery Status)
-              </h3>
-              <button
-                type="button"
-                onClick={() => handleOpenDeliveryModal(selectedMember)}
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-[#ED1C24] bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded-lg border border-red-200 transition-colors ml-1"
-                title="เปิดเป็น Popup ขยายเต็มตา"
-              >
-                <ExternalLink className="w-3 h-3" /> เปิดแบบ Popup
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {selectedMember
-                ? `ตรวจสอบโครงการที่ค้างและงานที่เสร็จสมบูรณ์ของ ${selectedMember} (${isAnnual ? "ตลอดทั้งปี" : `รอบเดือน ${selectedPeriod}`})`
-                : `สรุปภาพรวมความคืบหน้าการส่งมอบโครงการของทีม (${isAnnual ? "ตลอดทั้งปี" : `รอบเดือน ${selectedPeriod}`})`}
-            </p>
-          </div>
-
-          {/* Search Box */}
-          <div className="relative w-full sm:w-64">
-            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ค้นหาชื่อโครงการ, ช่องทาง, ผู้รับผิดชอบ..."
-              className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-red-400/20 focus:border-[#ED1C24]"
-            />
-          </div>
-        </div>
-
-        {/* 2 Big Prominent Summary Cards (เสร็จ vs ค้าง) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Card 1: Pending & In Progress */}
-          <button
-            type="button"
-            onClick={() => setStatusFilter("pending")}
-            className={`text-left p-4 sm:p-5 rounded-2xl border-2 transition-all relative overflow-hidden group cursor-pointer ${
-              statusFilter === "pending"
-                ? "bg-gradient-to-br from-amber-50/80 via-white to-orange-50/40 border-amber-400 ring-4 ring-amber-400/20 shadow-md"
-                : "bg-white hover:bg-amber-50/30 border-gray-200 hover:border-amber-300 shadow-2xs"
-            }`}
-          >
-            <div className="flex items-start justify-between">
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
-                  <span className="text-xs font-black uppercase tracking-wider text-amber-800">
-                    ยังไม่เสร็จ / ค้างอยู่
-                  </span>
-                </div>
-                <div className="text-3xl sm:text-4xl font-black text-amber-600 tracking-tight">
-                  {pendingItems.length}{" "}
-                  <span className="text-sm font-bold text-amber-700/80">โครงการ</span>
-                </div>
-                <p className="text-[11px] text-amber-900/70">
-                  {statusFilter === "pending"
-                    ? "✓ กำลังแสดงรายการงานด้านล่างนี้"
-                    : "👉 คลิกเพื่อเปิดดูโครงการที่ค้างและขั้นตอนที่รอ"}
-                </p>
-              </div>
-
-              <div
-                className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${
-                  statusFilter === "pending"
-                    ? "bg-amber-500 text-white shadow-sm"
-                    : "bg-amber-100 text-amber-600 group-hover:bg-amber-200"
-                }`}
-              >
-                <Clock className="w-6 h-6" />
-              </div>
-            </div>
-          </button>
-
-          {/* Card 2: Completed / Launched */}
-          <button
-            type="button"
-            onClick={() => setStatusFilter("completed")}
-            className={`text-left p-4 sm:p-5 rounded-2xl border-2 transition-all relative overflow-hidden group cursor-pointer ${
-              statusFilter === "completed"
-                ? "bg-gradient-to-br from-emerald-50/80 via-white to-teal-50/40 border-emerald-400 ring-4 ring-emerald-400/20 shadow-md"
-                : "bg-white hover:bg-emerald-50/30 border-gray-200 hover:border-emerald-300 shadow-2xs"
-            }`}
-          >
-            <div className="flex items-start justify-between">
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                  <span className="text-xs font-black uppercase tracking-wider text-emerald-800">
-                    เสร็จสมบูรณ์แล้ว
-                  </span>
-                </div>
-                <div className="text-3xl sm:text-4xl font-black text-emerald-600 tracking-tight">
-                  {completedItems.length}{" "}
-                  <span className="text-sm font-bold text-emerald-700/80">โครงการ</span>
-                </div>
-                <p className="text-[11px] text-emerald-900/70">
-                  {statusFilter === "completed"
-                    ? "✓ กำลังแสดงรายการงานด้านล่างนี้"
-                    : "👉 คลิกเพื่อเปิดดูโครงการที่เปิดตัวสำเร็จเรียบร้อย"}
-                </p>
-              </div>
-
-              <div
-                className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${
-                  statusFilter === "completed"
-                    ? "bg-emerald-500 text-white shadow-sm"
-                    : "bg-emerald-100 text-emerald-600 group-hover:bg-emerald-200"
-                }`}
-              >
-                <CheckCircle2 className="w-6 h-6" />
-              </div>
-            </div>
-          </button>
-        </div>
-
-        {/* Status Indicator & View All Pill */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-          <div className="flex items-center gap-2 text-xs font-bold text-gray-700">
-            {statusFilter === "pending" && (
-              <span className="inline-flex items-center gap-1.5 text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
-                <Clock className="w-3.5 h-3.5 text-amber-600" />
-                กำลังแสดง: โครงการที่ยังไม่เสร็จ ({displayedStatusItems.length} รายการ)
-              </span>
-            )}
-            {statusFilter === "completed" && (
-              <span className="inline-flex items-center gap-1.5 text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                กำลังแสดง: โครงการที่เสร็จสมบูรณ์แล้ว ({displayedStatusItems.length} รายการ)
-              </span>
-            )}
-            {statusFilter === "all" && (
-              <span className="inline-flex items-center gap-1.5 text-slate-800 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg">
-                <Layers className="w-3.5 h-3.5 text-slate-600" />
-                กำลังแสดง: โครงการทั้งหมด ({displayedStatusItems.length} รายการ)
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            {statusFilter !== "all" ? (
-              <button
-                type="button"
-                onClick={() => setStatusFilter("all")}
-                className="text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1 rounded-lg transition-colors"
-              >
-                ดูโครงการทั้งหมด ({itemsWithStatus.length})
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setStatusFilter("pending")}
-                className="text-xs font-bold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-1 rounded-lg transition-colors"
-              >
-                สลับไปดูเฉพาะงานที่ค้าง ({pendingItems.length})
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Task Cards Grid: แบบ B (Visual Cards) */}
-        {displayedStatusItems.length === 0 ? (
-          <div className="text-center py-12 text-gray-500 text-xs bg-slate-50 rounded-2xl border border-dashed border-gray-200 space-y-2">
-            <div className="text-2xl">
-              {statusFilter === "pending" ? "🎉" : statusFilter === "completed" ? "📦" : "🔍"}
-            </div>
-            <div className="font-bold text-gray-700">
-              {statusFilter === "pending"
-                ? "ยอดเยี่ยมมาก! ไม่มีโครงการที่ค้างอยู่ ทุกรายการเปิดตัวเสร็จสมบูรณ์แล้ว"
-                : statusFilter === "completed"
-                ? "ยังไม่มีโครงการที่เปิดตัวเสร็จสมบูรณ์ในช่วงเวลานี้"
-                : "ไม่พบโครงการที่ตรงกับเงื่อนไขการค้นหา"}
-            </div>
-            {selectedMember && (
-              <p className="text-[11px] text-gray-400">
-                (กำลังดูเฉพาะของ {selectedMember} — สามารถคลิก &apos;ทั้งทีม&apos; ด้านบนเพื่อดูภาพรวมทั้งหมดได้)
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-            {displayedStatusItems.map((item) => {
-              const brokerColor = colorMap[item.broker] || "#334155";
-              const ownerColor = getOwnerColor(item.owner);
-              const isCoOwned = isItemCoOwned(item.owner);
-              const hasElearning = Object.values(item.milestones || {}).some(
-                (m) =>
-                  m?.isElearningIcon ||
-                  m?.phase === "first-draft-elearning" ||
-                  m?.phase === "final-elearning"
-              );
-
-              return (
-                <div
-                  key={item.id}
-                  style={{ borderLeftColor: brokerColor }}
-                  className="bg-white hover:bg-slate-50/90 p-4 rounded-2xl border border-gray-200 border-l-4 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between space-y-3"
-                >
-                  {/* Row 1: Channel Tag + Co-owner badge + Active Month + Status Pill */}
-                  <div className="flex items-center justify-between gap-1.5 text-[11px]">
-                    <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                      <span
-                        style={{ color: brokerColor, backgroundColor: `${brokerColor}15` }}
-                        className="font-black px-2 py-0.5 rounded-md text-[11px] tracking-tight shrink-0"
-                      >
-                        {item.broker}
-                      </span>
-                      {isCoOwned && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded shrink-0">
-                          <Users className="w-2.5 h-2.5" /> งานร่วม
-                        </span>
-                      )}
-                      {isAnnual && item.activeMonths && item.activeMonths.length > 0 && (
-                        <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 truncate">
-                          {item.activeMonths.join(", ")}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Waiting Phase or Completed Badge */}
-                    {item.isCompleted ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 shrink-0">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> เสร็จสมบูรณ์
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 shrink-0">
-                        <Clock className="w-3 h-3 animate-pulse text-amber-600" /> {item.currentPhaseLabel}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Row 2: Project Name */}
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-bold text-gray-900 leading-snug line-clamp-2">
-                      {item.name}
-                    </h4>
-                  </div>
-
-                  {/* Row 3: Owner & eLearning Tag */}
-                  <div className="flex items-center justify-between text-[11px] pt-1 border-t border-gray-100">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span
-                        className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10"
-                        style={{ backgroundColor: ownerColor }}
-                      />
-                      <span className="font-semibold text-gray-700 truncate max-w-[170px]">
-                        👤 {item.owner || "ยังไม่ระบุ"}
-                      </span>
-                    </div>
-
-                    {hasElearning && (
-                      <span className="px-2 py-0.5 bg-purple-50 text-purple-700 font-bold rounded-md border border-purple-200 flex items-center gap-1 text-[10px] shrink-0">
-                        <GraduationCap className="w-3 h-3" /> eLearning
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Row 4: Key Milestone Dates */}
-                  <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-dashed border-gray-100 text-[10px]">
-                    <div className="bg-slate-50 rounded-lg p-1.5 px-2">
-                      <span className="text-[9px] text-gray-400 block font-medium">Internal Training</span>
-                      <span className="font-bold text-gray-700 truncate block">
-                        {item.internalDate || "TBC"}
-                      </span>
-                    </div>
-                    <div
-                      className={`rounded-lg p-1.5 px-2 ${
-                        item.isCompleted
-                          ? "bg-emerald-50 text-emerald-800 border border-emerald-100"
-                          : "bg-red-50 text-[#ED1C24] border border-red-100"
-                      }`}
-                    >
-                      <span className="text-[9px] opacity-75 block font-medium">Target Launch</span>
-                      <span className="font-bold truncate block">
-                        {item.commercialDate || item.customRightLabel || "TBC"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* 8. Delivery Status Modal (POPUP WINDOW REQUESTED BY USER) */}
+      {/* 7. Delivery Status Modal (POPUP WINDOW - REPLACES BOTTOM SECTION) */}
       <AnimatePresence>
         {isDeliveryModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5">
@@ -1500,7 +1209,7 @@ export function AnalyticsView() {
                 <button
                   type="button"
                   onClick={() => setIsDeliveryModalOpen(false)}
-                  className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-200/60 rounded-xl transition-colors self-end sm:self-auto"
+                  className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-200/60 rounded-xl transition-colors self-end sm:self-auto cursor-pointer"
                   aria-label="Close modal"
                 >
                   <X className="w-5 h-5" />
@@ -1513,7 +1222,7 @@ export function AnalyticsView() {
                 <button
                   type="button"
                   onClick={() => setModalMember("ALL_TEAM")}
-                  className={`shrink-0 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                  className={`shrink-0 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     modalMember === "ALL_TEAM" || modalMember === null
                       ? "bg-slate-900 text-white shadow-2xs"
                       : "bg-slate-100 text-slate-700 hover:bg-slate-200"
@@ -1530,7 +1239,7 @@ export function AnalyticsView() {
                       key={member}
                       type="button"
                       onClick={() => setModalMember(member)}
-                      className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                      className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         isSel
                           ? "text-white shadow-2xs"
                           : "bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200"
@@ -1664,7 +1373,7 @@ export function AnalyticsView() {
                       <button
                         type="button"
                         onClick={() => setModalStatusFilter("all")}
-                        className="text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition-colors"
+                        className="text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
                       >
                         ดูทั้งหมด ({modalItems.length})
                       </button>
@@ -1672,7 +1381,7 @@ export function AnalyticsView() {
                       <button
                         type="button"
                         onClick={() => setModalStatusFilter("pending")}
-                        className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg transition-colors"
+                        className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
                       >
                         เฉพาะงานค้าง ({modalPendingItems.length})
                       </button>
@@ -1782,7 +1491,7 @@ export function AnalyticsView() {
                             )}
                           </div>
 
-                          {/* Key Milestone Dates */}
+                          {/* Dates */}
                           <div className="grid grid-cols-2 gap-2 pt-1 border-t border-dashed border-gray-100 text-[10px]">
                             <div className="bg-slate-50 rounded-lg p-1 px-1.5">
                               <span className="text-[9px] text-gray-400 block font-medium">Internal</span>
@@ -1818,7 +1527,7 @@ export function AnalyticsView() {
                 <button
                   type="button"
                   onClick={() => setIsDeliveryModalOpen(false)}
-                  className="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl transition-colors shadow-2xs"
+                  className="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl transition-colors shadow-2xs cursor-pointer"
                 >
                   ปิดหน้าต่าง
                 </button>
