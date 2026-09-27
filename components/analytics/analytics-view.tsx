@@ -22,15 +22,15 @@ import {
   Clock,
   ShieldCheck,
   CheckCircle2,
-  AlertCircle,
   Tag,
   RotateCcw,
   Target,
   Search,
   Check,
   UserCheck,
-  ChevronRight,
-  Filter,
+  ExternalLink,
+  Info,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -49,6 +49,12 @@ interface AggregatedItem extends ProductItem {
   activeMonths?: string[];
 }
 
+// Helper to check if an item is co-owned (multiple persons assigned)
+const isItemCoOwned = (ownerStr?: string) => {
+  if (!ownerStr) return false;
+  return ownerStr.includes("/") || ownerStr.includes(",") || ownerStr.includes("&");
+};
+
 // Helper to match project owner with team member name
 const isOwnerMatch = (itemOwner: string | undefined, memberName: string) => {
   if (!itemOwner) return false;
@@ -60,10 +66,7 @@ const isOwnerMatch = (itemOwner: string | undefined, memberName: string) => {
 
 export function AnalyticsView() {
   const { isAdmin, login } = useAdminAuth();
-  const {
-    monthlyStore,
-    availableMonths,
-  } = useProducts();
+  const { monthlyStore, availableMonths } = useProducts();
 
   const {
     teamMembers,
@@ -99,8 +102,14 @@ export function AnalyticsView() {
   // Delivery Status Filter: "pending" (default so unfinished items show first) vs "completed" vs "all"
   const [statusFilter, setStatusFilter] = useState<"pending" | "completed" | "all">("pending");
 
-  // Search input for projects list
+  // Search input for projects list on page
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Delivery Status Popup Modal State (User Request: ทำเป็น Popup เมื่อคลิกที่คนในกล่องภาระงาน)
+  const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
+  const [modalMember, setModalMember] = useState<string | null>(null);
+  const [modalStatusFilter, setModalStatusFilter] = useState<"pending" | "completed" | "all">("pending");
+  const [modalSearchQuery, setModalSearchQuery] = useState("");
 
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
@@ -171,6 +180,14 @@ export function AnalyticsView() {
     };
   }, [monthlyStore, availableMonths, isAnnual, selectedPeriod]);
 
+  // Total Unique Projects in this scope (Unfiltered by member)
+  const rawUniqueProjectsCount = rawProducts.length + rawEnhancements.length;
+
+  // Count co-owned projects
+  const coOwnedProjectsCount = useMemo(() => {
+    return [...rawProducts, ...rawEnhancements].filter((i) => isItemCoOwned(i.owner)).length;
+  }, [rawProducts, rawEnhancements]);
+
   // 2. Global Filter by selectedMember (แบบที่ 1)
   const products = useMemo(() => {
     if (!selectedMember) return rawProducts;
@@ -209,44 +226,48 @@ export function AnalyticsView() {
     return [...products, ...enhancements];
   }, [products, enhancements, selectedTypeFilter]);
 
-  // 4. Compute status detail for each item (Completed vs Pending & current waiting phase)
-  const itemsWithStatus = useMemo(() => {
-    return activeItems.map((item) => {
-      const launchM = item.milestones?.launch;
-      const isCompleted = launchM?.status === "completed";
+  // Helper to build status detail for each item
+  const buildItemStatus = (item: AggregatedItem) => {
+    const launchM = item.milestones?.launch;
+    const isCompleted = launchM?.status === "completed";
 
-      let currentPhaseLabel = isCompleted ? "เปิดตัวแล้ว (Launched)" : "รอดำเนินการ";
-      if (!isCompleted) {
-        const phases: { key: PhaseKey; label: string }[] = [
-          { key: "kick-off", label: "Kick-off" },
-          { key: "first-draft", label: "First Draft" },
-          { key: "first-draft-elearning", label: "First Draft e-Learning" },
-          { key: "final-approval", label: "Final Approval" },
-          { key: "final-elearning", label: "Final e-Learning" },
-          { key: "internal-training", label: "Internal Training" },
-          { key: "launch", label: "Launch" },
-        ];
-        for (const p of phases) {
-          const m = item.milestones?.[p.key];
-          if (m && m.status !== "completed") {
-            currentPhaseLabel = `รอ ${p.label}`;
-            break;
-          }
+    let currentPhaseLabel = isCompleted ? "เปิดตัวแล้ว (Launched)" : "รอดำเนินการ";
+    if (!isCompleted) {
+      const phases: { key: PhaseKey; label: string }[] = [
+        { key: "kick-off", label: "Kick-off" },
+        { key: "first-draft", label: "First Draft" },
+        { key: "first-draft-elearning", label: "First Draft e-Learning" },
+        { key: "final-approval", label: "Final Approval" },
+        { key: "final-elearning", label: "Final e-Learning" },
+        { key: "internal-training", label: "Internal Training" },
+        { key: "launch", label: "Launch" },
+      ];
+      for (const p of phases) {
+        const m = item.milestones?.[p.key];
+        if (m && m.status !== "completed") {
+          currentPhaseLabel = `รอ ${p.label}`;
+          break;
         }
       }
+    }
 
-      return {
-        ...item,
-        isCompleted,
-        currentPhaseLabel,
-      };
-    });
+    return {
+      ...item,
+      isCompleted,
+      currentPhaseLabel,
+      isCoOwned: isItemCoOwned(item.owner),
+    };
+  };
+
+  // 4. Compute status detail for active items on the page
+  const itemsWithStatus = useMemo(() => {
+    return activeItems.map(buildItemStatus);
   }, [activeItems]);
 
   const pendingItems = useMemo(() => itemsWithStatus.filter((i) => !i.isCompleted), [itemsWithStatus]);
   const completedItems = useMemo(() => itemsWithStatus.filter((i) => i.isCompleted), [itemsWithStatus]);
 
-  // 5. Filtered items for display in the Delivery Status section
+  // 5. Filtered items for display in the Delivery Status section on page
   const displayedStatusItems = useMemo(() => {
     let list = itemsWithStatus;
     if (statusFilter === "pending") list = pendingItems;
@@ -276,7 +297,7 @@ export function AnalyticsView() {
     )
   ).length;
 
-  // 6. Channel Breakdown Segments (Dynamic with customized colorMap)
+  // 6. Channel Breakdown Segments
   const channelCounts = useMemo(() => {
     const map: Record<string, number> = {};
     activeItems.forEach((item) => {
@@ -315,26 +336,29 @@ export function AnalyticsView() {
       ? ((activeHoveredChannel.value / totalChannelCount) * 100).toFixed(0)
       : "100";
 
-  // 7. Team Member Workload Breakdown
-  // Unfiltered items (all team) to calculate team-wide stats and member button numbers
+  // 7. Team Member Workload Breakdown (Unfiltered by member to calculate team-wide stats)
   const allTeamItemsWithStatus = useMemo(() => {
     const all = [...rawProducts, ...rawEnhancements];
-    return all.map((item) => {
-      const isCompleted = item.milestones?.launch?.status === "completed";
-      return { ...item, isCompleted };
-    });
+    return all.map(buildItemStatus);
   }, [rawProducts, rawEnhancements]);
 
   const memberStats = useMemo(() => {
-    const stats: Record<string, { total: number; completed: number; pending: number }> = {};
+    const stats: Record<
+      string,
+      { total: number; completed: number; pending: number; shared: number; solo: number }
+    > = {};
     teamMembers.forEach((m) => {
-      stats[m] = { total: 0, completed: 0, pending: 0 };
+      stats[m] = { total: 0, completed: 0, pending: 0, shared: 0, solo: 0 };
     });
 
     allTeamItemsWithStatus.forEach((item) => {
+      const isCo = isItemCoOwned(item.owner);
       teamMembers.forEach((member) => {
         if (isOwnerMatch(item.owner, member)) {
           stats[member].total += 1;
+          if (isCo) stats[member].shared += 1;
+          else stats[member].solo += 1;
+
           if (item.isCompleted) {
             stats[member].completed += 1;
           } else {
@@ -367,7 +391,7 @@ export function AnalyticsView() {
   const totalMemberWorkload = memberSegments.reduce((s, m) => s + m.value, 0);
   const activeHoveredMember = memberSegments.find((s) => s.label === hoveredMember);
   const displayMemberVal = activeHoveredMember?.value ?? totalMemberWorkload;
-  const displayMemberLabel = activeHoveredMember?.label ?? (selectedMember ? "รวมโครงการ" : "ภาระงานรวม");
+  const displayMemberLabel = activeHoveredMember?.label ?? (selectedMember ? "รวมโครงการ" : "ภาระงานที่มอบหมาย");
   const displayMemberPct =
     totalMemberWorkload > 0 && activeHoveredMember
       ? ((activeHoveredMember.value / totalMemberWorkload) * 100).toFixed(0)
@@ -381,6 +405,41 @@ export function AnalyticsView() {
     const matched = teamMembers.find((m) => isOwnerMatch(ownerName, m));
     return matched ? memberColors[matched] || "#ED1C24" : "#64748B";
   };
+
+  // Helper to open Delivery Status Modal for a specific member or all team
+  const handleOpenDeliveryModal = (member: string | null) => {
+    setModalMember(member === "ALL_TEAM" ? null : member);
+    setModalStatusFilter("pending");
+    setModalSearchQuery("");
+    setIsDeliveryModalOpen(true);
+  };
+
+  // 8. Items for the Popup Modal
+  const modalItems = useMemo(() => {
+    if (!modalMember || modalMember === "ALL_TEAM") {
+      return allTeamItemsWithStatus;
+    }
+    return allTeamItemsWithStatus.filter((i) => isOwnerMatch(i.owner, modalMember));
+  }, [allTeamItemsWithStatus, modalMember]);
+
+  const modalPendingItems = useMemo(() => modalItems.filter((i) => !i.isCompleted), [modalItems]);
+  const modalCompletedItems = useMemo(() => modalItems.filter((i) => i.isCompleted), [modalItems]);
+
+  const modalDisplayedItems = useMemo(() => {
+    let list = modalItems;
+    if (modalStatusFilter === "pending") list = modalPendingItems;
+    else if (modalStatusFilter === "completed") list = modalCompletedItems;
+
+    if (!modalSearchQuery.trim()) return list;
+
+    const q = modalSearchQuery.toLowerCase();
+    return list.filter(
+      (item) =>
+        item.name.toLowerCase().includes(q) ||
+        (item.broker || "").toLowerCase().includes(q) ||
+        (item.owner || "").toLowerCase().includes(q)
+    );
+  }, [modalItems, modalStatusFilter, modalPendingItems, modalCompletedItems, modalSearchQuery]);
 
   // If Not Admin, render Security Lock Gate
   if (!isAdmin) {
@@ -426,7 +485,7 @@ export function AnalyticsView() {
   }
 
   return (
-    <div className="w-full max-w-[1440px] mx-auto py-4 px-3 sm:px-6 space-y-6">
+    <div className="w-full max-w-[1440px] mx-auto py-3 px-3 sm:px-6 space-y-6">
       {/* 1. Header Banner */}
       <div className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -434,7 +493,7 @@ export function AnalyticsView() {
             <BarChart3 className="w-6 h-6" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-base sm:text-xl font-black text-gray-900 tracking-tight">
                 EXECUTIVE SUMMARY & TEAM ANALYTICS
               </h1>
@@ -488,19 +547,19 @@ export function AnalyticsView() {
           <button
             type="button"
             onClick={() => setIsTeamModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-gray-700 text-xs font-bold rounded-xl border border-gray-300 shadow-2xs transition-all hover:border-gray-400"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-gray-700 text-xs font-bold rounded-xl border border-gray-300 shadow-2xs transition-all hover:border-gray-400"
           >
             <Users className="w-3.5 h-3.5 text-blue-600" />
-            <span>จัดการสมาชิกทีม ({teamMembers.length})</span>
+            <span className="hidden sm:inline">จัดการสมาชิกทีม</span> ({teamMembers.length})
           </button>
 
           {/* Link back to Timeline */}
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#ED1C24] hover:bg-[#D4181F] text-white text-xs font-bold rounded-xl shadow-xs transition-all"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#ED1C24] hover:bg-[#D4181F] text-white text-xs font-bold rounded-xl shadow-xs transition-all"
           >
             <Calendar className="w-3.5 h-3.5" />
-            <span>ไปหน้า Timeline</span>
+            <span>Timeline</span>
           </Link>
         </div>
       </div>
@@ -508,7 +567,7 @@ export function AnalyticsView() {
       {/* 2. Interactive Team Member Selector Bar (แบบที่ 1: Global Filter) */}
       <div className="bg-white rounded-2xl p-3 sm:p-4 border border-gray-200 shadow-xs space-y-2.5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs font-bold text-gray-800">
+          <div className="flex items-center gap-2 text-xs font-bold text-gray-800 flex-wrap">
             <Users className="w-4 h-4 text-[#ED1C24]" />
             <span>เลือกดูสถิติรายบุคคล หรือ ทั้งทีม:</span>
             {selectedMember ? (
@@ -526,16 +585,28 @@ export function AnalyticsView() {
             )}
           </div>
 
-          {selectedMember && (
+          <div className="flex items-center gap-2">
+            {/* Quick Open Popup button */}
             <button
               type="button"
-              onClick={() => setSelectedMember(null)}
-              className="inline-flex items-center gap-1 text-[11px] font-bold text-[#ED1C24] hover:text-[#B3141A] transition-colors"
+              onClick={() => handleOpenDeliveryModal(selectedMember)}
+              className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 px-2.5 py-1 rounded-lg transition-colors"
             >
-              <RotateCcw className="w-3 h-3" />
-              <span>รีเซ็ตกลับเป็นทั้งทีม (All Team)</span>
+              <ExternalLink className="w-3 h-3 text-[#ED1C24]" />
+              <span>เปิดสรุปงานแบบ Popup</span>
             </button>
-          )}
+
+            {selectedMember && (
+              <button
+                type="button"
+                onClick={() => setSelectedMember(null)}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-[#ED1C24] hover:text-[#B3141A] transition-colors ml-1"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>รีเซ็ต (All Team)</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Member Buttons Row */}
@@ -544,7 +615,7 @@ export function AnalyticsView() {
           <button
             type="button"
             onClick={() => setSelectedMember(null)}
-            className={`shrink-0 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
               selectedMember === null
                 ? "bg-slate-900 text-white shadow-sm ring-2 ring-slate-900/30"
                 : "bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200"
@@ -565,14 +636,14 @@ export function AnalyticsView() {
           {teamMembers.map((member) => {
             const isSelected = selectedMember === member;
             const color = memberColors[member] || "#ED1C24";
-            const stat = memberStats[member] || { total: 0, completed: 0, pending: 0 };
+            const stat = memberStats[member] || { total: 0, completed: 0, pending: 0, shared: 0 };
 
             return (
               <button
                 key={member}
                 type="button"
                 onClick={() => setSelectedMember(isSelected ? null : member)}
-                className={`shrink-0 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                className={`shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                   isSelected
                     ? "text-white shadow-sm ring-2 ring-red-400/40"
                     : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
@@ -624,10 +695,14 @@ export function AnalyticsView() {
               {totalProjects}
             </div>
             <div className="text-[11px] text-gray-400">
-              {isAnnual ? "นับตามโครงการที่ไม่ซ้ำ (Unique)" : "ทั้ง New Product & Enhancement"}
+              {selectedMember
+                ? "นับโครงการที่ได้รับมอบหมาย"
+                : isAnnual
+                ? "นับตามโครงการที่ไม่ซ้ำ (Unique)"
+                : "ทั้ง New Product & Enhancement"}
             </div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-slate-100 text-gray-700 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-2xl bg-slate-100 text-gray-700 flex items-center justify-center shrink-0">
             <Layers className="w-6 h-6" />
           </div>
         </div>
@@ -645,7 +720,7 @@ export function AnalyticsView() {
               {totalProjects > 0 ? ((newProductCount / totalProjects) * 100).toFixed(0) : 0}% ของงานทั้งหมด
             </div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-red-50 text-[#ED1C24] flex items-center justify-center border border-red-100">
+          <div className="w-12 h-12 rounded-2xl bg-red-50 text-[#ED1C24] flex items-center justify-center border border-red-100 shrink-0">
             <Package className="w-6 h-6" />
           </div>
         </div>
@@ -663,7 +738,7 @@ export function AnalyticsView() {
               {totalProjects > 0 ? ((enhancementCount / totalProjects) * 100).toFixed(0) : 0}% ของงานทั้งหมด
             </div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#0066CC] flex items-center justify-center border border-blue-100">
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#0066CC] flex items-center justify-center border border-blue-100 shrink-0">
             <Boxes className="w-6 h-6" />
           </div>
         </div>
@@ -681,14 +756,14 @@ export function AnalyticsView() {
               คอร์สอบรมออนไลน์บนระบบ
             </div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-700 flex items-center justify-center border border-purple-100">
+          <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-700 flex items-center justify-center border border-purple-100 shrink-0">
             <GraduationCap className="w-6 h-6" />
           </div>
         </div>
       </div>
 
       {/* 4. Monthly Project Volume Trend Bar (Clickable Bars to Filter Month) */}
-      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-xs space-y-4">
+      <div className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-200 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
@@ -839,7 +914,7 @@ export function AnalyticsView() {
       {/* 6. Two Donut Charts Side-by-Side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Chart A: Channel / Partner Breakdown */}
-        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-xs space-y-4">
+        <div className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-200 shadow-xs space-y-4">
           <div>
             <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
               <Tag className="w-4 h-4 text-blue-600" />
@@ -928,9 +1003,9 @@ export function AnalyticsView() {
           </div>
         </div>
 
-        {/* Chart B: Team Workload or Selected Member Status Breakdown */}
-        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
+        {/* Chart B: Team Workload Breakdown with Popup trigger & Co-owner clarity */}
+        <div className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-200 shadow-xs space-y-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
                 <Users className="w-4 h-4 text-red-600" />
@@ -943,22 +1018,38 @@ export function AnalyticsView() {
               <p className="text-xs text-gray-500">
                 {selectedMember
                   ? "สัดส่วนงานที่เสร็จสมบูรณ์แล้ว เทียบกับงานที่ยังค้างอยู่"
-                  : "สัดส่วนจำนวนโครงการที่คนในทีมได้รับมอบหมาย (คลิกชื่อเพื่อกรอง)"}
+                  : `ภาระงานที่มอบหมาย (${totalMemberWorkload} งาน จาก ${rawUniqueProjectsCount} โครงการจริง — มีงานร่วม Co-owner)`}
               </p>
             </div>
-            {selectedMember && (
-              <button
-                type="button"
-                onClick={() => setSelectedMember(null)}
-                className="text-[11px] font-bold text-[#ED1C24] hover:underline"
-              >
-                ดูทั้งทีม
-              </button>
-            )}
+
+            {/* Quick Popup Trigger from Donut Box */}
+            <button
+              type="button"
+              onClick={() => handleOpenDeliveryModal(selectedMember)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-[#ED1C24] text-xs font-bold rounded-xl border border-red-200 shadow-2xs transition-colors self-start sm:self-auto shrink-0"
+              title="เปิดหน้าต่าง Popup ติดตามสถานะงานและรายละเอียดโครงการ"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>เปิดดูงาน (Popup)</span>
+            </button>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-6 pt-2">
-            <div className="shrink-0">
+          {/* Co-owner Workload Explanation Banner */}
+          {!selectedMember && coOwnedProjectsCount > 0 && (
+            <div className="flex items-start gap-2 p-2.5 bg-blue-50/70 border border-blue-200/60 rounded-xl text-xs text-blue-900">
+              <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+              <div className="text-[11px] leading-relaxed">
+                <strong>ทำไมยอดรวมถึงเป็น {totalMemberWorkload} ภาระงาน?</strong> เนื่องจากมี {coOwnedProjectsCount} โครงการที่มีผู้รับผิดชอบร่วมกัน 2 คน (Co-owners) เช่น ทำร่วมกัน 2 ท่าน จึงทำให้ยอดภาระงานรายบุคคลนับรวมได้ {totalMemberWorkload} งาน จากโครงการจริง {rawUniqueProjectsCount} โครงการ
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-6 pt-1">
+            <div
+              className="shrink-0 cursor-pointer group"
+              onClick={() => handleOpenDeliveryModal(selectedMember)}
+              title="คลิกเพื่อเปิด Popup รายละเอียดงาน"
+            >
               <DonutChart
                 data={memberSegments}
                 size={210}
@@ -981,7 +1072,12 @@ export function AnalyticsView() {
                       <span className="text-3xl font-black text-gray-900 leading-tight">
                         {displayMemberVal}
                       </span>
-                      {totalMemberWorkload > 0 && (
+                      {totalMemberWorkload > 0 && !selectedMember && (
+                        <span className="text-[10px] text-gray-400 font-medium">
+                          ({rawUniqueProjectsCount} โครงการจริง)
+                        </span>
+                      )}
+                      {selectedMember && totalMemberWorkload > 0 && (
                         <span className="text-xs font-bold text-red-600">
                           {displayMemberPct}
                         </span>
@@ -999,21 +1095,25 @@ export function AnalyticsView() {
                   totalMemberWorkload > 0
                     ? ((segment.value / totalMemberWorkload) * 100).toFixed(0)
                     : "0";
+                const isTeamMember = teamMembers.includes(segment.label);
+                const mStat = memberStats[segment.label];
+
                 return (
                   <div
                     key={segment.label}
                     onClick={() => {
-                      if (!selectedMember && teamMembers.includes(segment.label)) {
-                        setSelectedMember(segment.label);
+                      if (isTeamMember) {
+                        handleOpenDeliveryModal(segment.label);
                       }
                     }}
                     onMouseEnter={() => setHoveredMember(segment.label)}
                     onMouseLeave={() => setHoveredMember(null)}
                     className={`flex items-center justify-between p-2 rounded-xl text-xs transition-all cursor-pointer ${
-                      isHovered ? "bg-slate-100 shadow-2xs font-bold" : "hover:bg-slate-50"
+                      isHovered ? "bg-slate-100 shadow-2xs font-bold ring-1 ring-slate-300" : "hover:bg-slate-50"
                     }`}
+                    title={isTeamMember ? `คลิกเพื่อเปิด Popup ดูงานของ ${segment.label}` : undefined}
                   >
-                    <div className="flex items-center gap-2.5 truncate pr-2">
+                    <div className="flex items-center gap-2 truncate pr-2">
                       <span
                         className="w-3 h-3 rounded-full shrink-0"
                         style={{ backgroundColor: segment.color }}
@@ -1021,6 +1121,11 @@ export function AnalyticsView() {
                       <span className="truncate text-gray-800 font-semibold">
                         {segment.label}
                       </span>
+                      {mStat && mStat.shared > 0 && !selectedMember && (
+                        <span className="text-[9px] px-1 py-0.2 bg-indigo-50 text-indigo-700 rounded border border-indigo-200 font-bold shrink-0">
+                          ร่วม {mStat.shared}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="font-bold text-gray-900">
@@ -1029,6 +1134,9 @@ export function AnalyticsView() {
                       <span className="text-[11px] text-gray-400 w-9 text-right font-medium">
                         {pct}%
                       </span>
+                      {isTeamMember && (
+                        <ExternalLink className="w-3 h-3 text-gray-400 group-hover:text-red-500 shrink-0" />
+                      )}
                     </div>
                   </div>
                 );
@@ -1038,16 +1146,26 @@ export function AnalyticsView() {
         </div>
       </div>
 
-      {/* 7. Dedicated Project Delivery Tracker Section (Clear Status Summary + Visual Cards แบบ B) */}
-      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-xs space-y-5">
+      {/* 7. Dedicated Project Delivery Tracker Section on Page */}
+      <div className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-200 shadow-xs space-y-5">
         {/* Section Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-100">
           <div>
-            <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <Target className="w-5 h-5 text-[#ED1C24]" />
-              <span>ติดตามสถานะการส่งมอบโครงการ (Project Delivery Status)</span>
-            </h3>
-            <p className="text-xs text-gray-500">
+              <h3 className="text-base font-bold text-gray-900">
+                ติดตามสถานะการส่งมอบโครงการ (Project Delivery Status)
+              </h3>
+              <button
+                type="button"
+                onClick={() => handleOpenDeliveryModal(selectedMember)}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-[#ED1C24] bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded-lg border border-red-200 transition-colors ml-1"
+                title="เปิดเป็น Popup ขยายเต็มตา"
+              >
+                <ExternalLink className="w-3 h-3" /> เปิดแบบ Popup
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-0.5">
               {selectedMember
                 ? `ตรวจสอบโครงการที่ค้างและงานที่เสร็จสมบูรณ์ของ ${selectedMember} (${isAnnual ? "ตลอดทั้งปี" : `รอบเดือน ${selectedPeriod}`})`
                 : `สรุปภาพรวมความคืบหน้าการส่งมอบโครงการของทีม (${isAnnual ? "ตลอดทั้งปี" : `รอบเดือน ${selectedPeriod}`})`}
@@ -1153,7 +1271,7 @@ export function AnalyticsView() {
         </div>
 
         {/* Status Indicator & View All Pill */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
           <div className="flex items-center gap-2 text-xs font-bold text-gray-700">
             {statusFilter === "pending" && (
               <span className="inline-flex items-center gap-1.5 text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
@@ -1220,6 +1338,7 @@ export function AnalyticsView() {
             {displayedStatusItems.map((item) => {
               const brokerColor = colorMap[item.broker] || "#334155";
               const ownerColor = getOwnerColor(item.owner);
+              const isCoOwned = isItemCoOwned(item.owner);
               const hasElearning = Object.values(item.milestones || {}).some(
                 (m) =>
                   m?.isElearningIcon ||
@@ -1233,7 +1352,7 @@ export function AnalyticsView() {
                   style={{ borderLeftColor: brokerColor }}
                   className="bg-white hover:bg-slate-50/90 p-4 rounded-2xl border border-gray-200 border-l-4 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between space-y-3"
                 >
-                  {/* Row 1: Channel Tag + Active Month + Status Pill */}
+                  {/* Row 1: Channel Tag + Co-owner badge + Active Month + Status Pill */}
                   <div className="flex items-center justify-between gap-1.5 text-[11px]">
                     <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                       <span
@@ -1242,6 +1361,11 @@ export function AnalyticsView() {
                       >
                         {item.broker}
                       </span>
+                      {isCoOwned && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded shrink-0">
+                          <Users className="w-2.5 h-2.5" /> งานร่วม
+                        </span>
+                      )}
                       {isAnnual && item.activeMonths && item.activeMonths.length > 0 && (
                         <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 truncate">
                           {item.activeMonths.join(", ")}
@@ -1314,6 +1438,395 @@ export function AnalyticsView() {
           </div>
         )}
       </div>
+
+      {/* 8. Delivery Status Modal (POPUP WINDOW REQUESTED BY USER) */}
+      <AnimatePresence>
+        {isDeliveryModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsDeliveryModalOpen(false)}
+              className="fixed inset-0 bg-slate-950/45 backdrop-blur-xs"
+              aria-hidden="true"
+            />
+
+            {/* Modal Card */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ duration: 0.18 }}
+              className="relative w-full max-w-4xl max-h-[92vh] bg-white rounded-3xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden z-10"
+            >
+              {/* Modal Header */}
+              <div className="shrink-0 p-4 sm:p-5 border-b border-gray-100 bg-slate-50/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-10 h-10 rounded-2xl flex items-center justify-center text-white shadow-xs shrink-0"
+                    style={{
+                      backgroundColor:
+                        modalMember && modalMember !== "ALL_TEAM"
+                          ? memberColors[modalMember] || "#ED1C24"
+                          : "#1E293B",
+                    }}
+                  >
+                    {modalMember && modalMember !== "ALL_TEAM" ? (
+                      <UserCheck className="w-5 h-5" />
+                    ) : (
+                      <Users className="w-5 h-5" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-base sm:text-lg font-black text-gray-900 tracking-tight">
+                        สถานะการส่งมอบโครงการ :{" "}
+                        {modalMember && modalMember !== "ALL_TEAM" ? modalMember : "ทั้งทีม (All Team)"}
+                      </h3>
+                      <span className="text-[11px] font-bold text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded-full">
+                        {isAnnual ? "ภาพรวมทั้งปี" : selectedPeriod}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {modalMember && modalMember !== "ALL_TEAM"
+                        ? `สรุปโครงการที่มอบหมายให้ ${modalMember} (รวมทั้งหมด ${modalItems.length} โครงการ)`
+                        : `สรุปโครงการทั้งหมดของฝ่ายพัฒนาหลักสูตร (รวมทั้งหมด ${modalItems.length} โครงการ)`}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsDeliveryModalOpen(false)}
+                  className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-200/60 rounded-xl transition-colors self-end sm:self-auto"
+                  aria-label="Close modal"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Member Selector Tabs inside Modal */}
+              <div className="px-4 sm:px-5 py-2.5 bg-white border-b border-gray-100 flex items-center gap-1.5 overflow-x-auto scrollbar-thin shrink-0">
+                <span className="text-[11px] font-bold text-gray-500 shrink-0 mr-1">สลับดู:</span>
+                <button
+                  type="button"
+                  onClick={() => setModalMember("ALL_TEAM")}
+                  className={`shrink-0 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                    modalMember === "ALL_TEAM" || modalMember === null
+                      ? "bg-slate-900 text-white shadow-2xs"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
+                >
+                  👥 ทั้งทีม ({allTeamItemsWithStatus.length})
+                </button>
+                {teamMembers.map((member) => {
+                  const isSel = modalMember === member;
+                  const mColor = memberColors[member] || "#ED1C24";
+                  const mStat = memberStats[member] || { total: 0, completed: 0, pending: 0 };
+                  return (
+                    <button
+                      key={member}
+                      type="button"
+                      onClick={() => setModalMember(member)}
+                      className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                        isSel
+                          ? "text-white shadow-2xs"
+                          : "bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200"
+                      }`}
+                      style={isSel ? { backgroundColor: mColor } : undefined}
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0 border border-black/10"
+                        style={{ backgroundColor: isSel ? "#FFFFFF" : mColor }}
+                      />
+                      <span>{member}</span>
+                      <span
+                        className={`text-[10px] px-1 py-0.2 rounded-full font-black ${
+                          isSel ? "bg-black/20 text-white" : "bg-slate-200 text-slate-700"
+                        }`}
+                      >
+                        {mStat.total}
+                      </span>
+                      {mStat.pending > 0 && (
+                        <span
+                          className={`text-[9px] px-1 py-0.2 rounded font-semibold ${
+                            isSel ? "bg-black/30 text-amber-200" : "bg-amber-100 text-amber-800"
+                          }`}
+                        >
+                          ค้าง {mStat.pending}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Modal Body */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+                {/* 2 Big Summary Cards inside Modal */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Card 1: Pending */}
+                  <button
+                    type="button"
+                    onClick={() => setModalStatusFilter("pending")}
+                    className={`text-left p-3.5 sm:p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                      modalStatusFilter === "pending"
+                        ? "bg-gradient-to-br from-amber-50 via-white to-orange-50/30 border-amber-400 ring-2 ring-amber-400/20 shadow-xs"
+                        : "bg-white hover:bg-amber-50/20 border-gray-200 hover:border-amber-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800 uppercase">
+                          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                          <span>ยังไม่เสร็จ / ค้างอยู่</span>
+                        </div>
+                        <div className="text-2xl sm:text-3xl font-black text-amber-600 mt-1">
+                          {modalPendingItems.length}{" "}
+                          <span className="text-xs font-bold text-amber-700">โครงการ</span>
+                        </div>
+                      </div>
+                      <div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                          modalStatusFilter === "pending"
+                            ? "bg-amber-500 text-white"
+                            : "bg-amber-100 text-amber-600"
+                        }`}
+                      >
+                        <Clock className="w-5 h-5" />
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Card 2: Completed */}
+                  <button
+                    type="button"
+                    onClick={() => setModalStatusFilter("completed")}
+                    className={`text-left p-3.5 sm:p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                      modalStatusFilter === "completed"
+                        ? "bg-gradient-to-br from-emerald-50 via-white to-teal-50/30 border-emerald-400 ring-2 ring-emerald-400/20 shadow-xs"
+                        : "bg-white hover:bg-emerald-50/20 border-gray-200 hover:border-emerald-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 uppercase">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                          <span>เสร็จสมบูรณ์แล้ว</span>
+                        </div>
+                        <div className="text-2xl sm:text-3xl font-black text-emerald-600 mt-1">
+                          {modalCompletedItems.length}{" "}
+                          <span className="text-xs font-bold text-emerald-700">โครงการ</span>
+                        </div>
+                      </div>
+                      <div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                          modalStatusFilter === "completed"
+                            ? "bg-emerald-500 text-white"
+                            : "bg-emerald-100 text-emerald-600"
+                        }`}
+                      >
+                        <CheckCircle2 className="w-5 h-5" />
+                      </div>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Filter and Search Row inside Modal */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg ${
+                        modalStatusFilter === "pending"
+                          ? "bg-amber-50 text-amber-800 border border-amber-200"
+                          : modalStatusFilter === "completed"
+                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                          : "bg-slate-100 text-slate-800 border border-slate-200"
+                      }`}
+                    >
+                      {modalStatusFilter === "pending" && <Clock className="w-3.5 h-3.5 text-amber-600" />}
+                      {modalStatusFilter === "completed" && (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      )}
+                      {modalStatusFilter === "all" && <Layers className="w-3.5 h-3.5 text-slate-600" />}
+                      <span>
+                        {modalStatusFilter === "pending"
+                          ? `งานที่ค้างอยู่ (${modalDisplayedItems.length})`
+                          : modalStatusFilter === "completed"
+                          ? `งานที่เสร็จแล้ว (${modalDisplayedItems.length})`
+                          : `งานทั้งหมด (${modalDisplayedItems.length})`}
+                      </span>
+                    </span>
+
+                    {modalStatusFilter !== "all" ? (
+                      <button
+                        type="button"
+                        onClick={() => setModalStatusFilter("all")}
+                        className="text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition-colors"
+                      >
+                        ดูทั้งหมด ({modalItems.length})
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setModalStatusFilter("pending")}
+                        className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg transition-colors"
+                      >
+                        เฉพาะงานค้าง ({modalPendingItems.length})
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Search Input inside Modal */}
+                  <div className="relative w-full sm:w-56">
+                    <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={modalSearchQuery}
+                      onChange={(e) => setModalSearchQuery(e.target.value)}
+                      placeholder="ค้นหาชื่อโครงการ, ช่องทาง..."
+                      className="w-full pl-7 pr-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-red-400"
+                    />
+                  </div>
+                </div>
+
+                {/* Visual Cards Grid in Modal (แบบ B) */}
+                {modalDisplayedItems.length === 0 ? (
+                  <div className="text-center py-10 text-gray-500 text-xs bg-slate-50 rounded-2xl border border-dashed border-gray-200 space-y-1.5">
+                    <div className="text-2xl">
+                      {modalStatusFilter === "pending" ? "🎉" : modalStatusFilter === "completed" ? "📦" : "🔍"}
+                    </div>
+                    <p className="font-bold text-gray-700">
+                      {modalStatusFilter === "pending"
+                        ? "ไม่มีโครงการที่ค้างอยู่ ทุกรายการเปิดตัวเสร็จสมบูรณ์แล้ว!"
+                        : modalStatusFilter === "completed"
+                        ? "ยังไม่มีโครงการที่เปิดตัวเสร็จสมบูรณ์ในช่วงเวลานี้"
+                        : "ไม่พบโครงการที่ค้นหา"}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {modalDisplayedItems.map((item) => {
+                      const brokerColor = colorMap[item.broker] || "#334155";
+                      const ownerColor = getOwnerColor(item.owner);
+                      const isCoOwned = isItemCoOwned(item.owner);
+                      const hasElearning = Object.values(item.milestones || {}).some(
+                        (m) =>
+                          m?.isElearningIcon ||
+                          m?.phase === "first-draft-elearning" ||
+                          m?.phase === "final-elearning"
+                      );
+
+                      return (
+                        <div
+                          key={item.id}
+                          style={{ borderLeftColor: brokerColor }}
+                          className="bg-white hover:bg-slate-50/80 p-3.5 rounded-2xl border border-gray-200 border-l-4 shadow-2xs transition-all flex flex-col justify-between space-y-2.5"
+                        >
+                          {/* Top Row: Channel + Co-owner badge + Phase status */}
+                          <div className="flex items-center justify-between gap-1.5 text-[11px]">
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <span
+                                style={{ color: brokerColor, backgroundColor: `${brokerColor}15` }}
+                                className="font-black px-2 py-0.5 rounded-md text-[11px] tracking-tight shrink-0"
+                              >
+                                {item.broker}
+                              </span>
+                              {isCoOwned && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded shrink-0">
+                                  <Users className="w-2.5 h-2.5" /> งานร่วม
+                                </span>
+                              )}
+                              {isAnnual && item.activeMonths && item.activeMonths.length > 0 && (
+                                <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
+                                  {item.activeMonths.join(", ")}
+                                </span>
+                              )}
+                            </div>
+
+                            {item.isCompleted ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" /> เปิดตัวแล้ว
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 shrink-0">
+                                <Clock className="w-3 h-3 animate-pulse text-amber-600" /> {item.currentPhaseLabel}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Project Name */}
+                          <div>
+                            <h4 className="text-xs sm:text-sm font-bold text-gray-900 leading-snug line-clamp-2">
+                              {item.name}
+                            </h4>
+                          </div>
+
+                          {/* Owner & eLearning */}
+                          <div className="flex items-center justify-between text-[11px] pt-1 border-t border-gray-100">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span
+                                className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10"
+                                style={{ backgroundColor: ownerColor }}
+                              />
+                              <span className="font-semibold text-gray-700 truncate max-w-[170px]">
+                                👤 {item.owner || "ยังไม่ระบุ"}
+                              </span>
+                            </div>
+                            {hasElearning && (
+                              <span className="px-1.5 py-0.2 bg-purple-50 text-purple-700 font-bold rounded-md border border-purple-200 flex items-center gap-1 text-[9px] shrink-0">
+                                <GraduationCap className="w-2.5 h-2.5" /> eLearning
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Key Milestone Dates */}
+                          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-dashed border-gray-100 text-[10px]">
+                            <div className="bg-slate-50 rounded-lg p-1 px-1.5">
+                              <span className="text-[9px] text-gray-400 block font-medium">Internal</span>
+                              <span className="font-bold text-gray-700 truncate block">
+                                {item.internalDate || "TBC"}
+                              </span>
+                            </div>
+                            <div
+                              className={`rounded-lg p-1 px-1.5 ${
+                                item.isCompleted
+                                  ? "bg-emerald-50 text-emerald-800 border border-emerald-100"
+                                  : "bg-red-50 text-[#ED1C24] border border-red-100"
+                              }`}
+                            >
+                              <span className="text-[9px] opacity-75 block font-medium">Target Launch</span>
+                              <span className="font-bold truncate block">
+                                {item.commercialDate || item.customRightLabel || "TBC"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="shrink-0 px-4 sm:px-5 py-3 border-t border-gray-100 bg-slate-50 flex items-center justify-between text-xs">
+                <span className="text-gray-500 font-medium">
+                  แสดง {modalDisplayedItems.length} จากทั้งหมด {modalItems.length} โครงการ
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsDeliveryModalOpen(false)}
+                  className="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl transition-colors shadow-2xs"
+                >
+                  ปิดหน้าต่าง
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Team Member Management Modal */}
       <TeamManagementModal

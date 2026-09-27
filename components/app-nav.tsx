@@ -36,7 +36,7 @@ export function AppNav() {
                 </span>
               </div>
               <div className="text-[11px] font-medium text-[#5A646E] leading-none">
-                ฝ่ายพัฒนาหลักสูตร • Curriculum Development Dashboard
+                ฝ่ายพัฒนาหลักสูตร <span className="hidden md:inline">• Curriculum Development Dashboard</span>
               </div>
             </div>
           </div>
@@ -53,8 +53,8 @@ export function AppNav() {
                 }`}
               >
                 <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                <span className="hidden xs:inline sm:inline">Product Timeline</span>
-                <span className="inline xs:hidden sm:hidden">Timeline</span>
+                <span className="hidden sm:inline">Product Timeline</span>
+                <span className="inline sm:hidden">Timeline</span>
               </Link>
 
               {/* สรุปสถิติ & สรุปภาพรวม (Admin Analytics) */}
@@ -68,8 +68,8 @@ export function AppNav() {
                   }`}
                 >
                   <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 text-[#ED1C24]" />
-                  <span className="hidden xs:inline sm:inline">สรุปสถิติ (Analytics)</span>
-                  <span className="inline xs:hidden sm:hidden">สถิติ</span>
+                  <span className="hidden sm:inline">สรุปสถิติ (Analytics)</span>
+                  <span className="inline sm:hidden">สถิติ</span>
                 </Link>
               ) : (
                 <button
@@ -79,8 +79,8 @@ export function AppNav() {
                   title="เข้าสู่ระบบ Admin เพื่อดูสรุปสถิติโครงการ"
                 >
                   <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 text-gray-400" />
-                  <span className="hidden xs:inline sm:inline">สรุปสถิติ (Admin)</span>
-                  <span className="inline xs:hidden sm:hidden">สถิติ</span>
+                  <span className="hidden sm:inline">สรุปสถิติ (Admin)</span>
+                  <span className="inline sm:hidden">สถิติ</span>
                   <Lock className="w-3 h-3 text-gray-400 shrink-0" />
                 </button>
               )}
