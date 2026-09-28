@@ -6,6 +6,7 @@ import { ProductItem, PHASES, TimelineType } from "@/lib/timeline-data";
 import { ElearningMonitorIcon } from "./elearning-icon";
 import { Edit2, Download, Trash2 } from "lucide-react";
 import { toPng } from "html-to-image";
+import { resolveBrokerColor } from "@/lib/broker-colors";
 
 interface TimelineRowProps {
   product: ProductItem;
@@ -38,19 +39,7 @@ export function TimelineRow({
       .trim();
   };
 
-  // Dynamic broker brand color with priority to customColorMap
-  const getBrokerHex = (broker: string): string => {
-    if (customColorMap && customColorMap[broker]) return customColorMap[broker];
-    const lower = (broker || "").toLowerCase();
-    if (lower.includes("ttb")) return customColorMap?.["ttb"] || "#009FE3";
-    if (lower.includes("uob")) return customColorMap?.["UOB"] || "#0B2265";
-    if (lower.includes("agency")) return customColorMap?.["Agency"] || "#ED1C24";
-    if (lower.includes("audit")) return customColorMap?.["Audit"] || "#1E293B";
-    if (lower.includes("new broker")) return customColorMap?.["New Broker"] || "#334155";
-    return "#334155"; // Default Slate
-  };
-
-  const brokerColor = getBrokerHex(product.broker);
+  const brokerColor = resolveBrokerColor(product.broker, customColorMap);
 
   // Find min and max active phase indices to draw progress lines
   const phaseIndicesWithMilestones: { index: number; isCompleted: boolean }[] = [];

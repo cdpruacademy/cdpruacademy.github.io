@@ -1,72 +1,41 @@
-export type BrokerTag = "ttb" | "ttb touch" | "UOB" | "Agency" | "New Broker" | "Audit" | string;
-
-export interface BrokerColorConfig {
-  textColor: string;
-  borderColor: string;
-  bgColor?: string;
-}
-
-// Real brand colors
-export const DEFAULT_BROKER_COLORS: Record<string, BrokerColorConfig> = {
-  // ttb: ฟ้าสดใส (TMBThanachart Primary Digital Blue)
-  ttb: {
-    textColor: "text-[#009FE3]",
-    borderColor: "border-l-[#009FE3]",
-    bgColor: "bg-[#009FE3]/10",
-  },
-  "ttb touch": {
-    textColor: "text-[#009FE3]",
-    borderColor: "border-l-[#009FE3]",
-    bgColor: "bg-[#009FE3]/10",
-  },
-  // UOB: น้ำเงินเข้มธนาคารยูโอบี (UOB Deep Navy Blue)
-  UOB: {
-    textColor: "text-[#0B2265]",
-    borderColor: "border-l-[#0B2265]",
-    bgColor: "bg-[#0B2265]/10",
-  },
-  // Agency: แดง Prudential
-  Agency: {
-    textColor: "text-[#ED1C24]",
-    borderColor: "border-l-[#ED1C24]",
-    bgColor: "bg-[#ED1C24]/10",
-  },
-  // New Broker: Slate Grey
-  "New Broker": {
-    textColor: "text-[#475569]",
-    borderColor: "border-l-[#475569]",
-    bgColor: "bg-slate-100",
-  },
-  // Audit: Dark Charcoal
-  Audit: {
-    textColor: "text-[#1E293B]",
-    borderColor: "border-l-[#1E293B]",
-    bgColor: "bg-gray-100",
-  },
+export const DEFAULT_BROKER_COLORS: Record<string, string> = {
+  ttb: "#009FE3",
+  "ttb touch": "#009FE3",
+  UOB: "#0B2265",
+  Agency: "#ED1C24",
+  CIMB: "#7E1518",
+  D2C: "#6366F1",
+  "New Broker": "#334155",
+  Audit: "#1E293B",
 };
 
-const STORAGE_KEY = "pru_custom_broker_colors_v1";
+export const BROKER_COLORS_KEY = "pru_broker_colors_map_v1";
 
-export function getBrokerColors(): Record<string, BrokerColorConfig> {
-  if (typeof window === "undefined") return DEFAULT_BROKER_COLORS;
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      return { ...DEFAULT_BROKER_COLORS, ...JSON.parse(stored) };
-    }
-  } catch (_) {}
-  return DEFAULT_BROKER_COLORS;
-}
+// Helper to resolve color case-insensitively with intelligent fallbacks
+export function resolveBrokerColor(
+  broker: string | undefined,
+  colorMap: Record<string, string> = DEFAULT_BROKER_COLORS
+): string {
+  if (!broker) return "#334155";
 
-export function saveBrokerColor(broker: string, hexColor: string) {
-  if (typeof window === "undefined") return;
-  try {
-    const current = getBrokerColors();
-    current[broker] = {
-      textColor: `text-[${hexColor}]`,
-      borderColor: `border-l-[${hexColor}]`,
-      bgColor: `bg-[${hexColor}]/10`,
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
-  } catch (_) {}
+  // 1. Direct match
+  if (colorMap[broker]) return colorMap[broker];
+
+  // 2. Case-insensitive key match
+  const lower = broker.toLowerCase().trim();
+  const matchedKey = Object.keys(colorMap || {}).find(
+    (k) => k.toLowerCase().trim() === lower
+  );
+  if (matchedKey && colorMap[matchedKey]) return colorMap[matchedKey];
+
+  // 3. Known brand substring fallbacks
+  if (lower.includes("ttb")) return colorMap?.["ttb"] || colorMap?.["ttb touch"] || "#009FE3";
+  if (lower.includes("uob")) return colorMap?.["UOB"] || "#0B2265";
+  if (lower.includes("agency")) return colorMap?.["Agency"] || "#ED1C24";
+  if (lower.includes("cimb")) return colorMap?.["CIMB"] || "#7E1518";
+  if (lower.includes("d2c")) return colorMap?.["D2C"] || "#6366F1";
+  if (lower.includes("audit")) return colorMap?.["Audit"] || "#1E293B";
+  if (lower.includes("new broker")) return colorMap?.["New Broker"] || "#334155";
+
+  return "#334155";
 }

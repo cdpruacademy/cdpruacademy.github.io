@@ -11,20 +11,10 @@ import { TimelineExportBoard } from "./timeline-export-board";
 import { ProductFormModal } from "./product-form-modal";
 import { BrokerColorModal } from "./broker-color-modal";
 import { useTeamMembers } from "@/hooks/use-team-members";
+import { useChannelColors } from "@/hooks/use-channel-colors";
 import { toPng } from "html-to-image";
 import { uploadTimelineSnapshot, saveBothTimelineSnapshots } from "@/lib/supabase";
 import { Plus, AlertCircle, ShieldCheck, Loader2 } from "lucide-react";
-
-const BROKER_COLORS_KEY = "pru_broker_colors_map_v1";
-
-const DEFAULT_COLORS: Record<string, string> = {
-  ttb: "#009FE3", // ฟ้าสดใส ttb
-  "ttb touch": "#009FE3",
-  UOB: "#0B2265", // น้ำเงินเข้ม UOB
-  Agency: "#ED1C24", // แดง Prudential
-  "New Broker": "#334155", // เทา Slate
-  Audit: "#1E293B", // ดำ Charcoal
-};
 
 export function ProductTimeline() {
   const {
@@ -59,23 +49,19 @@ export function ProductTimeline() {
     resetToDefault: resetTeamMembers,
   } = useTeamMembers();
 
+  const {
+    colorMap,
+    updateChannelColor: handleColorChange,
+    addChannel: handleAddChannel,
+    deleteChannel: handleDeleteChannel,
+    resetToDefault: handleResetColors,
+  } = useChannelColors(monthlyStore);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isColorModalOpen, setIsColorModalOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<ProductItem | null>(null);
   const [isExportingAll, setIsExportingAll] = useState(false);
   const [isSendingLine, setIsSendingLine] = useState(false);
-
-  // Broker Colors State
-  const [colorMap, setColorMap] = useState<Record<string, string>>(DEFAULT_COLORS);
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(BROKER_COLORS_KEY);
-      if (stored) {
-        setColorMap({ ...DEFAULT_COLORS, ...JSON.parse(stored) });
-      }
-    } catch (_) {}
-  }, []);
 
   const dashboardRef = useRef<HTMLDivElement>(null);
   const productExportRef = useRef<HTMLDivElement>(null);
@@ -139,38 +125,6 @@ export function ProductTimeline() {
     [selectedMonth, asOfText]
   );
 
-  const handleColorChange = (broker: string, hex: string) => {
-    const updated = { ...colorMap, [broker]: hex };
-    setColorMap(updated);
-    try {
-      localStorage.setItem(BROKER_COLORS_KEY, JSON.stringify(updated));
-    } catch (_) {}
-  };
-
-  const handleAddChannel = (broker: string, hex: string) => {
-    const updated = { ...colorMap, [broker]: hex };
-    setColorMap(updated);
-    try {
-      localStorage.setItem(BROKER_COLORS_KEY, JSON.stringify(updated));
-    } catch (_) {}
-  };
-
-  const handleDeleteChannel = (broker: string) => {
-    const updated = { ...colorMap };
-    delete updated[broker];
-    setColorMap(updated);
-    try {
-      localStorage.setItem(BROKER_COLORS_KEY, JSON.stringify(updated));
-    } catch (_) {}
-  };
-
-  const handleResetColors = () => {
-    setColorMap(DEFAULT_COLORS);
-    try {
-      localStorage.setItem(BROKER_COLORS_KEY, JSON.stringify(DEFAULT_COLORS));
-    } catch (_) {}
-  };
-
   // Collect all brokers used in products across all months to prevent accidental data loss warnings
   const allUsedBrokers = React.useMemo(() => {
     const list: string[] = [];
@@ -198,6 +152,9 @@ export function ProductTimeline() {
       updateProduct(id, data);
     } else {
       addProduct(data);
+    }
+    if (data.broker && !colorMap[data.broker]) {
+      handleAddChannel(data.broker, "#7E1518");
     }
   };
 

@@ -30,6 +30,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ElearningMonitorIcon } from "./elearning-icon";
+import { resolveBrokerColor } from "@/lib/broker-colors";
 import {
   X,
   Trash2,
@@ -114,7 +115,7 @@ export function ProductFormModal({
       list.push({
         value: productToEdit.broker,
         label: productToEdit.broker,
-        color: "#64748B",
+        color: resolveBrokerColor(productToEdit.broker, availableBrokers),
       });
     }
     list.push({ value: "Other", label: "อื่นๆ (ระบุเอง)", color: "#64748B" });

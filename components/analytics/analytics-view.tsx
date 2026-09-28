@@ -32,16 +32,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-const BROKER_COLORS_KEY = "pru_broker_colors_map_v1";
-
-const DEFAULT_COLORS: Record<string, string> = {
-  ttb: "#009FE3",
-  "ttb touch": "#009FE3",
-  UOB: "#0B2265",
-  Agency: "#ED1C24",
-  "New Broker": "#334155",
-  Audit: "#1E293B",
-};
+import { resolveBrokerColor } from "@/lib/broker-colors";
+import { useChannelColors } from "@/hooks/use-channel-colors";
 
 interface AggregatedItem extends ProductItem {
   activeMonths?: string[];
@@ -76,16 +68,8 @@ export function AnalyticsView() {
     resetToDefault: resetTeamMembers,
   } = useTeamMembers();
 
-  // Load custom channel colors from localStorage
-  const [colorMap, setColorMap] = useState<Record<string, string>>(DEFAULT_COLORS);
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(BROKER_COLORS_KEY);
-      if (stored) {
-        setColorMap({ ...DEFAULT_COLORS, ...JSON.parse(stored) });
-      }
-    } catch (_) {}
-  }, []);
+  // Unified Channel Colors from hook (shared with timeline and synchronized)
+  const { colorMap } = useChannelColors(monthlyStore);
 
   // Timeframe Scope: Default to "ALL_YEAR" (Annual Overview)
   const [selectedPeriod, setSelectedPeriod] = useState<string>("ALL_YEAR");
@@ -281,16 +265,8 @@ export function AnalyticsView() {
 
   const channelSegments: DonutChartSegment[] = useMemo(() => {
     const entries = Object.entries(channelCounts);
-    const palette = ["#009FE3", "#0B2265", "#ED1C24", "#334155", "#8B5CF6", "#10B981", "#F59E0B", "#E11D48"];
-    return entries.map(([channel, count], idx) => {
-      let color = colorMap[channel];
-      if (!color) {
-        const lower = channel.toLowerCase();
-        if (lower.includes("ttb")) color = colorMap["ttb"] || "#009FE3";
-        else if (lower.includes("uob")) color = colorMap["UOB"] || "#0B2265";
-        else if (lower.includes("agency")) color = colorMap["Agency"] || "#ED1C24";
-        else color = palette[idx % palette.length];
-      }
+    return entries.map(([channel, count]) => {
+      const color = resolveBrokerColor(channel, colorMap);
       return {
         label: channel,
         value: count,
@@ -1418,7 +1394,7 @@ export function AnalyticsView() {
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {modalDisplayedItems.map((item) => {
-                      const brokerColor = colorMap[item.broker] || "#334155";
+                      const brokerColor = resolveBrokerColor(item.broker, colorMap);
                       const ownerColor = getOwnerColor(item.owner);
                       const isCoOwned = isItemCoOwned(item.owner);
                       const hasElearning = Object.values(item.milestones || {}).some(
