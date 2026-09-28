@@ -151,7 +151,7 @@ export function ProductFormModal({
     "final-approval": { enabled: true, date: "", status: "completed", isElearningIcon: false },
     "final-elearning": { enabled: false, date: "", status: "pending", isElearningIcon: false },
     "internal-training": { enabled: false, date: "", status: "pending", isElearningIcon: false },
-    launch: { enabled: true, date: "", status: "completed", isElearningIcon: true },
+    launch: { enabled: true, date: "", status: "completed", isElearningIcon: false },
   });
 
   const [errors, setErrors] = useState<{ name?: string; owner?: string }>({});
@@ -197,6 +197,16 @@ export function ProductFormModal({
       setCsDate(productToEdit.csDate || "");
       setCustomRightLabel(productToEdit.customRightLabel || "");
 
+      // Find which phase has the active monitor icon (ensure only 1 active)
+      let activePhaseKey: PhaseKey | null = null;
+      const reversedPhases = [...PHASES].reverse();
+      for (const p of reversedPhases) {
+        if (productToEdit.milestones[p.key]?.isElearningIcon) {
+          activePhaseKey = p.key;
+          break;
+        }
+      }
+
       const nextMState: Record<PhaseKey, MilestoneFormState> = { ...milestonesState };
       PHASES.forEach((p) => {
         const existing = productToEdit.milestones[p.key];
@@ -205,7 +215,7 @@ export function ProductFormModal({
             enabled: true,
             date: existing.date || "",
             status: existing.status || "completed",
-            isElearningIcon: !!existing.isElearningIcon,
+            isElearningIcon: activePhaseKey === p.key,
           };
         } else {
           nextMState[p.key] = {
@@ -234,13 +244,35 @@ export function ProductFormModal({
         "final-approval": { enabled: true, date: "", status: "completed", isElearningIcon: false },
         "final-elearning": { enabled: false, date: "", status: "pending", isElearningIcon: false },
         "internal-training": { enabled: false, date: "", status: "pending", isElearningIcon: false },
-        launch: { enabled: true, date: "", status: "completed", isElearningIcon: true },
+        launch: { enabled: true, date: "", status: "completed", isElearningIcon: false },
       });
     }
     setErrors({});
     setIsConfirmingDelete(false);
     setIsSubmitting(false);
   }, [productToEdit, isOpen, isEnhancement, brokerOptions]);
+
+  const handleToggleCurrentPhase = (phaseKey: PhaseKey) => {
+    setMilestonesState((prev) => {
+      const isCurrentlyActive = !!prev[phaseKey]?.isElearningIcon;
+      const next = { ...prev };
+      // Turn off icon on all phases
+      (Object.keys(next) as PhaseKey[]).forEach((k) => {
+        next[k] = {
+          ...next[k],
+          isElearningIcon: false,
+        };
+      });
+      // Toggle on only for this phase if it was not already active
+      if (!isCurrentlyActive) {
+        next[phaseKey] = {
+          ...next[phaseKey],
+          isElearningIcon: true,
+        };
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -548,13 +580,13 @@ export function ProductFormModal({
 
             {/* Section 3: Milestones & Progress */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                 <div className="flex items-center gap-2 text-xs font-bold text-gray-700 tracking-wider uppercase">
                   <Clock className="w-3.5 h-3.5 text-green-600" />
                   <span>3. กำหนดขั้นตอนความคืบหน้า (Phase Milestones)</span>
                 </div>
-                <span className="text-xs text-gray-500">
-                  ติ๊กถูกหน้า Phase ที่ต้องการให้แสดงบนเส้น Timeline
+                <span className="text-[11px] text-gray-500">
+                  คลิกไอคอนหน้าจอเพื่อระบุ Phase ปัจจุบัน (เลือกได้ 1 จุด)
                 </span>
               </div>
 
@@ -649,27 +681,25 @@ export function ProductFormModal({
                               )}
                             </button>
 
-                            {/* E-learning Icon toggle */}
+                            {/* Current Active Phase Monitor Icon Toggle (Single-select) */}
                             <button
                               type="button"
-                              onClick={() =>
-                                setMilestonesState((prev) => ({
-                                  ...prev,
-                                  [phase.key]: {
-                                    ...prev[phase.key],
-                                    isElearningIcon: !prev[phase.key].isElearningIcon,
-                                  },
-                                }))
-                              }
-                              title="เปิด/ปิด ไอคอน E-learning Monitor"
-                              className={`p-1 rounded-lg border transition-all ${
+                              onClick={() => handleToggleCurrentPhase(phase.key)}
+                              title={
                                 ms.isElearningIcon
-                                  ? "bg-blue-50 border-blue-300 text-blue-600"
-                                  : "bg-white border-gray-200 text-gray-400 hover:text-gray-600"
+                                  ? "ตำแหน่งปัจจุบันของงาน (คลิกเพื่อยกเลิก)"
+                                  : "คลิกเพื่อระบุว่างานกำลังอยู่ใน Phase นี้ (แสดงไอคอนหน้าจอ)"
+                              }
+                              className={`p-1.5 rounded-lg border transition-all flex items-center justify-center ${
+                                ms.isElearningIcon
+                                  ? isEnhancement
+                                    ? "bg-blue-50 border-blue-300 ring-2 ring-blue-500/20 shadow-xs"
+                                    : "bg-red-50 border-red-300 ring-2 ring-red-500/20 shadow-xs"
+                                  : "bg-gray-50 border-gray-200 hover:border-gray-300 hover:bg-gray-100 opacity-60 hover:opacity-100"
                               }`}
                             >
                               <ElearningMonitorIcon
-                                color={isEnhancement ? "blue" : "red"}
+                                color={ms.isElearningIcon ? (isEnhancement ? "blue" : "red") : "gray"}
                                 className="w-4 h-4"
                               />
                             </button>

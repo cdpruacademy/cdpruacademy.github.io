@@ -140,12 +140,19 @@ export function TeamManagementModal({
               placeholder="เช่น Somchai K. หรือ สมชาย"
               className="flex-1 text-xs border border-gray-300 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#ED1C24]/20 focus:border-[#ED1C24]"
             />
-            <div className="relative flex items-center" title="เลือกสีประจำตัว">
+            <div
+              className="relative w-8 h-8 rounded-full overflow-hidden shrink-0 border border-black/15 shadow-2xs cursor-pointer flex items-center justify-center hover:scale-105 transition-transform"
+              title="เลือกสีประจำตัว"
+            >
+              <span
+                className="w-full h-full rounded-full pointer-events-none"
+                style={{ backgroundColor: newMemberColor }}
+              />
               <input
                 type="color"
                 value={newMemberColor}
                 onChange={(e) => setNewMemberColor(e.target.value)}
-                className="w-9 h-9 p-0.5 rounded-xl border border-gray-300 cursor-pointer shrink-0"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               />
             </div>
             <button
@@ -202,7 +209,14 @@ export function TeamManagementModal({
                     <>
                       <div className="flex items-center gap-2.5 min-w-0">
                         {/* Interactive Color Swatch for each member */}
-                        <div className="relative shrink-0 flex items-center" title="คลิกเพื่อเปลี่ยนสีประจำตัว">
+                        <div
+                          className="relative w-6 h-6 rounded-full overflow-hidden shrink-0 border border-black/15 shadow-2xs cursor-pointer flex items-center justify-center hover:scale-110 transition-transform"
+                          title="คลิกเพื่อเปลี่ยนสีประจำตัว"
+                        >
+                          <span
+                            className="w-full h-full rounded-full pointer-events-none"
+                            style={{ backgroundColor: color }}
+                          />
                           <input
                             type="color"
                             value={color}
@@ -211,7 +225,7 @@ export function TeamManagementModal({
                                 onUpdateMemberColor(member, e.target.value);
                               }
                             }}
-                            className="w-6 h-6 p-0 rounded-full border border-black/10 cursor-pointer shadow-2xs"
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                           />
                         </div>
                         <span className="text-xs font-semibold text-gray-800 truncate">

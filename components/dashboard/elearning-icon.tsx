@@ -2,18 +2,27 @@ import * as React from "react";
 
 interface ElearningMonitorIconProps {
   className?: string;
-  color?: "red" | "blue";
+  color?: "red" | "blue" | "gray";
 }
 
 export function ElearningMonitorIcon({ className, color = "red" }: ElearningMonitorIconProps) {
-  const isBlue = color === "blue";
-  const borderColor = isBlue ? "border-[#0066CC]" : "border-[#ED1C24]";
-  const strokeColor = isBlue ? "#0066CC" : "#ED1C24";
+  let borderColor = "border-[#ED1C24]";
+  let strokeColor = "#ED1C24";
+  let title = "Current Active Phase Milestone";
+
+  if (color === "blue") {
+    borderColor = "border-[#0066CC]";
+    strokeColor = "#0066CC";
+  } else if (color === "gray") {
+    borderColor = "border-gray-300";
+    strokeColor = "#9CA3AF";
+    title = "Inactive Phase Icon";
+  }
 
   return (
     <div
-      className={`relative flex items-center justify-center w-7 h-7 rounded-full bg-white border-2 ${borderColor} shadow-xs animate-in zoom-in-75 duration-200`}
-      title="e-Learning / Launch Milestone"
+      className={`relative flex items-center justify-center w-7 h-7 rounded-full bg-white border-2 ${borderColor} shadow-xs transition-colors`}
+      title={title}
     >
       <svg
         viewBox="0 0 24 24"
