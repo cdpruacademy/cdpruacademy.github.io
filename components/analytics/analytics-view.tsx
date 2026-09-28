@@ -511,15 +511,6 @@ export function AnalyticsView() {
             <Users className="w-3.5 h-3.5 text-blue-600" />
             <span className="hidden sm:inline">จัดการสมาชิกทีม</span> ({teamMembers.length})
           </button>
-
-          {/* Link back to Timeline */}
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#ED1C24] hover:bg-[#D4181F] text-white text-xs font-bold rounded-xl shadow-xs transition-all"
-          >
-            <Calendar className="w-3.5 h-3.5" />
-            <span>Timeline</span>
-          </Link>
         </div>
       </div>
 

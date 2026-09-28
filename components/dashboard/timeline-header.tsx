@@ -13,11 +13,8 @@ import {
   Calendar,
   Plus,
   Download,
-  RefreshCw,
   Edit3,
   Check,
-  FileSpreadsheet,
-  FileJson,
   Palette,
   ChevronLeft,
   ChevronRight,
@@ -353,40 +350,6 @@ export function TimelineHeader({
                 <span className="hidden lg:inline">ปรับสี</span>
               </button>
             )}
-
-            {/* Reset button (Admin only) */}
-            {isAdmin && (
-              <button
-                type="button"
-                onClick={onResetClick}
-                title="รีเซ็ตเป็นข้อมูลเริ่มต้นสำหรับเดือนนี้"
-                className="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
-              >
-                <RefreshCw className="w-4 h-4" />
-              </button>
-            )}
-
-            {/* Excel Export Button */}
-            <button
-              type="button"
-              onClick={onExportExcel}
-              title="Export เป็นไฟล์ Excel (.xlsx)"
-              className="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-semibold rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 shadow-2xs transition-all"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-green-700" />
-              <span className="hidden sm:inline">Excel</span>
-            </button>
-
-            {/* JSON Export Button */}
-            <button
-              type="button"
-              onClick={onExportJSON}
-              title="Export เป็นไฟล์ JSON"
-              className="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-semibold rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 shadow-2xs transition-all"
-            >
-              <FileJson className="w-3.5 h-3.5 text-amber-600" />
-              <span className="hidden sm:inline">JSON</span>
-            </button>
 
             {/* Export Image Button */}
             <button
