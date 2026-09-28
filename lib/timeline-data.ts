@@ -56,7 +56,7 @@ export const PRODUCT_PHASES: PhaseDefinition[] = [
   {
     key: "internal-training",
     label: "Internal\nTraining Date",
-    badgeBg: "bg-[#ED1C24]",
+    badgeBg: "bg-[#51C455]",
     badgeTextColor: "text-white",
   },
 ];
@@ -101,7 +101,7 @@ export const ENHANCEMENT_PHASES: PhaseDefinition[] = [
   {
     key: "internal-training",
     label: "Internal\nTraining Date",
-    badgeBg: "bg-[#005BAB]",
+    badgeBg: "bg-[#51C455]",
     badgeTextColor: "text-white",
   },
 ];
