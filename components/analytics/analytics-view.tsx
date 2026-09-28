@@ -205,7 +205,12 @@ export function AnalyticsView() {
   // Helper to build status detail for each item
   const buildItemStatus = (item: AggregatedItem) => {
     const launchM = item.milestones?.launch;
-    const isCompleted = launchM?.status === "completed";
+    const hasCommercialDate = !!(
+      item.commercialDate &&
+      !item.commercialDate.toLowerCase().includes("tbc") &&
+      item.commercialDate.trim() !== ""
+    );
+    const isCompleted = hasCommercialDate || launchM?.status === "completed";
 
     let currentPhaseLabel = isCompleted ? "เปิดตัวแล้ว (Launched)" : "รอดำเนินการ";
     if (!isCompleted) {
@@ -216,7 +221,6 @@ export function AnalyticsView() {
         { key: "final-approval", label: "Final Approval" },
         { key: "final-elearning", label: "Final e-Learning" },
         { key: "internal-training", label: "Internal Training" },
-        { key: "launch", label: "Launch" },
       ];
       for (const p of phases) {
         const m = item.milestones?.[p.key];

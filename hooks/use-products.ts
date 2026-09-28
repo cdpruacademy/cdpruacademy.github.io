@@ -12,6 +12,7 @@ import {
   DEFAULT_AS_OF_BY_MONTH,
   getSystemCurrentMonth,
   parseMonthYear,
+  MONTH_NAMES,
 } from "@/lib/timeline-data";
 import { exportTimelineToExcel, exportTimelineToJSON } from "@/lib/excel-service";
 import {
@@ -297,8 +298,27 @@ export function useProducts() {
         // Skip if already in native month (by ID or exact match)
         if (nativeIds.has(item.id)) return;
 
-        // Auto carryover: any item from prior month that has not completed launch milestone yet
-        const isUnfinishedInPrior = isPriorMonth && item.milestones?.launch?.status !== "completed";
+        // Auto carryover: any item from prior month that has not launched in the past yet
+        let hasLaunchedInPast = false;
+        if (item.milestones?.launch?.status === "completed") {
+          hasLaunchedInPast = true;
+        } else if (item.commercialDate && !item.commercialDate.toLowerCase().includes("tbc")) {
+          const cClean = item.commercialDate.toLowerCase();
+          for (let i = 0; i < MONTH_NAMES.length; i++) {
+            if (cClean.includes(MONTH_NAMES[i].toLowerCase().slice(0, 3))) {
+              const yMatch = cClean.match(/\b(20\d{2}|25\d{2})\b/);
+              const cYear = yMatch ? parseInt(yMatch[0], 10) : targetParsed?.year || 2026;
+              if (targetParsed) {
+                if (cYear < targetParsed.year || (cYear === targetParsed.year && i < targetParsed.monthIndex)) {
+                  hasLaunchedInPast = true;
+                }
+              }
+              break;
+            }
+          }
+        }
+
+        const isUnfinishedInPrior = isPriorMonth && !hasLaunchedInPast;
 
         // Check commercialDate first, then internalDate, then customRightLabel, or unfinished from prior
         const isMatch =

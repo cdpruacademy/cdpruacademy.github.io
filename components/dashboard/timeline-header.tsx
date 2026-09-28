@@ -492,8 +492,8 @@ export function TimelineTrackHeader({ timelineType }: TimelineTrackHeaderProps) 
         Product & Channel
       </div>
 
-      {/* Middle 7 Phases Column Badges */}
-      <div className="grid grid-cols-7 gap-1 text-center">
+      {/* Middle 6 Phases Column Badges */}
+      <div className="grid grid-cols-6 gap-1 text-center">
         {phases.map((phase) => (
           <div
             key={phase.key}

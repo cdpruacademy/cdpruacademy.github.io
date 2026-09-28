@@ -145,7 +145,7 @@ export function ProductFormModal({
     isElearningIcon: boolean;
   }
 
-  const [milestonesState, setMilestonesState] = useState<Record<PhaseKey, MilestoneFormState>>({
+  const createInitialMilestones = (): Record<PhaseKey, MilestoneFormState> => ({
     "kick-off": { enabled: true, date: "", status: "completed", isElearningIcon: false },
     "first-draft": { enabled: false, date: "", status: "pending", isElearningIcon: false },
     "first-draft-elearning": { enabled: false, date: "", status: "pending", isElearningIcon: false },
@@ -154,6 +154,10 @@ export function ProductFormModal({
     "internal-training": { enabled: false, date: "", status: "pending", isElearningIcon: false },
     launch: { enabled: false, date: "", status: "pending", isElearningIcon: false },
   });
+
+  const [milestonesState, setMilestonesState] = useState<Record<PhaseKey, MilestoneFormState>>(
+    createInitialMilestones()
+  );
 
   const [errors, setErrors] = useState<{ name?: string; owner?: string }>({});
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
@@ -208,7 +212,7 @@ export function ProductFormModal({
         }
       }
 
-      const nextMState: Record<PhaseKey, MilestoneFormState> = { ...milestonesState };
+      const nextMState: Record<PhaseKey, MilestoneFormState> = createInitialMilestones();
       PHASES.forEach((p) => {
         const existing = productToEdit.milestones[p.key];
         if (existing) {
@@ -238,15 +242,7 @@ export function ProductFormModal({
       setCommercialDate("TBC");
       setCsDate("");
       setCustomRightLabel("");
-      setMilestonesState({
-        "kick-off": { enabled: true, date: "", status: "completed", isElearningIcon: false },
-        "first-draft": { enabled: false, date: "", status: "pending", isElearningIcon: false },
-        "first-draft-elearning": { enabled: false, date: "", status: "pending", isElearningIcon: false },
-        "final-approval": { enabled: false, date: "", status: "pending", isElearningIcon: false },
-        "final-elearning": { enabled: false, date: "", status: "pending", isElearningIcon: false },
-        "internal-training": { enabled: false, date: "", status: "pending", isElearningIcon: false },
-        launch: { enabled: false, date: "", status: "pending", isElearningIcon: false },
-      });
+      setMilestonesState(createInitialMilestones());
     }
     setErrors({});
     setIsConfirmingDelete(false);

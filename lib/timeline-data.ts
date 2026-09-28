@@ -59,12 +59,6 @@ export const PRODUCT_PHASES: PhaseDefinition[] = [
     badgeBg: "bg-[#ED1C24]",
     badgeTextColor: "text-white",
   },
-  {
-    key: "launch",
-    label: "Launch Date",
-    badgeBg: "bg-[#51C455]",
-    badgeTextColor: "text-white",
-  },
 ];
 
 // Default PHASES alias
@@ -110,12 +104,6 @@ export const ENHANCEMENT_PHASES: PhaseDefinition[] = [
     badgeBg: "bg-[#005BAB]",
     badgeTextColor: "text-white",
   },
-  {
-    key: "launch",
-    label: "Launch Date",
-    badgeBg: "bg-[#51C455]",
-    badgeTextColor: "text-white",
-  },
 ];
 
 export type MilestoneStatus = "completed" | "in-progress" | "pending";
@@ -154,7 +142,6 @@ export const INITIAL_PRODUCTS: ProductItem[] = [
       "first-draft": { phase: "first-draft", date: "19 May 2026", status: "completed", isElearningIcon: true },
       "final-approval": { phase: "final-approval", status: "pending" },
       "internal-training": { phase: "internal-training", status: "pending" },
-      launch: { phase: "launch", status: "pending" },
     },
     internalDate: "TBC",
     commercialDate: "TBC",
@@ -168,8 +155,7 @@ export const INITIAL_PRODUCTS: ProductItem[] = [
     milestones: {
       "kick-off": { phase: "kick-off", date: "4 June 2026", status: "completed" },
       "first-draft": { phase: "first-draft", date: "2 Jul 2026", status: "completed" },
-      "final-approval": { phase: "final-approval", date: "4 Aug 2026", status: "completed" },
-      launch: { phase: "launch", status: "completed", isElearningIcon: true },
+      "final-approval": { phase: "final-approval", date: "4 Aug 2026", status: "completed", isElearningIcon: true },
     },
     internalDate: "6 Aug 2026",
     commercialDate: "7 Aug 2026",
@@ -185,7 +171,6 @@ export const INITIAL_PRODUCTS: ProductItem[] = [
       "first-draft": { phase: "first-draft", status: "pending" },
       "final-approval": { phase: "final-approval", status: "pending" },
       "internal-training": { phase: "internal-training", status: "pending" },
-      launch: { phase: "launch", status: "pending" },
     },
     internalDate: "1 Oct 2026",
     commercialDate: "2 Oct 2026",
@@ -199,8 +184,7 @@ export const INITIAL_PRODUCTS: ProductItem[] = [
     milestones: {
       "kick-off": { phase: "kick-off", date: "15 July 2026", status: "completed" },
       "first-draft": { phase: "first-draft", date: "24 July 2026", status: "completed" },
-      "final-approval": { phase: "final-approval", date: "25 Aug 2026", status: "completed" },
-      launch: { phase: "launch", status: "completed", isElearningIcon: true },
+      "final-approval": { phase: "final-approval", date: "25 Aug 2026", status: "completed", isElearningIcon: true },
     },
     csDate: "CS: 27 Aug 2026",
     internalDate: "26 Aug 2026",
@@ -215,8 +199,7 @@ export const INITIAL_PRODUCTS: ProductItem[] = [
     milestones: {
       "kick-off": { phase: "kick-off", date: "4 June 2026", status: "completed" },
       "first-draft": { phase: "first-draft", date: "22 Jul 2026", status: "completed" },
-      "final-approval": { phase: "final-approval", date: "4 Aug 2026", status: "completed" },
-      launch: { phase: "launch", status: "completed", isElearningIcon: true },
+      "final-approval": { phase: "final-approval", date: "4 Aug 2026", status: "completed", isElearningIcon: true },
     },
     internalDate: "6 Aug 2026",
     commercialDate: "7 Aug 2026",
@@ -232,7 +215,6 @@ export const INITIAL_PRODUCTS: ProductItem[] = [
       "first-draft": { phase: "first-draft", date: "17 Aug 2026", status: "completed" },
       "final-approval": { phase: "final-approval", date: "24 Aug 2026", status: "completed" },
       "internal-training": { phase: "internal-training", date: "2 Sep 2026", status: "completed", isElearningIcon: true },
-      launch: { phase: "launch", status: "pending" },
     },
     internalDate: "28 Aug 2026",
     commercialDate: "4 Sep 2026",
@@ -248,7 +230,6 @@ export const INITIAL_PRODUCTS: ProductItem[] = [
       "first-draft": { phase: "first-draft", date: "14 Aug 2026", status: "completed" },
       "final-approval": { phase: "final-approval", date: "25 Aug 2026", status: "completed" },
       "internal-training": { phase: "internal-training", date: "2 Sep 2026", status: "completed", isElearningIcon: true },
-      launch: { phase: "launch", status: "pending" },
     },
     internalDate: "28 Aug 2026",
     commercialDate: "4 Sep 2026",
@@ -264,7 +245,6 @@ export const INITIAL_PRODUCTS: ProductItem[] = [
       "first-draft": { phase: "first-draft", date: "19 Jul 2026", status: "completed" },
       "final-approval": { phase: "final-approval", date: "25 Aug 2026", status: "completed" },
       "internal-training": { phase: "internal-training", status: "completed", isElearningIcon: true },
-      launch: { phase: "launch", status: "pending" },
     },
     internalDate: "28 Aug 2026",
     commercialDate: "4 Sep 2026",
@@ -278,8 +258,7 @@ export const INITIAL_PRODUCTS: ProductItem[] = [
     milestones: {
       "kick-off": { phase: "kick-off", date: "6 Jul 2026", status: "completed" },
       "first-draft": { phase: "first-draft", date: "27 Jul 2026", status: "completed" },
-      "final-approval": { phase: "final-approval", date: "5 Aug 2026", status: "completed" },
-      launch: { phase: "launch", status: "completed", isElearningIcon: true },
+      "final-approval": { phase: "final-approval", date: "5 Aug 2026", status: "completed", isElearningIcon: true },
     },
     internalDate: "6 Aug 2026",
     commercialDate: "7 Aug 2026",
@@ -297,8 +276,7 @@ export const INITIAL_ENHANCEMENTS: ProductItem[] = [
     milestones: {
       "kick-off": { phase: "kick-off", date: "22 Jul 2026", status: "completed" },
       "first-draft": { phase: "first-draft", date: "24 Jul 2026", status: "completed" },
-      "final-approval": { phase: "final-approval", date: "11 Aug 2026", status: "completed" },
-      launch: { phase: "launch", status: "completed", isElearningIcon: true },
+      "final-approval": { phase: "final-approval", date: "11 Aug 2026", status: "completed", isElearningIcon: true },
     },
     internalDate: "13 Aug 2026",
     commercialDate: "14 Aug 2026",
@@ -311,8 +289,7 @@ export const INITIAL_ENHANCEMENTS: ProductItem[] = [
     owner: "Surakit P.",
     milestones: {
       "kick-off": { phase: "kick-off", date: "22 Jul 2026", status: "completed" },
-      "first-draft": { phase: "first-draft", date: "6 Aug 2026", status: "completed" },
-      launch: { phase: "launch", status: "completed", isElearningIcon: true },
+      "first-draft": { phase: "first-draft", date: "6 Aug 2026", status: "completed", isElearningIcon: true },
     },
     internalDate: "7 Aug 2026",
     commercialDate: "7 Aug 2026",
@@ -326,8 +303,7 @@ export const INITIAL_ENHANCEMENTS: ProductItem[] = [
     milestones: {
       "kick-off": { phase: "kick-off", date: "27 Jul 2026", status: "completed" },
       "first-draft": { phase: "first-draft", date: "13 Aug 2026", status: "completed" },
-      "final-approval": { phase: "final-approval", date: "18 Aug 2026", status: "completed" },
-      launch: { phase: "launch", status: "completed", isElearningIcon: true },
+      "final-approval": { phase: "final-approval", date: "18 Aug 2026", status: "completed", isElearningIcon: true },
     },
     internalDate: "21 Aug 2026",
     commercialDate: "21 Aug 2026",
@@ -339,8 +315,7 @@ export const INITIAL_ENHANCEMENTS: ProductItem[] = [
     name: "ttb all riders & Endorsements",
     owner: "Jirapat O.",
     milestones: {
-      "kick-off": { phase: "kick-off", status: "completed" },
-      launch: { phase: "launch", status: "completed", isElearningIcon: true },
+      "kick-off": { phase: "kick-off", status: "completed", isElearningIcon: true },
     },
     customRightLabel: "Sent out : 7 Aug 2026",
     month: "AUG 2026",
@@ -352,7 +327,6 @@ export const INITIAL_ENHANCEMENTS: ProductItem[] = [
     owner: "Surakit P.",
     milestones: {
       "kick-off": { phase: "kick-off", date: "17 Jul 2026", status: "completed", isElearningIcon: true },
-      launch: { phase: "launch", status: "pending" },
     },
     customRightLabel: "Sent out : Sep 2026",
     month: "AUG 2026",
@@ -364,7 +338,6 @@ export const INITIAL_ENHANCEMENTS: ProductItem[] = [
     owner: "Surakit P.",
     milestones: {
       "kick-off": { phase: "kick-off", date: "17 Jul 2026", status: "completed", isElearningIcon: true },
-      launch: { phase: "launch", status: "pending" },
     },
     customRightLabel: "Sent out : Sep 2026",
     month: "AUG 2026",
@@ -376,7 +349,6 @@ export const INITIAL_ENHANCEMENTS: ProductItem[] = [
     owner: "Surakit P.",
     milestones: {
       "kick-off": { phase: "kick-off", date: "17 Jul 2026", status: "completed", isElearningIcon: true },
-      launch: { phase: "launch", status: "pending" },
     },
     customRightLabel: "Sent out : Oct 2026",
     month: "AUG 2026",

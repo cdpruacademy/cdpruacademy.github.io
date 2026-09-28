@@ -62,7 +62,7 @@ export function TimelineRow({
   const lastOverallIndex =
     phaseIndicesWithMilestones.length > 0
       ? phaseIndicesWithMilestones[phaseIndicesWithMilestones.length - 1].index
-      : 6;
+      : 5;
 
   // Single row export to PNG
   const handleExportRow = async () => {
@@ -168,9 +168,9 @@ export function TimelineRow({
         </div>
       </div>
 
-      {/* 2. Middle Timeline Track (7 columns) */}
-      <div className="relative grid grid-cols-7 gap-2 items-center min-h-[68px] px-2">
-        {/* Mathematically Centered Connecting Lines: center(i) = ((i + 0.5) / 7) * 100% */}
+      {/* 2. Middle Timeline Track (6 columns) */}
+      <div className="relative grid grid-cols-6 gap-2 items-center min-h-[68px] px-2">
+        {/* Mathematically Centered Connecting Lines: center(i) = ((i + 0.5) / 6) * 100% */}
         <div className="absolute inset-x-0 px-2 top-[22px] pointer-events-none -z-0">
           <div className="relative w-full h-[3px]">
             {/* Completed Green Line connecting exactly from center of first dot to center of last completed dot */}
@@ -178,8 +178,8 @@ export function TimelineRow({
               <div
                 className="absolute top-0 h-[3px] bg-[#86EFAC] rounded-full"
                 style={{
-                  left: `${((firstIndex + 0.5) / 7) * 100}%`,
-                  width: `${((lastCompletedIndex - firstIndex) / 7) * 100}%`,
+                  left: `${((firstIndex + 0.5) / 6) * 100}%`,
+                  width: `${((lastCompletedIndex - firstIndex) / 6) * 100}%`,
                 }}
               />
             )}
@@ -189,15 +189,15 @@ export function TimelineRow({
               <div
                 className="absolute top-0 h-[3px] border-t-2 border-dotted border-gray-300"
                 style={{
-                  left: `${((lastCompletedIndex + 0.5) / 7) * 100}%`,
-                  width: `${((lastOverallIndex - lastCompletedIndex) / 7) * 100}%`,
+                  left: `${((lastCompletedIndex + 0.5) / 6) * 100}%`,
+                  width: `${((lastOverallIndex - lastCompletedIndex) / 6) * 100}%`,
                 }}
               />
             )}
           </div>
         </div>
 
-        {/* 7 Phase Columns & Milestone Nodes */}
+        {/* 6 Phase Columns & Milestone Nodes */}
         {PHASES.map((phase) => {
           const milestone = product.milestones[phase.key];
 
