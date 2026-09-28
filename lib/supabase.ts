@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { MonthlyStore, getSystemCurrentMonth } from "./timeline-data";
+import { AnnouncementItem, filterWithinOneYear } from "./announcement-data";
 
 export interface SupabaseConfig {
   url: string;
@@ -430,3 +431,150 @@ create policy "Allow public read" on public.timeline_store
 create policy "Allow anon write" on public.timeline_store
   for all using (true) with check (true);
 `;
+
+/**
+ * Fetch announcements from Supabase Cloud DB with strict 1-year retention filter
+ */
+export async function fetchAnnouncementsFromCloud(): Promise<AnnouncementItem[] | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+
+  try {
+    const { data, error } = await client
+      .from("timeline_store")
+      .select("id, data, updated_at")
+      .eq("id", "announcements")
+      .maybeSingle();
+
+    if (error) {
+      console.warn("Cloud DB announcements fetch error:", error.message);
+      return null;
+    }
+
+    if (!data || !data.data || !Array.isArray(data.data.items)) {
+      return null;
+    }
+
+    // Strictly enforce 1-year retention
+    return filterWithinOneYear(data.data.items);
+  } catch (err) {
+    console.error("fetchAnnouncementsFromCloud exception:", err);
+    return null;
+  }
+}
+
+/**
+ * Save announcements to Supabase Cloud DB with automatic 1-year pruning
+ */
+export async function saveAnnouncementsToCloud(
+  items: AnnouncementItem[]
+): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" };
+  }
+
+  try {
+    // Strictly prune anything older than 365 days
+    const pruned = filterWithinOneYear(items);
+
+    const { error } = await client.from("timeline_store").upsert(
+      {
+        id: "announcements",
+        data: {
+          items: pruned,
+          total_count: pruned.length,
+          updated_at: new Date().toISOString(),
+        },
+        updated_at: new Date().toISOString(),
+        updated_by: "pru_admin",
+      },
+      { onConflict: "id" }
+    );
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "เกิดข้อผิดพลาดในการบันทึกประกาศ" };
+  }
+}
+
+/**
+ * Upload an announcement image to Supabase Storage
+ */
+export async function uploadAnnouncementImage(
+  file: File | Blob,
+  fileName?: string
+): Promise<{ success: boolean; url?: string; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" };
+  }
+
+  try {
+    const safeName = fileName || `announcement_${Date.now()}.png`;
+    const cleanFileName = `announcements/${Date.now()}_${safeName.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+
+    const { error: uploadError } = await client.storage
+      .from("timeline-snapshots")
+      .upload(cleanFileName, file, {
+        contentType: file.type || "image/png",
+        upsert: true,
+      });
+
+    if (uploadError) {
+      return { success: false, error: uploadError.message };
+    }
+
+    const { data: publicUrlData } = client.storage
+      .from("timeline-snapshots")
+      .getPublicUrl(cleanFileName);
+
+    return {
+      success: true,
+      url: `${publicUrlData.publicUrl}?t=${Date.now()}`,
+    };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ" };
+  }
+}
+
+/**
+ * Broadcast an announcement via LINE Bot by recording to 'latest_announcement' queue
+ */
+export async function triggerLineAnnouncementBroadcast(
+  announcement: AnnouncementItem
+): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" };
+  }
+
+  try {
+    const { error } = await client.from("timeline_store").upsert(
+      {
+        id: "latest_announcement",
+        data: {
+          ...announcement,
+          broadcast_status: "ready_to_send",
+          broadcast_requested_at: new Date().toISOString(),
+        },
+        updated_at: new Date().toISOString(),
+        updated_by: "pru_admin",
+      },
+      { onConflict: "id" }
+    );
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "เกิดข้อผิดพลาดในการส่งประกาศเข้า Bot" };
+  }
+}
+

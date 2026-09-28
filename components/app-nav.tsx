@@ -4,7 +4,7 @@ import * as React from "react";
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Calendar, Search, Lock, Unlock, LogOut, BarChart3 } from "lucide-react";
+import { Calendar, Search, Lock, Unlock, LogOut, BarChart3, Megaphone } from "lucide-react";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import { AdminLoginModal } from "./auth/admin-login-modal";
 
@@ -15,6 +15,7 @@ export function AppNav() {
 
   const isTimeline = pathname === "/";
   const isAnalytics = pathname === "/analytics";
+  const isAnnouncements = pathname === "/announcements";
   const isSearch = pathname === "/search";
 
   return (
@@ -55,6 +56,20 @@ export function AppNav() {
                 <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                 <span className="hidden sm:inline">Product Timeline</span>
                 <span className="inline sm:hidden">Timeline</span>
+              </Link>
+
+              {/* ข่าวสาร & ประชาสัมพันธ์ (Announcements) */}
+              <Link
+                href="/announcements"
+                className={`inline-flex items-center gap-1 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs font-bold transition-all ${
+                  isAnnouncements
+                    ? "bg-red-50 text-[#ED1C24] border border-red-200 shadow-2xs"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                }`}
+              >
+                <Megaphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 text-[#ED1C24]" />
+                <span className="hidden sm:inline">ประชาสัมพันธ์</span>
+                <span className="inline sm:hidden">ข่าว</span>
               </Link>
 
               {/* สรุปสถิติ & สรุปภาพรวม (Admin Analytics) */}
