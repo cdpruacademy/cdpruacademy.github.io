@@ -11,6 +11,7 @@ import {
   INITIAL_MONTHLY_STORE,
   DEFAULT_AS_OF_BY_MONTH,
   getSystemCurrentMonth,
+  parseMonthYear,
 } from "@/lib/timeline-data";
 import { exportTimelineToExcel, exportTimelineToJSON } from "@/lib/excel-service";
 import {
@@ -156,10 +157,9 @@ export function useProducts() {
     };
   }, [isCloudConnected]);
 
-  // Unified save & cloud sync helper
+  // Unified save & cloud sync helper (persists store without redundant state setter)
   const syncStore = useCallback(
     (updatedStore: MonthlyStore, customMonths?: string[], customActiveMonth?: string) => {
-      setMonthlyStore(updatedStore);
       try {
         localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(updatedStore));
       } catch (_) {}
@@ -279,6 +279,8 @@ export function useProducts() {
     // Find cross-month items from other months
     const crossMonthItems: ProductItem[] = [];
 
+    const targetParsed = parseMonthYear(selectedMonth);
+
     Object.entries(monthlyStore).forEach(([mKey, mData]) => {
       // Don't duplicate native month
       if (mKey.toUpperCase() === selectedMonth.toUpperCase()) return;
@@ -286,15 +288,24 @@ export function useProducts() {
       const items = timelineType === "product" ? mData.products : mData.enhancements;
       if (!items || !Array.isArray(items)) return;
 
+      const sourceParsed = parseMonthYear(mKey);
+      const isPriorMonth = sourceParsed && targetParsed
+        ? sourceParsed.year < targetParsed.year || (sourceParsed.year === targetParsed.year && sourceParsed.monthIndex < targetParsed.monthIndex)
+        : false;
+
       items.forEach((item) => {
         // Skip if already in native month (by ID or exact match)
         if (nativeIds.has(item.id)) return;
 
-        // Check commercialDate first, then internalDate, then customRightLabel
+        // Auto carryover: any item from prior month that has not completed launch milestone yet
+        const isUnfinishedInPrior = isPriorMonth && item.milestones?.launch?.status !== "completed";
+
+        // Check commercialDate first, then internalDate, then customRightLabel, or unfinished from prior
         const isMatch =
           matchesTargetMonth(item.commercialDate, selectedMonth) ||
           matchesTargetMonth(item.internalDate, selectedMonth) ||
-          matchesTargetMonth(item.customRightLabel, selectedMonth);
+          matchesTargetMonth(item.customRightLabel, selectedMonth) ||
+          isUnfinishedInPrior;
 
         if (isMatch) {
           crossMonthItems.push({

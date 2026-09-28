@@ -215,17 +215,18 @@ export function subscribeToTimelineCloud(
           event: "*",
           schema: "public",
           table: "timeline_store",
+          filter: "id=eq.current",
         },
         (change) => {
-          if (change.new && (change.new as any).data) {
-            const row = change.new as any;
-            onUpdate({
-              monthlyStore: row.data,
-              availableMonths: Array.isArray(row.available_months) ? row.available_months : [],
-              activeMonth: row.active_month,
-              updatedAt: row.updated_at,
-            });
-          }
+          const row = change.new as any;
+          if (!row || row.id !== "current" || !row.data) return;
+
+          onUpdate({
+            monthlyStore: row.data,
+            availableMonths: Array.isArray(row.available_months) ? row.available_months : [],
+            activeMonth: row.active_month,
+            updatedAt: row.updated_at,
+          });
         }
       )
       .subscribe();

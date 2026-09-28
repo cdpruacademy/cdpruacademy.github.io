@@ -11,6 +11,7 @@ interface DatePickerProps {
   placeholder?: string;
   className?: string;
   allowTBC?: boolean;
+  defaultMonth?: string | Date;
 }
 
 const MONTH_NAMES = [
@@ -24,12 +25,37 @@ export function DatePicker({
   placeholder = "เลือกวันที่",
   className,
   allowTBC = false,
+  defaultMonth,
 }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const parseDate = (str: string): Date => {
-    if (!str || str.toLowerCase().includes("tbc")) return new Date(2026, 7, 1);
+  const getFallbackDate = (def?: string | Date): Date => {
+    if (def instanceof Date) return def;
+    if (typeof def === "string" && def.trim()) {
+      const parts = def.trim().split(/[\s-]+/);
+      if (parts.length >= 2) {
+        let monthIdx = MONTH_NAMES.findIndex(
+          (m) => m.toLowerCase() === parts[0].slice(0, 3).toLowerCase()
+        );
+        let year = parseInt(parts[1], 10);
+        if (monthIdx === -1) {
+          monthIdx = MONTH_NAMES.findIndex(
+            (m) => m.toLowerCase() === parts[1].slice(0, 3).toLowerCase()
+          );
+          year = parseInt(parts[0], 10);
+        }
+        if (monthIdx !== -1 && !isNaN(year)) {
+          return new Date(year, monthIdx, 1);
+        }
+      }
+    }
+    return new Date();
+  };
+
+  const parseDate = (str: string, fallback?: Date): Date => {
+    const fb = fallback || getFallbackDate(defaultMonth);
+    if (!str || str.toLowerCase().includes("tbc")) return fb;
 
     const parts = str.trim().split(/[\s-]+/);
     if (parts.length >= 2) {
@@ -37,27 +63,34 @@ export function DatePicker({
       const monthIdx = MONTH_NAMES.findIndex(
         (m) => m.toLowerCase() === parts[1].slice(0, 3).toLowerCase()
       );
-      const year = parts[2] ? parseInt(parts[2], 10) : 2026;
+      const year = parts[2] ? parseInt(parts[2], 10) : fb.getFullYear();
       if (!isNaN(day) && monthIdx !== -1) {
         return new Date(year, monthIdx, day);
       }
     }
 
     const d = new Date(str);
-    return isNaN(d.getTime()) ? new Date(2026, 7, 1) : d;
+    return isNaN(d.getTime()) ? fb : d;
   };
 
-  const initialDate = parseDate(value);
-  const [viewYear, setViewYear] = useState(initialDate.getFullYear() || 2026);
-  const [viewMonth, setViewMonth] = useState(initialDate.getMonth() || 7);
+  const initialFallback = getFallbackDate(defaultMonth);
+  const initialDate = parseDate(value, initialFallback);
+  const [viewYear, setViewYear] = useState(initialDate.getFullYear());
+  const [viewMonth, setViewMonth] = useState(initialDate.getMonth());
 
   useEffect(() => {
-    if (value && !value.toLowerCase().includes("tbc")) {
-      const d = parseDate(value);
-      setViewYear(d.getFullYear());
-      setViewMonth(d.getMonth());
+    if (isOpen) {
+      const fb = getFallbackDate(defaultMonth);
+      if (value && !value.toLowerCase().includes("tbc")) {
+        const d = parseDate(value, fb);
+        setViewYear(d.getFullYear());
+        setViewMonth(d.getMonth());
+      } else {
+        setViewYear(fb.getFullYear());
+        setViewMonth(fb.getMonth());
+      }
     }
-  }, [value]);
+  }, [isOpen, value, defaultMonth]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {

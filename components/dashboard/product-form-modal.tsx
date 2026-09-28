@@ -95,20 +95,31 @@ export function ProductFormModal({
 
   // Build dynamic broker list from availableBrokers or fallback
   const brokerOptions = React.useMemo(() => {
+    let list: { value: string; label: string; color: string }[] = [];
     if (availableBrokers && Object.keys(availableBrokers).length > 0) {
-      const list = Object.entries(availableBrokers).map(([key, color]) => ({
+      list = Object.entries(availableBrokers).map(([key, color]) => ({
         value: key,
         label: key,
         color: color,
       }));
-      list.push({ value: "Other", label: "อื่นๆ (ระบุเอง)", color: "#64748B" });
-      return list;
+    } else {
+      list = [...DEFAULT_BROKER_OPTIONS];
     }
-    return [
-      ...DEFAULT_BROKER_OPTIONS,
-      { value: "Other", label: "อื่นๆ (ระบุเอง)", color: "#64748B" },
-    ];
-  }, [availableBrokers]);
+    // If productToEdit has a broker that's not in the list and not "Other", add it
+    if (
+      productToEdit?.broker &&
+      productToEdit.broker !== "Other" &&
+      !list.some((b) => b.value.toLowerCase() === productToEdit.broker.toLowerCase())
+    ) {
+      list.push({
+        value: productToEdit.broker,
+        label: productToEdit.broker,
+        color: "#64748B",
+      });
+    }
+    list.push({ value: "Other", label: "อื่นๆ (ระบุเอง)", color: "#64748B" });
+    return list;
+  }, [availableBrokers, productToEdit?.broker]);
 
   const effectiveMembers = teamMembers && teamMembers.length > 0 ? teamMembers : DEFAULT_MEMBERS;
   const teamOwnersList = effectiveMembers.map((m) => ({
@@ -149,9 +160,11 @@ export function ProductFormModal({
 
   useEffect(() => {
     if (productToEdit) {
-      const knownBroker = brokerOptions.find((b) => b.value === productToEdit.broker);
-      if (knownBroker) {
-        setBroker(productToEdit.broker);
+      const knownBroker = brokerOptions.find(
+        (b) => b.value.toLowerCase() === productToEdit.broker?.toLowerCase()
+      );
+      if (knownBroker && knownBroker.value !== "Other") {
+        setBroker(knownBroker.value);
         setCustomBroker("");
       } else {
         setBroker("Other");
@@ -227,7 +240,7 @@ export function ProductFormModal({
     setErrors({});
     setIsConfirmingDelete(false);
     setIsSubmitting(false);
-  }, [productToEdit, isOpen, isEnhancement]);
+  }, [productToEdit, isOpen, isEnhancement, brokerOptions]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -494,6 +507,7 @@ export function ProductFormModal({
                     onChange={(val) => setInternalDate(val)}
                     placeholder="เลือกวันที่ หรือ TBC"
                     allowTBC
+                    defaultMonth={selectedMonth}
                   />
                 </div>
 
@@ -504,6 +518,7 @@ export function ProductFormModal({
                     onChange={(val) => setCommercialDate(val)}
                     placeholder="เลือกวันที่ หรือ TBC"
                     allowTBC
+                    defaultMonth={selectedMonth}
                   />
                 </div>
 
@@ -514,6 +529,7 @@ export function ProductFormModal({
                     onChange={(val) => setCsDate(val)}
                     placeholder="เลือกวันที่ CS Date"
                     allowTBC
+                    defaultMonth={selectedMonth}
                   />
                 </div>
 
@@ -595,6 +611,7 @@ export function ProductFormModal({
                                   }))
                                 }
                                 placeholder="เลือกวันที่"
+                                defaultMonth={selectedMonth}
                               />
                             </div>
 

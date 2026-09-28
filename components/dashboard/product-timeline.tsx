@@ -80,8 +80,6 @@ export function ProductTimeline() {
   const dashboardRef = useRef<HTMLDivElement>(null);
   const productExportRef = useRef<HTMLDivElement>(null);
   const enhancementExportRef = useRef<HTMLDivElement>(null);
-  const isAutoSyncingRef = useRef(false);
-  const autoSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Capture snapshots from offscreen 2K boards and upload to Supabase Storage
   const captureAndUploadSnapshots = useCallback(
@@ -141,37 +139,12 @@ export function ProductTimeline() {
     [selectedMonth, asOfText]
   );
 
-  // Silent debounced background auto-snapshot trigger (1.5s delay)
-  const triggerBackgroundAutoSnapshot = useCallback(() => {
-    if (autoSyncTimeoutRef.current) {
-      clearTimeout(autoSyncTimeoutRef.current);
-    }
-    autoSyncTimeoutRef.current = setTimeout(() => {
-      if (isAutoSyncingRef.current) return;
-      isAutoSyncingRef.current = true;
-      captureAndUploadSnapshots(false).finally(() => {
-        isAutoSyncingRef.current = false;
-      });
-    }, 1500);
-  }, [captureAndUploadSnapshots]);
-
-  // Initial load auto-refresh: after cloud data finishes loading, update snapshot so Monday cron has fresh images
-  useEffect(() => {
-    if (isLoaded) {
-      const timer = setTimeout(() => {
-        triggerBackgroundAutoSnapshot();
-      }, 2500);
-      return () => clearTimeout(timer);
-    }
-  }, [isLoaded, triggerBackgroundAutoSnapshot]);
-
   const handleColorChange = (broker: string, hex: string) => {
     const updated = { ...colorMap, [broker]: hex };
     setColorMap(updated);
     try {
       localStorage.setItem(BROKER_COLORS_KEY, JSON.stringify(updated));
     } catch (_) {}
-    triggerBackgroundAutoSnapshot();
   };
 
   const handleAddChannel = (broker: string, hex: string) => {
@@ -180,7 +153,6 @@ export function ProductTimeline() {
     try {
       localStorage.setItem(BROKER_COLORS_KEY, JSON.stringify(updated));
     } catch (_) {}
-    triggerBackgroundAutoSnapshot();
   };
 
   const handleDeleteChannel = (broker: string) => {
@@ -190,7 +162,6 @@ export function ProductTimeline() {
     try {
       localStorage.setItem(BROKER_COLORS_KEY, JSON.stringify(updated));
     } catch (_) {}
-    triggerBackgroundAutoSnapshot();
   };
 
   const handleResetColors = () => {
@@ -198,7 +169,6 @@ export function ProductTimeline() {
     try {
       localStorage.setItem(BROKER_COLORS_KEY, JSON.stringify(DEFAULT_COLORS));
     } catch (_) {}
-    triggerBackgroundAutoSnapshot();
   };
 
   // Collect all brokers used in products across all months to prevent accidental data loss warnings
@@ -229,22 +199,18 @@ export function ProductTimeline() {
     } else {
       addProduct(data);
     }
-    triggerBackgroundAutoSnapshot();
   };
 
   const handleDeleteProduct = (id: string) => {
     deleteProduct(id);
-    triggerBackgroundAutoSnapshot();
   };
 
   const handleAsOfChange = (text: string) => {
     setAsOfText(text);
-    triggerBackgroundAutoSnapshot();
   };
 
   const handleResetDefault = () => {
     resetToDefault();
-    triggerBackgroundAutoSnapshot();
   };
 
   // Clean Image Export (Completely Filters Out All Buttons)
