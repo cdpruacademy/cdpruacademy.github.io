@@ -147,12 +147,12 @@ export function ProductFormModal({
 
   const [milestonesState, setMilestonesState] = useState<Record<PhaseKey, MilestoneFormState>>({
     "kick-off": { enabled: true, date: "", status: "completed", isElearningIcon: false },
-    "first-draft": { enabled: true, date: "", status: "completed", isElearningIcon: false },
+    "first-draft": { enabled: false, date: "", status: "pending", isElearningIcon: false },
     "first-draft-elearning": { enabled: false, date: "", status: "pending", isElearningIcon: false },
-    "final-approval": { enabled: true, date: "", status: "completed", isElearningIcon: false },
+    "final-approval": { enabled: false, date: "", status: "pending", isElearningIcon: false },
     "final-elearning": { enabled: false, date: "", status: "pending", isElearningIcon: false },
     "internal-training": { enabled: false, date: "", status: "pending", isElearningIcon: false },
-    launch: { enabled: true, date: "", status: "completed", isElearningIcon: false },
+    launch: { enabled: false, date: "", status: "pending", isElearningIcon: false },
   });
 
   const [errors, setErrors] = useState<{ name?: string; owner?: string }>({});
@@ -240,12 +240,12 @@ export function ProductFormModal({
       setCustomRightLabel("");
       setMilestonesState({
         "kick-off": { enabled: true, date: "", status: "completed", isElearningIcon: false },
-        "first-draft": { enabled: true, date: "", status: "completed", isElearningIcon: false },
+        "first-draft": { enabled: false, date: "", status: "pending", isElearningIcon: false },
         "first-draft-elearning": { enabled: false, date: "", status: "pending", isElearningIcon: false },
-        "final-approval": { enabled: true, date: "", status: "completed", isElearningIcon: false },
+        "final-approval": { enabled: false, date: "", status: "pending", isElearningIcon: false },
         "final-elearning": { enabled: false, date: "", status: "pending", isElearningIcon: false },
         "internal-training": { enabled: false, date: "", status: "pending", isElearningIcon: false },
-        launch: { enabled: true, date: "", status: "completed", isElearningIcon: false },
+        launch: { enabled: false, date: "", status: "pending", isElearningIcon: false },
       });
     }
     setErrors({});

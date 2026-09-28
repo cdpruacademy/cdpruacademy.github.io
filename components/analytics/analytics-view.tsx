@@ -245,11 +245,9 @@ export function AnalyticsView() {
   const newProductCount = products.length;
   const enhancementCount = enhancements.length;
   const totalElearning = [...products, ...enhancements].filter((i) =>
-    Object.values(i.milestones || {}).some(
-      (m) =>
-        m?.isElearningIcon ||
-        m?.phase === "first-draft-elearning" ||
-        m?.phase === "final-elearning"
+    Boolean(
+      i.milestones?.["first-draft-elearning"] ||
+      i.milestones?.["final-elearning"]
     )
   ).length;
 
@@ -1397,11 +1395,9 @@ export function AnalyticsView() {
                       const brokerColor = resolveBrokerColor(item.broker, colorMap);
                       const ownerColor = getOwnerColor(item.owner);
                       const isCoOwned = isItemCoOwned(item.owner);
-                      const hasElearning = Object.values(item.milestones || {}).some(
-                        (m) =>
-                          m?.isElearningIcon ||
-                          m?.phase === "first-draft-elearning" ||
-                          m?.phase === "final-elearning"
+                      const hasElearning = Boolean(
+                        item.milestones?.["first-draft-elearning"] ||
+                        item.milestones?.["final-elearning"]
                       );
 
                       return (
