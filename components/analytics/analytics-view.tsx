@@ -38,6 +38,7 @@ import { toPng } from "html-to-image";
 
 import { resolveBrokerColor } from "@/lib/broker-colors";
 import { useChannelColors } from "@/hooks/use-channel-colors";
+import { ChannelSummaryExportBoard } from "./channel-summary-export-board";
 
 interface AggregatedItem extends ProductItem {
   activeMonths?: string[];
@@ -94,42 +95,33 @@ export function AnalyticsView() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
 
-  // High-Res Image Export
+  // Dedicated Off-Screen Board for Clean Channel Summary Export
   const [isExporting, setIsExporting] = useState(false);
-  const analyticsRef = React.useRef<HTMLDivElement>(null);
+  const channelExportRef = React.useRef<HTMLDivElement>(null);
 
   const handleExportImage = async () => {
-    if (!analyticsRef.current) return;
+    if (!channelExportRef.current) return;
     try {
       setIsExporting(true);
       await new Promise((resolve) => setTimeout(resolve, 150));
 
-      const el = analyticsRef.current;
-      const exportWidth = Math.max(el.scrollWidth, 1280);
-
+      const el = channelExportRef.current;
       const dataUrl = await toPng(el, {
         cacheBust: true,
         pixelRatio: 2,
-        backgroundColor: "#f8fafc",
-        width: exportWidth,
-        filter: (node) => {
-          if (node.classList && node.classList.contains("export-hide")) {
-            return false;
-          }
-          return true;
-        },
+        backgroundColor: "#F8FAFC",
+        width: 1280,
       });
 
       const safePeriod = isAnnual ? "All_Year_2026" : selectedPeriod.replace(/\s+/g, "_");
-      const memberSuffix = selectedMember ? `_${selectedMember.replace(/\s+/g, "_")}` : "";
-      const filename = `PRU_CD_Analytics_${safePeriod}${memberSuffix}.png`;
+      const filename = `PRU_CD_Channel_Summary_${safePeriod}.png`;
 
       const link = document.createElement("a");
       link.download = filename;
       link.href = dataUrl;
       link.click();
     } catch (err: any) {
-      console.error("Export analytics error:", err);
+      console.error("Export channel summary error:", err);
       alert("เกิดข้อผิดพลาดในการบันทึกรูปภาพ: " + (err?.message || err));
     } finally {
       setIsExporting(false);
@@ -495,7 +487,7 @@ export function AnalyticsView() {
   }
 
   return (
-    <div ref={analyticsRef} className="w-full max-w-[1440px] mx-auto py-3 px-3 sm:px-6 space-y-6">
+    <div className="w-full max-w-[1440px] mx-auto py-3 px-3 sm:px-6 space-y-6">
       {/* 1. Header Banner */}
       <div className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -1583,6 +1575,26 @@ export function AnalyticsView() {
         onDeleteMember={deleteMember}
         onResetToDefault={resetTeamMembers}
       />
+
+      {/* Off-screen Dedicated Channel Summary Board (Pristine 2K Image Export) */}
+      <div
+        style={{
+          position: "fixed",
+          left: -9999,
+          top: 0,
+          zIndex: -50,
+        }}
+        aria-hidden="true"
+      >
+        <ChannelSummaryExportBoard
+          ref={channelExportRef}
+          selectedPeriod={selectedPeriod}
+          isAnnual={isAnnual}
+          products={rawProducts}
+          enhancements={rawEnhancements}
+          colorMap={colorMap}
+        />
+      </div>
     </div>
   );
 }
