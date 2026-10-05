@@ -128,15 +128,46 @@ export function ProductFormModal({
     label: THAI_NAME_MAP[m] ? `${m} (${THAI_NAME_MAP[m]})` : m,
   }));
 
-  const [broker, setBroker] = useState<string>(isEnhancement ? "ttb" : "New Broker");
-  const [customBroker, setCustomBroker] = useState<string>("");
-  const [name, setName] = useState<string>("");
+  const [broker, setBroker] = useState<string>(() => {
+    if (productToEdit?.broker) {
+      const bTrim = productToEdit.broker.trim();
+      const known = brokerOptions.find(
+        (b) => b.value.toLowerCase().trim() === bTrim.toLowerCase()
+      );
+      if (known && known.value !== "Other") return known.value;
+      if (bTrim && bTrim !== "Other") return bTrim;
+    }
+    try {
+      const last = localStorage.getItem("pru_last_used_broker");
+      if (last) {
+        const found = brokerOptions.find(
+          (b) => b.value.toLowerCase().trim() === last.toLowerCase().trim()
+        );
+        if (found && found.value !== "Other") return found.value;
+      }
+    } catch (_) {}
+    return isEnhancement ? "ttb" : "New Broker";
+  });
+
+  const [customBroker, setCustomBroker] = useState<string>(() => {
+    if (productToEdit?.broker) {
+      const bTrim = productToEdit.broker.trim();
+      const known = brokerOptions.find(
+        (b) => b.value.toLowerCase().trim() === bTrim.toLowerCase()
+      );
+      if (known && known.value !== "Other") return "";
+      return bTrim === "Other" ? "" : bTrim;
+    }
+    return "";
+  });
+
+  const [name, setName] = useState<string>(() => productToEdit?.name || "");
   const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
   const [customOwner, setCustomOwner] = useState<string>("");
-  const [internalDate, setInternalDate] = useState<string>("TBC");
-  const [commercialDate, setCommercialDate] = useState<string>("TBC");
-  const [csDate, setCsDate] = useState<string>("");
-  const [customRightLabel, setCustomRightLabel] = useState<string>("");
+  const [internalDate, setInternalDate] = useState<string>(() => productToEdit?.internalDate || "TBC");
+  const [commercialDate, setCommercialDate] = useState<string>(() => productToEdit?.commercialDate || "TBC");
+  const [csDate, setCsDate] = useState<string>(() => productToEdit?.csDate || "");
+  const [customRightLabel, setCustomRightLabel] = useState<string>(() => productToEdit?.customRightLabel || "");
 
   interface MilestoneFormState {
     enabled: boolean;
@@ -165,15 +196,32 @@ export function ProductFormModal({
 
   useEffect(() => {
     if (productToEdit) {
+      const bTrim = (productToEdit.broker || "").trim();
       const knownBroker = brokerOptions.find(
-        (b) => b.value.toLowerCase() === productToEdit.broker?.toLowerCase()
+        (b) => b.value.toLowerCase().trim() === bTrim.toLowerCase()
       );
       if (knownBroker && knownBroker.value !== "Other") {
         setBroker(knownBroker.value);
         setCustomBroker("");
+      } else if (bTrim) {
+        if (bTrim === "Other") {
+          setBroker("Other");
+          setCustomBroker("");
+        } else {
+          const match = brokerOptions.find(
+            (b) => b.value.toLowerCase().trim() === bTrim.toLowerCase()
+          );
+          if (match && match.value !== "Other") {
+            setBroker(match.value);
+            setCustomBroker("");
+          } else {
+            setBroker("Other");
+            setCustomBroker(bTrim);
+          }
+        }
       } else {
-        setBroker("Other");
-        setCustomBroker(productToEdit.broker);
+        setBroker(isEnhancement ? "ttb" : "New Broker");
+        setCustomBroker("");
       }
       setName(productToEdit.name);
 
@@ -233,7 +281,17 @@ export function ProductFormModal({
       });
       setMilestonesState(nextMState);
     } else {
-      setBroker(isEnhancement ? "ttb" : "New Broker");
+      let defaultB = isEnhancement ? "ttb" : "New Broker";
+      try {
+        const last = localStorage.getItem("pru_last_used_broker");
+        if (last) {
+          const match = brokerOptions.find(
+            (b) => b.value.toLowerCase().trim() === last.toLowerCase().trim()
+          );
+          if (match && match.value !== "Other") defaultB = match.value;
+        }
+      } catch (_) {}
+      setBroker(defaultB);
       setCustomBroker("");
       setName("");
       setSelectedOwners([]);
@@ -304,6 +362,11 @@ export function ProductFormModal({
     setIsSubmitting(true);
     try {
       const finalBroker = broker === "Other" ? (customBroker.trim() || "Other") : broker;
+      try {
+        if (finalBroker && finalBroker !== "Other") {
+          localStorage.setItem("pru_last_used_broker", finalBroker);
+        }
+      } catch (_) {}
 
       const builtMilestones: Record<string, any> = {};
       PHASES.forEach((p) => {
@@ -343,9 +406,24 @@ export function ProductFormModal({
     }
   };
 
-  const currentBrokerObj = brokerOptions.find((b) => b.value === broker) || {
-    color: "#64748B",
-  };
+  const currentBrokerObj = React.useMemo(() => {
+    if (broker === "Other") {
+      return {
+        value: "Other",
+        label: customBroker ? `${customBroker}` : "อื่นๆ (ระบุเอง)",
+        color: resolveBrokerColor(customBroker, availableBrokers) || "#64748B",
+      };
+    }
+    const found = brokerOptions.find(
+      (b) => b.value.toLowerCase().trim() === (broker || "").toLowerCase().trim()
+    );
+    if (found) return found;
+    return {
+      value: broker,
+      label: broker,
+      color: resolveBrokerColor(broker, availableBrokers) || "#64748B",
+    };
+  }, [broker, customBroker, brokerOptions, availableBrokers]);
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
@@ -435,15 +513,32 @@ export function ProductFormModal({
                     value={broker}
                     onValueChange={(val) => {
                       setBroker(val);
-                      if (val !== "Other") setCustomBroker("");
+                      if (val !== "Other") {
+                        setCustomBroker("");
+                        try {
+                          localStorage.setItem("pru_last_used_broker", val);
+                        } catch (_) {}
+                      }
                     }}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="เลือกช่องทาง" />
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="เลือกช่องทาง">
+                        {broker ? (
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: currentBrokerObj.color }}
+                            />
+                            <span className="font-medium text-gray-800 truncate">
+                              {currentBrokerObj.label || broker}
+                            </span>
+                          </div>
+                        ) : null}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {brokerOptions.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
+                        <SelectItem key={opt.value} value={opt.value} textValue={opt.label}>
                           <div className="flex items-center gap-2">
                             <span
                               className="w-2.5 h-2.5 rounded-full shrink-0"

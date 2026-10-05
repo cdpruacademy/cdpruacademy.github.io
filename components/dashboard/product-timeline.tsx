@@ -333,17 +333,23 @@ export function ProductTimeline() {
       </div>
 
       {/* Redesigned Centered Shadcn Modal for Add/Edit */}
-      <ProductFormModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        timelineType={timelineType}
-        selectedMonth={selectedMonth}
-        productToEdit={productToEdit}
-        onSave={handleSaveProduct}
-        onDelete={handleDeleteProduct}
-        teamMembers={teamMembers}
-        availableBrokers={colorMap}
-      />
+      {isModalOpen && (
+        <ProductFormModal
+          key={productToEdit ? `edit-${productToEdit.id}` : `add-${timelineType}-${selectedMonth}`}
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+            setProductToEdit(null);
+          }}
+          timelineType={timelineType}
+          selectedMonth={selectedMonth}
+          productToEdit={productToEdit}
+          onSave={handleSaveProduct}
+          onDelete={handleDeleteProduct}
+          teamMembers={teamMembers}
+          availableBrokers={colorMap}
+        />
+      )}
 
       {/* Broker Color Customizer Modal */}
       <BrokerColorModal
