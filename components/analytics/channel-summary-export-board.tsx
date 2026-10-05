@@ -216,9 +216,8 @@ export const ChannelSummaryExportBoard = React.forwardRef<
         <div className="grid grid-cols-12 px-7 py-3.5 bg-slate-100/70 text-slate-600 font-extrabold text-xs uppercase tracking-wider border-b border-slate-200">
           <div className="col-span-4">ช่องทาง / พาร์ทเนอร์ (Channel)</div>
           <div className="col-span-2 text-center">จำนวนชิ้นงานรวม</div>
-          <div className="col-span-2 text-center">New Product</div>
-          <div className="col-span-2 text-center">Enhancement</div>
-          <div className="col-span-2 text-right">สัดส่วนโครงการ</div>
+          <div className="col-span-5 px-3">สัดส่วน New Product / Enhancement</div>
+          <div className="col-span-1 text-right">สัดส่วน (%)</div>
         </div>
 
         {/* Table Rows */}
@@ -235,7 +234,7 @@ export const ChannelSummaryExportBoard = React.forwardRef<
               return (
                 <div
                   key={stat.channel}
-                  className="grid grid-cols-12 px-7 py-4.5 items-center hover:bg-slate-50/50 transition-colors"
+                  className="grid grid-cols-12 px-7 py-4 items-center hover:bg-slate-50/50 transition-colors"
                 >
                   {/* Col 1: Channel Name & Color Dot */}
                   <div className="col-span-4 flex items-center gap-3">
@@ -253,44 +252,17 @@ export const ChannelSummaryExportBoard = React.forwardRef<
                     </div>
                   </div>
 
-                  {/* Col 2: Total Count */}
+                  {/* Col 2: Total Task Count */}
                   <div className="col-span-2 text-center">
                     <span className="inline-flex items-center px-3.5 py-1 rounded-xl bg-slate-100 text-slate-900 text-sm font-black">
                       {stat.total} ชิ้นงาน
                     </span>
                   </div>
 
-                  {/* Col 3: New Product Count */}
-                  <div className="col-span-2 text-center">
-                    {stat.newProductCount > 0 ? (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-red-50 text-[#ED1C24] border border-red-200 text-xs font-black">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#ED1C24]" />
-                        {stat.newProductCount} ตัว
-                      </span>
-                    ) : (
-                      <span className="text-xs text-slate-300 font-bold">-</span>
-                    )}
-                  </div>
-
-                  {/* Col 4: Enhancement Count */}
-                  <div className="col-span-2 text-center">
-                    {stat.enhancementCount > 0 ? (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50 text-[#0066CC] border border-blue-200 text-xs font-black">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#0066CC]" />
-                        {stat.enhancementCount} ตัว
-                      </span>
-                    ) : (
-                      <span className="text-xs text-slate-300 font-bold">-</span>
-                    )}
-                  </div>
-
-                  {/* Col 5: Ratio Bar & Percentage */}
-                  <div className="col-span-2 flex flex-col items-end gap-1.5">
-                    <span className="text-xs font-black text-slate-800">
-                      {stat.percentage.toFixed(1)}%
-                    </span>
-                    {/* Visual Segment Bar (Red vs Blue) */}
-                    <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden flex border border-slate-200/60">
+                  {/* Col 3: Single Segmented Bar for New Product & Enhancement */}
+                  <div className="col-span-5 flex flex-col gap-1.5 px-3">
+                    {/* Unified Multi-Color Segmented Bar */}
+                    <div className="w-full h-3.5 rounded-full bg-slate-100 overflow-hidden flex border border-slate-200/80 shadow-2xs">
                       {stat.newProductCount > 0 && (
                         <div
                           style={{ width: `${npPct}%` }}
@@ -306,6 +278,24 @@ export const ChannelSummaryExportBoard = React.forwardRef<
                         />
                       )}
                     </div>
+                    {/* Exact Number Indicators */}
+                    <div className="flex items-center justify-between text-[11px] font-extrabold">
+                      <span className="inline-flex items-center gap-1 text-[#ED1C24]">
+                        <span className="w-2 h-2 rounded-full bg-[#ED1C24]" />
+                        New Product: {stat.newProductCount} ชิ้น
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[#0066CC]">
+                        <span className="w-2 h-2 rounded-full bg-[#0066CC]" />
+                        Enhancement: {stat.enhancementCount} ชิ้น
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Col 4: Simple Percentage */}
+                  <div className="col-span-1 text-right">
+                    <span className="text-sm font-black text-slate-900">
+                      {stat.percentage.toFixed(0)}%
+                    </span>
                   </div>
                 </div>
               );

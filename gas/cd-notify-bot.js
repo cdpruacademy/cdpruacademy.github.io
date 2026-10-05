@@ -832,6 +832,14 @@ function replyTimelineImages(replyToken) {
     });
   }
 
+  if (imgData.channel_summary_image_url) {
+    messages.push({
+      type: "image",
+      originalContentUrl: imgData.channel_summary_image_url,
+      previewImageUrl: imgData.channel_summary_image_url
+    });
+  }
+
   replyLineMessages(replyToken, messages);
 }
 
@@ -1058,6 +1066,15 @@ function sendMondayMorningSummary() {
         type: "image",
         originalContentUrl: imgData.enhancement_image_url,
         previewImageUrl: imgData.enhancement_image_url
+      });
+    }
+
+    // 4. แนบรูปสรุปช่องทาง (Channel Summary)
+    if (imgData && imgData.channel_summary_image_url) {
+      messages.push({
+        type: "image",
+        originalContentUrl: imgData.channel_summary_image_url,
+        previewImageUrl: imgData.channel_summary_image_url
       });
     }
 

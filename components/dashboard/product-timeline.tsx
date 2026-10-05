@@ -8,6 +8,7 @@ import { ProductItem } from "@/lib/timeline-data";
 import { TimelineHeader, TimelineTrackHeader } from "./timeline-header";
 import { TimelineRow } from "./timeline-row";
 import { TimelineExportBoard } from "./timeline-export-board";
+import { ChannelSummaryExportBoard } from "@/components/analytics/channel-summary-export-board";
 import { ProductFormModal } from "./product-form-modal";
 import { BrokerColorModal } from "./broker-color-modal";
 import { useTeamMembers } from "@/hooks/use-team-members";
@@ -68,6 +69,7 @@ export function ProductTimeline() {
   const dashboardRef = useRef<HTMLDivElement>(null);
   const productExportRef = useRef<HTMLDivElement>(null);
   const enhancementExportRef = useRef<HTMLDivElement>(null);
+  const channelSummaryExportRef = useRef<HTMLDivElement>(null);
 
   // Capture snapshots from offscreen 2K boards and upload to Supabase Storage
   const captureAndUploadSnapshots = useCallback(
@@ -92,12 +94,24 @@ export function ProductTimeline() {
           width: 1280,
         });
 
-        // 3. Upload both to Supabase Storage (upsert = true, overwrite monthly filenames)
+        // 3. Capture Channel Summary Image (width 1280, 2x retina)
+        let channelSummaryDataUrl: string | undefined = undefined;
+        if (channelSummaryExportRef.current) {
+          channelSummaryDataUrl = await toPng(channelSummaryExportRef.current, {
+            cacheBust: true,
+            pixelRatio: 2,
+            backgroundColor: "#ffffff",
+            width: 1280,
+          });
+        }
+
+        // 4. Upload all 3 images to Supabase Storage
         const uploadRes = await saveBothTimelineSnapshots(
           productDataUrl,
           enhancementDataUrl,
           selectedMonth,
-          asOfText
+          asOfText,
+          channelSummaryDataUrl
         );
 
         if (!uploadRes.success) {
@@ -106,11 +120,12 @@ export function ProductTimeline() {
 
         if (showUserAlert) {
           alert(
-            `✅ อัปเดตรูปไทม์ไลน์ขึ้น Cloud สำเร็จครบทั้ง 2 ตาราง!\n\n` +
+            `✅ อัปเดตรูปไทม์ไลน์และสรุปช่องทางขึ้น Cloud สำเร็จครบทั้ง 3 รูป!\n\n` +
             `• 🎯 New Product Timeline: บันทึกเรียบร้อย\n` +
             `• ⚡ Enhancement Timeline: บันทึกเรียบร้อย\n` +
+            `• 📊 Channel Summary: บันทึกเรียบร้อย\n` +
             `• รอบเดือน: ${selectedMonth} (${asOfText})\n\n` +
-            `สมาชิกใน LINE สามารถพิมพ์ "CD รูป" เพื่อดูภาพทั้ง 2 ตารางได้ทันทีครับ`
+            `สมาชิกใน LINE สามารถพิมพ์ "CD รูป" เพื่อรับภาพสรุปทั้ง 3 รูปได้ทันทีครับ`
           );
         } else {
           console.log("Auto-snapshot background sync completed successfully");
@@ -384,6 +399,15 @@ export function ProductTimeline() {
           selectedMonth={selectedMonth}
           asOfText={asOfText}
           items={currentEnhancementItems}
+          colorMap={colorMap}
+        />
+        <div style={{ height: "40px" }} />
+        <ChannelSummaryExportBoard
+          ref={channelSummaryExportRef}
+          selectedPeriod={`${selectedMonth} (${asOfText})`}
+          isAnnual={false}
+          products={currentProductItems}
+          enhancements={currentEnhancementItems}
           colorMap={colorMap}
         />
       </div>

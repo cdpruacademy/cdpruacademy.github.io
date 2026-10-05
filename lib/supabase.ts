@@ -322,8 +322,15 @@ export async function saveBothTimelineSnapshots(
   productDataUrl: string,
   enhancementDataUrl: string,
   month: string,
-  asOfText: string
-): Promise<{ success: boolean; productUrl?: string; enhancementUrl?: string; error?: string }> {
+  asOfText: string,
+  channelSummaryDataUrl?: string
+): Promise<{
+  success: boolean;
+  productUrl?: string;
+  enhancementUrl?: string;
+  channelSummaryUrl?: string;
+  error?: string;
+}> {
   const client = getSupabaseClient();
   if (!client) {
     return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" };
@@ -343,6 +350,7 @@ export async function saveBothTimelineSnapshots(
     const safeMonth = month.replace(/\s+/g, "_").toLowerCase();
     const productFileName = `${safeMonth}_product.png`;
     const enhancementFileName = `${safeMonth}_enhancement.png`;
+    const channelSummaryFileName = `${safeMonth}_channel_summary.png`;
 
     // 1. Upload Product Image (overwrite)
     const { error: prodErr } = await client.storage
@@ -362,6 +370,23 @@ export async function saveBothTimelineSnapshots(
       });
     if (enhErr) throw new Error("ไม่สามารถอัปโหลด Enhancement: " + enhErr.message);
 
+    // 3. Upload Channel Summary Image (if provided)
+    let channelSummaryUrl: string | undefined = undefined;
+    if (channelSummaryDataUrl) {
+      const { error: chErr } = await client.storage
+        .from("timeline-snapshots")
+        .upload(channelSummaryFileName, toBytes(channelSummaryDataUrl), {
+          contentType: "image/png",
+          upsert: true,
+        });
+      if (!chErr) {
+        const { data: chUrlData } = client.storage
+          .from("timeline-snapshots")
+          .getPublicUrl(channelSummaryFileName);
+        channelSummaryUrl = `${chUrlData.publicUrl}?t=${Date.now()}`;
+      }
+    }
+
     const { data: prodUrlData } = client.storage
       .from("timeline-snapshots")
       .getPublicUrl(productFileName);
@@ -373,6 +398,19 @@ export async function saveBothTimelineSnapshots(
     const productUrl = `${prodUrlData.publicUrl}?t=${timestamp}`;
     const enhancementUrl = `${enhUrlData.publicUrl}?t=${timestamp}`;
 
+    // Preserving or getting channel summary url
+    let finalChannelUrl = channelSummaryUrl;
+    if (!finalChannelUrl) {
+      try {
+        const { data: existingChData } = client.storage
+          .from("timeline-snapshots")
+          .getPublicUrl(channelSummaryFileName);
+        if (existingChData && existingChData.publicUrl) {
+          finalChannelUrl = `${existingChData.publicUrl}?t=${timestamp}`;
+        }
+      } catch (_) {}
+    }
+
     // Register into timeline_store with id = 'latest_image'
     await client.from("timeline_store").upsert(
       {
@@ -381,6 +419,7 @@ export async function saveBothTimelineSnapshots(
         data: {
           product_image_url: productUrl,
           enhancement_image_url: enhancementUrl,
+          channel_summary_image_url: finalChannelUrl,
           image_url: productUrl, // backward compatibility
           month: month,
           as_of_text: asOfText,
@@ -396,9 +435,10 @@ export async function saveBothTimelineSnapshots(
       success: true,
       productUrl,
       enhancementUrl,
+      channelSummaryUrl: finalChannelUrl,
     };
   } catch (err: any) {
-    console.error("Save both snapshots exception:", err);
+    console.error("Save all snapshots exception:", err);
     return {
       success: false,
       error: err?.message || "เกิดข้อผิดพลาดในการบันทึกรูปภาพ",
