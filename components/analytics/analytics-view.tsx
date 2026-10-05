@@ -29,8 +29,12 @@ import {
   ExternalLink,
   Info,
   X,
+  Camera,
+  Loader2,
+  Download,
 } from "lucide-react";
 import Link from "next/link";
+import { toPng } from "html-to-image";
 
 import { resolveBrokerColor } from "@/lib/broker-colors";
 import { useChannelColors } from "@/hooks/use-channel-colors";
@@ -89,6 +93,48 @@ export function AnalyticsView() {
 
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
+
+  // High-Res Image Export
+  const [isExporting, setIsExporting] = useState(false);
+  const analyticsRef = React.useRef<HTMLDivElement>(null);
+
+  const handleExportImage = async () => {
+    if (!analyticsRef.current) return;
+    try {
+      setIsExporting(true);
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      const el = analyticsRef.current;
+      const exportWidth = Math.max(el.scrollWidth, 1280);
+
+      const dataUrl = await toPng(el, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: "#f8fafc",
+        width: exportWidth,
+        filter: (node) => {
+          if (node.classList && node.classList.contains("export-hide")) {
+            return false;
+          }
+          return true;
+        },
+      });
+
+      const safePeriod = isAnnual ? "All_Year_2026" : selectedPeriod.replace(/\s+/g, "_");
+      const memberSuffix = selectedMember ? `_${selectedMember.replace(/\s+/g, "_")}` : "";
+      const filename = `PRU_CD_Analytics_${safePeriod}${memberSuffix}.png`;
+
+      const link = document.createElement("a");
+      link.download = filename;
+      link.href = dataUrl;
+      link.click();
+    } catch (err: any) {
+      console.error("Export analytics error:", err);
+      alert("เกิดข้อผิดพลาดในการบันทึกรูปภาพ: " + (err?.message || err));
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // Hover states for Donut charts
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
@@ -449,7 +495,7 @@ export function AnalyticsView() {
   }
 
   return (
-    <div className="w-full max-w-[1440px] mx-auto py-3 px-3 sm:px-6 space-y-6">
+    <div ref={analyticsRef} className="w-full max-w-[1440px] mx-auto py-3 px-3 sm:px-6 space-y-6">
       {/* 1. Header Banner */}
       <div className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -499,7 +545,7 @@ export function AnalyticsView() {
             <button
               type="button"
               onClick={() => setSelectedPeriod("ALL_YEAR")}
-              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-[#ED1C24] bg-red-50 hover:bg-red-100 rounded-xl border border-red-200 transition-colors shadow-2xs"
+              className="export-hide inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-[#ED1C24] bg-red-50 hover:bg-red-100 rounded-xl border border-red-200 transition-colors shadow-2xs"
               title="กลับไปดูภาพรวมทั้งปี"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -511,10 +557,26 @@ export function AnalyticsView() {
           <button
             type="button"
             onClick={() => setIsTeamModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-gray-700 text-xs font-bold rounded-xl border border-gray-300 shadow-2xs transition-all hover:border-gray-400"
+            className="export-hide inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-gray-700 text-xs font-bold rounded-xl border border-gray-300 shadow-2xs transition-all hover:border-gray-400"
           >
             <Users className="w-3.5 h-3.5 text-blue-600" />
             <span className="hidden sm:inline">จัดการสมาชิกทีม</span> ({teamMembers.length})
+          </button>
+
+          {/* Export to Image Button */}
+          <button
+            type="button"
+            onClick={handleExportImage}
+            disabled={isExporting}
+            className="export-hide inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#ED1C24] hover:bg-[#D4181F] text-white text-xs font-bold rounded-xl shadow-2xs transition-all disabled:opacity-50 cursor-pointer"
+            title="บันทึกหน้าสรุปสถิตินี้เป็นรูปภาพความละเอียดสูง (2K)"
+          >
+            {isExporting ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Camera className="w-3.5 h-3.5" />
+            )}
+            <span>{isExporting ? "กำลังบันทึกภาพ..." : "บันทึกเป็นรูปภาพ"}</span>
           </button>
         </div>
       </div>
@@ -553,7 +615,7 @@ export function AnalyticsView() {
             <button
               type="button"
               onClick={() => handleOpenDeliveryModal(selectedMember)}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[#ED1C24] hover:bg-[#D4181F] px-3 py-1.5 rounded-xl shadow-2xs transition-all cursor-pointer"
+              className="export-hide inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[#ED1C24] hover:bg-[#D4181F] px-3 py-1.5 rounded-xl shadow-2xs transition-all cursor-pointer"
               title="เปิดหน้าต่าง Popup ติดตามสถานะงานและโครงการที่ค้าง"
             >
               <ExternalLink className="w-3.5 h-3.5" />
