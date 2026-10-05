@@ -28,6 +28,8 @@ export function ProductTimeline() {
     asOfText,
     setAsOfText,
     currentItems,
+    currentProductItems,
+    currentEnhancementItems,
     isLoaded,
     addProduct,
     updateProduct,
@@ -366,7 +368,7 @@ export function ProductTimeline() {
           timelineType="product"
           selectedMonth={selectedMonth}
           asOfText={asOfText}
-          items={monthlyStore?.[selectedMonth]?.products || []}
+          items={currentProductItems}
           colorMap={colorMap}
         />
         <div style={{ height: "40px" }} />
@@ -375,7 +377,7 @@ export function ProductTimeline() {
           timelineType="enhancement"
           selectedMonth={selectedMonth}
           asOfText={asOfText}
-          items={monthlyStore?.[selectedMonth]?.enhancements || []}
+          items={currentEnhancementItems}
           colorMap={colorMap}
         />
       </div>

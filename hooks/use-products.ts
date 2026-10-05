@@ -296,74 +296,88 @@ export function useProducts() {
     return hasMonth && hasYear;
   }, []);
 
-  // Active items based on tab + Option A: Auto include products from other months whose Target Launch matches selectedMonth
-  const currentItems = useMemo(() => {
-    const rawNativeList = timelineType === "product" ? currentMonthData.products : currentMonthData.enhancements;
-    const nativeList = (rawNativeList || []).filter((p) => !p.isDeleted);
-    const nativeIds = new Set((rawNativeList || []).map((p) => p.id));
+  // Helper: compute all active items (including carryovers from prior months) for any month and timeline type
+  const getItemsForMonth = useCallback(
+    (month: string, type: TimelineType): ProductItem[] => {
+      const monthData = monthlyStore[month] || {
+        products: [],
+        enhancements: [],
+        asOfText: DEFAULT_AS_OF_BY_MONTH[month] || "as of 15th",
+      };
+      const rawNativeList = type === "product" ? monthData.products : monthData.enhancements;
+      const nativeList = (rawNativeList || []).filter((p) => !p.isDeleted);
+      const nativeIds = new Set((rawNativeList || []).map((p) => p.id));
 
-    // Find cross-month items from other months
-    const crossMonthItems: ProductItem[] = [];
+      const crossMonthItems: ProductItem[] = [];
+      const targetParsed = parseMonthYear(month);
 
-    const targetParsed = parseMonthYear(selectedMonth);
+      Object.entries(monthlyStore).forEach(([mKey, mData]) => {
+        if (mKey.toUpperCase() === month.toUpperCase()) return;
 
-    Object.entries(monthlyStore).forEach(([mKey, mData]) => {
-      // Don't duplicate native month
-      if (mKey.toUpperCase() === selectedMonth.toUpperCase()) return;
+        const items = type === "product" ? mData.products : mData.enhancements;
+        if (!items || !Array.isArray(items)) return;
 
-      const items = timelineType === "product" ? mData.products : mData.enhancements;
-      if (!items || !Array.isArray(items)) return;
+        const sourceParsed = parseMonthYear(mKey);
+        const isPriorMonth = sourceParsed && targetParsed
+          ? sourceParsed.year < targetParsed.year || (sourceParsed.year === targetParsed.year && sourceParsed.monthIndex < targetParsed.monthIndex)
+          : false;
 
-      const sourceParsed = parseMonthYear(mKey);
-      const isPriorMonth = sourceParsed && targetParsed
-        ? sourceParsed.year < targetParsed.year || (sourceParsed.year === targetParsed.year && sourceParsed.monthIndex < targetParsed.monthIndex)
-        : false;
+        items.forEach((item) => {
+          if (item.isDeleted || nativeIds.has(item.id)) return;
 
-      items.forEach((item) => {
-        // Skip if already in native month (by ID) or deleted
-        if (item.isDeleted || nativeIds.has(item.id)) return;
-
-        // Auto carryover: any item from prior month that has not launched in the past yet
-        let hasLaunchedInPast = false;
-        if (item.milestones?.launch?.status === "completed") {
-          hasLaunchedInPast = true;
-        } else if (item.commercialDate && !item.commercialDate.toLowerCase().includes("tbc")) {
-          const cClean = item.commercialDate.toLowerCase();
-          for (let i = 0; i < MONTH_NAMES.length; i++) {
-            if (cClean.includes(MONTH_NAMES[i].toLowerCase().slice(0, 3))) {
-              const yMatch = cClean.match(/\b(20\d{2}|25\d{2})\b/);
-              const cYear = yMatch ? parseInt(yMatch[0], 10) : targetParsed?.year || 2026;
-              if (targetParsed) {
-                if (cYear < targetParsed.year || (cYear === targetParsed.year && i < targetParsed.monthIndex)) {
-                  hasLaunchedInPast = true;
+          let hasLaunchedInPast = false;
+          if (item.milestones?.launch?.status === "completed") {
+            hasLaunchedInPast = true;
+          } else if (item.commercialDate && !item.commercialDate.toLowerCase().includes("tbc")) {
+            const cClean = item.commercialDate.toLowerCase();
+            for (let i = 0; i < MONTH_NAMES.length; i++) {
+              if (cClean.includes(MONTH_NAMES[i].toLowerCase().slice(0, 3))) {
+                const yMatch = cClean.match(/\b(20\d{2}|25\d{2})\b/);
+                const cYear = yMatch ? parseInt(yMatch[0], 10) : targetParsed?.year || 2026;
+                if (targetParsed) {
+                  if (cYear < targetParsed.year || (cYear === targetParsed.year && i < targetParsed.monthIndex)) {
+                    hasLaunchedInPast = true;
+                  }
                 }
+                break;
               }
-              break;
             }
           }
-        }
 
-        const isUnfinishedInPrior = isPriorMonth && !hasLaunchedInPast;
+          const isUnfinishedInPrior = isPriorMonth && !hasLaunchedInPast;
 
-        // Check commercialDate first, then internalDate, then customRightLabel, or unfinished from prior
-        const isMatch =
-          matchesTargetMonth(item.commercialDate, selectedMonth) ||
-          matchesTargetMonth(item.internalDate, selectedMonth) ||
-          matchesTargetMonth(item.customRightLabel, selectedMonth) ||
-          isUnfinishedInPrior;
+          const isMatch =
+            matchesTargetMonth(item.commercialDate, month) ||
+            matchesTargetMonth(item.internalDate, month) ||
+            matchesTargetMonth(item.customRightLabel, month) ||
+            isUnfinishedInPrior;
 
-        if (isMatch) {
-          crossMonthItems.push({
-            ...item,
-            isCrossMonth: false,
-            originalMonth: mKey,
-          });
-        }
+          if (isMatch) {
+            crossMonthItems.push({
+              ...item,
+              isCrossMonth: false,
+              originalMonth: mKey,
+            });
+          }
+        });
       });
-    });
 
-    return [...nativeList, ...crossMonthItems];
-  }, [timelineType, currentMonthData, monthlyStore, selectedMonth, matchesTargetMonth]);
+      return [...nativeList, ...crossMonthItems];
+    },
+    [monthlyStore, matchesTargetMonth]
+  );
+
+  const currentProductItems = useMemo(() => {
+    return getItemsForMonth(selectedMonth, "product");
+  }, [getItemsForMonth, selectedMonth]);
+
+  const currentEnhancementItems = useMemo(() => {
+    return getItemsForMonth(selectedMonth, "enhancement");
+  }, [getItemsForMonth, selectedMonth]);
+
+  const currentItems = useMemo(() => {
+    return timelineType === "product" ? currentProductItems : currentEnhancementItems;
+  }, [timelineType, currentProductItems, currentEnhancementItems]);
 
   // CRUD Operations
   const addProduct = useCallback(
@@ -761,6 +775,9 @@ export function useProducts() {
     asOfText,
     setAsOfText: handleSetAsOfText,
     currentItems,
+    currentProductItems,
+    currentEnhancementItems,
+    getItemsForMonth,
     isLoaded,
     addProduct,
     updateProduct,

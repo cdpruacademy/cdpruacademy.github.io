@@ -56,7 +56,7 @@ const isOwnerMatch = (itemOwner: string | undefined, memberName: string) => {
 
 export function AnalyticsView() {
   const { isAdmin, login } = useAdminAuth();
-  const { monthlyStore, availableMonths } = useProducts();
+  const { monthlyStore, availableMonths, getItemsForMonth } = useProducts();
 
   const {
     teamMembers,
@@ -102,12 +102,17 @@ export function AnalyticsView() {
 
     // Single Month Scope
     if (!isAnnual) {
-      const mData = monthlyStore[selectedPeriod] || { products: [], enhancements: [] };
-      const pList: AggregatedItem[] = (mData.products || []).map((p) => ({
+      const pItems = getItemsForMonth
+        ? getItemsForMonth(selectedPeriod, "product")
+        : (monthlyStore[selectedPeriod]?.products || []);
+      const eItems = getItemsForMonth
+        ? getItemsForMonth(selectedPeriod, "enhancement")
+        : (monthlyStore[selectedPeriod]?.enhancements || []);
+      const pList: AggregatedItem[] = pItems.map((p) => ({
         ...p,
         activeMonths: [selectedPeriod],
       }));
-      const eList: AggregatedItem[] = (mData.enhancements || []).map((e) => ({
+      const eList: AggregatedItem[] = eItems.map((e) => ({
         ...e,
         activeMonths: [selectedPeriod],
       }));
