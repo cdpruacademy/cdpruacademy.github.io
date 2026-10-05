@@ -101,7 +101,7 @@ export function TimelineRow({
     >
       {/* Floating Action Buttons on Hover */}
       <div className="export-hide absolute right-2 top-1 z-30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-white/95 backdrop-blur-xs px-2 py-1 rounded-lg shadow-sm border border-gray-200">
-        {isAdmin && !product.isCrossMonth && (
+        {isAdmin && (
           <button
             type="button"
             onClick={() => onEdit(product)}
@@ -120,7 +120,7 @@ export function TimelineRow({
         >
           <Download className="w-3.5 h-3.5" />
         </button>
-        {isAdmin && !product.isCrossMonth && (
+        {isAdmin && (
           <button
             type="button"
             onClick={() => onDelete(product.id)}
@@ -135,9 +135,7 @@ export function TimelineRow({
       {/* 1. Left Product Info Card */}
       <div
         style={{ borderLeftColor: brokerColor }}
-        className={`rounded-xl p-2.5 h-[68px] flex flex-col justify-between shadow-2xs border-l-4 ${
-          product.isCrossMonth ? "bg-amber-50/70 border-dashed border-amber-300" : "bg-[#EEF2F5]"
-        }`}
+        className="rounded-xl p-2.5 h-[68px] flex flex-col justify-between shadow-2xs border-l-4 bg-[#EEF2F5]"
       >
         <div className="flex items-center justify-between text-xs gap-1">
           <div className="flex items-center gap-1 overflow-hidden">
@@ -147,14 +145,6 @@ export function TimelineRow({
             >
               [{product.broker}]
             </span>
-            {product.isCrossMonth && (
-              <span
-                className="text-[9px] bg-amber-200/80 text-amber-800 font-semibold px-1 py-0.2 rounded shrink-0"
-                title={`ข้อมูลอ้างอิงจากรอบเดือน ${product.originalMonth || ""}`}
-              >
-                จาก {product.originalMonth?.split(" ")[0]}
-              </span>
-            )}
           </div>
           <span className="text-[11px] font-medium text-[#64748B] truncate" title={product.owner}>
             {product.owner}

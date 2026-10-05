@@ -128,6 +128,7 @@ export interface ProductItem {
   month?: string; // e.g. "AUG 2026"
   isCrossMonth?: boolean; // True if this item appears because target launch matches current selected month
   originalMonth?: string; // e.g. "AUG 2026" where it was originally created
+  isDeleted?: boolean;
 }
 
 // 1. Initial 9 New Products (Red theme)
