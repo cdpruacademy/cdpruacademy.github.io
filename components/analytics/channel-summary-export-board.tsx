@@ -3,7 +3,7 @@
 import * as React from "react";
 import { ProductItem } from "@/lib/timeline-data";
 import { resolveBrokerColor } from "@/lib/broker-colors";
-import { Layers, Sparkles, Zap, Tag, Calendar, CheckCircle2 } from "lucide-react";
+import { Layers, Sparkles, Zap, Tag, Calendar, CheckCircle2, TrendingUp, Award } from "lucide-react";
 
 interface ChannelSummaryExportBoardProps {
   selectedPeriod: string;
@@ -89,9 +89,12 @@ export const ChannelSummaryExportBoard = React.forwardRef<
       className="p-10 border border-slate-200 text-slate-800 antialiased"
     >
       {/* 1. Header Banner */}
-      <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm flex items-center justify-between gap-6 mb-7">
+      <div className="relative bg-white rounded-3xl p-7 border border-slate-200/90 shadow-sm flex items-center justify-between gap-6 mb-7 overflow-hidden">
+        {/* Top Prudential Brand Red Line */}
+        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#ED1C24] via-[#ED1C24] to-[#ff4d54]" />
+
         <div className="flex items-center gap-4">
-          <div className="w-13 h-13 rounded-2xl bg-[#ED1C24] flex items-center justify-center text-white font-black text-2xl shadow-md shrink-0">
+          <div className="w-14 h-14 rounded-2xl bg-[#ED1C24] flex items-center justify-center text-white font-black text-2xl shadow-md shrink-0">
             P
           </div>
           <div>
@@ -99,21 +102,21 @@ export const ChannelSummaryExportBoard = React.forwardRef<
               <span className="text-xl font-black tracking-tight text-[#ED1C24]">
                 PRUDENTIAL
               </span>
-              <span className="text-xs font-bold text-slate-400">|</span>
+              <span className="text-xs font-bold text-slate-300">|</span>
               <span className="text-xs font-extrabold uppercase tracking-widest text-slate-500">
                 Curriculum Development Team
               </span>
             </div>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight mt-0.5">
-              สรุปโครงการแยกตามช่องทาง (Summary of Projects by Channel)
+              สรุปจำนวนชิ้นงานพัฒนา แยกตามช่องทาง (Summary of Projects by Channel)
             </h1>
           </div>
         </div>
 
         {/* Period & Time badge */}
         <div className="text-right flex flex-col items-end gap-1.5">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-red-50 text-[#ED1C24] border border-red-200 text-xs font-black shadow-xs">
-            <Calendar className="w-3.5 h-3.5" />
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-50 text-[#ED1C24] border border-red-200 text-xs font-black shadow-xs">
+            <Calendar className="w-4 h-4" />
             <span>{isAnnual ? "🌟 ภาพรวมทั้งปี 2569 (All Year)" : `📅 รอบเดือน: ${selectedPeriod}`}</span>
           </div>
           <span className="text-[11px] font-semibold text-slate-400">
@@ -125,7 +128,7 @@ export const ChannelSummaryExportBoard = React.forwardRef<
       {/* 2. Executive KPI Cards (4 Cards Grid) */}
       <div className="grid grid-cols-4 gap-5 mb-7">
         {/* Card 1: Total Tasks */}
-        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex items-center justify-between">
+        <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">
               ชิ้นงานรวมทั้งหมด
@@ -179,7 +182,7 @@ export const ChannelSummaryExportBoard = React.forwardRef<
         </div>
 
         {/* Card 4: Total Channels */}
-        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex items-center justify-between">
+        <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">
               ช่องทางที่เปิดขาย
@@ -197,115 +200,203 @@ export const ChannelSummaryExportBoard = React.forwardRef<
         </div>
       </div>
 
-      {/* 3. Main Channel Breakdown Table (Clean, Focused, Premium) */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden mb-7">
-        {/* Table Title Bar */}
-        <div className="px-7 py-5 bg-gradient-to-r from-slate-50 to-white border-b border-slate-200 flex items-center justify-between">
+      {/* 3. Overall Channel Share Visual Strip (Glanceable Macro-View) */}
+      {channelStats.length > 0 && totalAll > 0 && (
+        <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-sm mb-7">
+          <div className="flex items-center justify-between mb-3.5">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-[#ED1C24]" />
+              <span className="text-sm font-black text-slate-900">
+                สัดส่วนงานรวมแยกตามช่องทาง (Overall Channel Distribution)
+              </span>
+            </div>
+            <span className="text-xs font-bold text-slate-400">
+              รวม 100% ({totalAll} ชิ้นงาน)
+            </span>
+          </div>
+
+          {/* Full-width Multi-Color Distribution Bar */}
+          <div className="w-full h-4 rounded-full bg-slate-100 overflow-hidden flex border border-slate-200/80 shadow-inner">
+            {channelStats.map((stat) => (
+              <div
+                key={stat.channel}
+                style={{
+                  width: `${stat.percentage}%`,
+                  backgroundColor: stat.color,
+                }}
+                className="h-full transition-all"
+                title={`${stat.channel}: ${stat.total} ชิ้น (${stat.percentage.toFixed(0)}%)`}
+              />
+            ))}
+          </div>
+
+          {/* Legend Tags */}
+          <div className="flex flex-wrap items-center gap-2.5 mt-3.5">
+            {channelStats.map((stat) => (
+              <div
+                key={stat.channel}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200/70 text-xs font-extrabold text-slate-700"
+              >
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs"
+                  style={{ backgroundColor: stat.color }}
+                />
+                <span>{stat.channel}</span>
+                <span className="text-slate-400 font-bold">
+                  {stat.percentage.toFixed(0)}%
+                </span>
+                <span className="text-[#ED1C24] font-black ml-0.5">
+                  ({stat.total})
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 4. High-Impact Channel Cards List (มองแป๊บเดียวรู้ทันทีว่าช่องทางไหนมีงานกี่ตัว) */}
+      <div className="mb-7">
+        <div className="flex items-center justify-between mb-4 px-1">
           <div className="flex items-center gap-2.5">
-            <Tag className="w-5 h-5 text-[#ED1C24]" />
-            <h2 className="text-base font-black text-slate-900">
-              รายละเอียดจำนวนชิ้นงาน จำแนกตามช่องทาง (Channel Breakdown)
+            <Award className="w-5 h-5 text-[#ED1C24]" />
+            <h2 className="text-lg font-black text-slate-900 tracking-tight">
+              รายละเอียดชิ้นงานตามช่องทาง (Channel Breakdown)
             </h2>
           </div>
-          <span className="text-xs font-bold text-slate-500">
-            เรียงตามจำนวนโครงการสูงสุด
+          <span className="text-xs font-extrabold text-slate-400">
+            เรียงตามจำนวนโครงการสูงสุด (Ranked by Total Projects)
           </span>
         </div>
 
-        {/* Table Header */}
-        <div className="grid grid-cols-12 px-7 py-3.5 bg-slate-100/70 text-slate-600 font-extrabold text-xs uppercase tracking-wider border-b border-slate-200">
-          <div className="col-span-4">ช่องทาง / พาร์ทเนอร์ (Channel)</div>
-          <div className="col-span-2 text-center">จำนวนชิ้นงานรวม</div>
-          <div className="col-span-5 px-3">สัดส่วน New Product / Enhancement</div>
-          <div className="col-span-1 text-right">สัดส่วน (%)</div>
-        </div>
-
-        {/* Table Rows */}
-        <div className="divide-y divide-slate-100">
-          {channelStats.length === 0 ? (
-            <div className="p-8 text-center text-slate-400 font-bold text-sm">
-              ไม่มีข้อมูลโครงการในรอบเวลานี้
-            </div>
-          ) : (
-            channelStats.map((stat, idx) => {
+        {channelStats.length === 0 ? (
+          <div className="bg-white rounded-3xl p-12 text-center text-slate-400 font-bold text-base border border-slate-200">
+            ไม่มีข้อมูลโครงการในรอบเวลานี้
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {channelStats.map((stat, idx) => {
               const npPct = stat.total > 0 ? (stat.newProductCount / stat.total) * 100 : 0;
               const enhPct = stat.total > 0 ? (stat.enhancementCount / stat.total) * 100 : 0;
+
+              // Rank styling
+              const isTop1 = idx === 0;
+              const isTop2 = idx === 1;
+              const isTop3 = idx === 2;
+
+              let rankBadgeClass = "bg-slate-100 text-slate-700 border-slate-200";
+              let rankText = `#${idx + 1}`;
+              if (isTop1) {
+                rankBadgeClass = "bg-amber-100 text-amber-900 border-amber-300 font-black";
+                rankText = "🥇 #1";
+              } else if (isTop2) {
+                rankBadgeClass = "bg-slate-200 text-slate-800 border-slate-300 font-black";
+                rankText = "🥈 #2";
+              } else if (isTop3) {
+                rankBadgeClass = "bg-orange-100 text-orange-900 border-orange-300 font-black";
+                rankText = "🥉 #3";
+              }
 
               return (
                 <div
                   key={stat.channel}
-                  className="grid grid-cols-12 px-7 py-4 items-center hover:bg-slate-50/50 transition-colors"
+                  className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-sm hover:shadow-md transition-all flex flex-col gap-3.5"
                 >
-                  {/* Col 1: Channel Name & Color Dot */}
-                  <div className="col-span-4 flex items-center gap-3">
-                    <span
-                      className="w-4 h-4 rounded-full shrink-0 shadow-xs border border-black/10"
-                      style={{ backgroundColor: stat.color }}
-                    />
-                    <div>
-                      <span className="text-base font-black text-slate-900 tracking-tight">
-                        {stat.channel}
+                  {/* Top Row: Channel Identity + Big Bold Total Count */}
+                  <div className="flex items-center justify-between gap-4">
+                    {/* Left: Rank & Channel */}
+                    <div className="flex items-center gap-3.5">
+                      <span
+                        className={`px-3 py-1 rounded-xl text-xs font-black border shadow-2xs shrink-0 ${rankBadgeClass}`}
+                      >
+                        {rankText}
                       </span>
-                      <span className="text-xs text-slate-400 font-semibold ml-2">
-                        (อันดับ {idx + 1})
+
+                      {/* Channel Name with Color Accent */}
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className="w-4 h-4 rounded-full shrink-0 shadow-xs border border-black/10"
+                          style={{ backgroundColor: stat.color }}
+                        />
+                        <span className="text-2xl font-black text-slate-900 tracking-tight">
+                          {stat.channel}
+                        </span>
+                      </div>
+
+                      {/* Proportion Badge */}
+                      <span className="hidden sm:inline-flex px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-extrabold border border-slate-200/60">
+                        {stat.percentage.toFixed(0)}% ของงานทั้งหมด
                       </span>
+                    </div>
+
+                    {/* Right: HERO NUMBER (มหึมา เด่นชัด มองเสี้ยววินาทีก็รู้ทันที!) */}
+                    <div className="flex items-center gap-3">
+                      <div className="inline-flex items-baseline gap-2 px-5 py-2 rounded-2xl bg-slate-900 text-white shadow-sm border border-slate-800">
+                        <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">
+                          รวม
+                        </span>
+                        <span className="text-3xl font-black tracking-tight text-white">
+                          {stat.total}
+                        </span>
+                        <span className="text-xs font-bold text-slate-300">
+                          ชิ้นงาน
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Col 2: Total Task Count */}
-                  <div className="col-span-2 text-center">
-                    <span className="inline-flex items-center px-3.5 py-1 rounded-xl bg-slate-100 text-slate-900 text-sm font-black">
-                      {stat.total} ชิ้นงาน
-                    </span>
+                  {/* Middle Row: Segmented Bar (Red = New Product, Blue = Enhancement) */}
+                  <div className="w-full h-4.5 rounded-full bg-slate-100 overflow-hidden flex border border-slate-200/80 shadow-inner">
+                    {stat.newProductCount > 0 && (
+                      <div
+                        style={{ width: `${npPct}%` }}
+                        className="bg-gradient-to-r from-[#ED1C24] to-[#f43f47] h-full"
+                        title={`New Product: ${stat.newProductCount} ชิ้น`}
+                      />
+                    )}
+                    {stat.enhancementCount > 0 && (
+                      <div
+                        style={{ width: `${enhPct}%` }}
+                        className="bg-gradient-to-r from-[#0066CC] to-[#1f7ae0] h-full"
+                        title={`Enhancement: ${stat.enhancementCount} ชิ้น`}
+                      />
+                    )}
                   </div>
 
-                  {/* Col 3: Single Segmented Bar for New Product & Enhancement */}
-                  <div className="col-span-5 flex flex-col gap-1.5 px-3">
-                    {/* Unified Multi-Color Segmented Bar */}
-                    <div className="w-full h-3.5 rounded-full bg-slate-100 overflow-hidden flex border border-slate-200/80 shadow-2xs">
-                      {stat.newProductCount > 0 && (
-                        <div
-                          style={{ width: `${npPct}%` }}
-                          className="bg-[#ED1C24] h-full"
-                          title={`New Product: ${stat.newProductCount}`}
-                        />
-                      )}
-                      {stat.enhancementCount > 0 && (
-                        <div
-                          style={{ width: `${enhPct}%` }}
-                          className="bg-[#0066CC] h-full"
-                          title={`Enhancement: ${stat.enhancementCount}`}
-                        />
-                      )}
-                    </div>
-                    {/* Exact Number Indicators */}
-                    <div className="flex items-center justify-between text-[11px] font-extrabold">
-                      <span className="inline-flex items-center gap-1 text-[#ED1C24]">
+                  {/* Bottom Row: Detailed Pills (ชัดเจน แยกเป็นสี New Product vs Enhancement) */}
+                  <div className="flex items-center justify-between text-xs font-bold pt-0.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-red-50 text-[#ED1C24] border border-red-200/70 font-black shadow-2xs">
                         <span className="w-2 h-2 rounded-full bg-[#ED1C24]" />
-                        New Product: {stat.newProductCount} ชิ้น
-                      </span>
-                      <span className="inline-flex items-center gap-1 text-[#0066CC]">
-                        <span className="w-2 h-2 rounded-full bg-[#0066CC]" />
-                        Enhancement: {stat.enhancementCount} ชิ้น
-                      </span>
-                    </div>
-                  </div>
+                        <span>New Product:</span>
+                        <span className="text-sm font-black">{stat.newProductCount}</span>
+                        <span className="text-[11px] font-semibold text-red-500">
+                          ({npPct.toFixed(0)}%)
+                        </span>
+                      </div>
 
-                  {/* Col 4: Simple Percentage */}
-                  <div className="col-span-1 text-right">
-                    <span className="text-sm font-black text-slate-900">
-                      {stat.percentage.toFixed(0)}%
-                    </span>
+                      <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-50 text-[#0066CC] border border-blue-200/70 font-black shadow-2xs">
+                        <span className="w-2 h-2 rounded-full bg-[#0066CC]" />
+                        <span>Enhancement:</span>
+                        <span className="text-sm font-black">{stat.enhancementCount}</span>
+                        <span className="text-[11px] font-semibold text-blue-500">
+                          ({enhPct.toFixed(0)}%)
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-right text-xs font-extrabold text-slate-400">
+                      สัดส่วนช่องทาง: <span className="text-slate-700">{stat.percentage.toFixed(0)}%</span>
+                    </div>
                   </div>
                 </div>
               );
-            })
-          )}
-        </div>
+            })}
+          </div>
+        )}
       </div>
 
-      {/* 4. Elegant Bottom Bar / Watermark */}
-      <div className="flex items-center justify-between text-xs font-bold text-slate-400 px-2">
+      {/* 5. Elegant Bottom Bar / Watermark */}
+      <div className="flex items-center justify-between text-xs font-bold text-slate-400 px-2 pt-2 border-t border-slate-200/80">
         <div className="flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           <span>ฝ่ายพัฒนาหลักสูตร (Curriculum Development Team) • Prudential Life Assurance (Thailand)</span>
