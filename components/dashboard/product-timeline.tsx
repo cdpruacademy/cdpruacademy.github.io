@@ -94,14 +94,14 @@ export function ProductTimeline() {
           width: 1280,
         });
 
-        // 3. Capture Channel Summary Image (width 1280, 2x retina)
+        // 3. Capture Channel Summary Image (width 1200, 2x retina)
         let channelSummaryDataUrl: string | undefined = undefined;
         if (channelSummaryExportRef.current) {
           channelSummaryDataUrl = await toPng(channelSummaryExportRef.current, {
             cacheBust: true,
             pixelRatio: 2,
-            backgroundColor: "#ffffff",
-            width: 1280,
+            backgroundColor: "#F8FAFC",
+            width: 1200,
           });
         }
 

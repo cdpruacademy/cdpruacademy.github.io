@@ -110,7 +110,7 @@ export function AnalyticsView() {
         cacheBust: true,
         pixelRatio: 2,
         backgroundColor: "#F8FAFC",
-        width: 1280,
+        width: 1200,
       });
 
       const safePeriod = isAnnual ? "All_Year_2026" : selectedPeriod.replace(/\s+/g, "_");
