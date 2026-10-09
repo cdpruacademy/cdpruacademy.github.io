@@ -13,6 +13,8 @@ import {
   getSystemCurrentMonth,
   parseMonthYear,
   MONTH_NAMES,
+  sortMonthsChronologically,
+  ALL_YEAR_2026_MONTHS,
 } from "@/lib/timeline-data";
 import { exportTimelineToExcel, exportTimelineToJSON } from "@/lib/excel-service";
 import {
@@ -29,7 +31,7 @@ const ACTIVE_MONTH_KEY = "pru_active_month_v3";
 export function useProducts() {
   const defaultCurrentMonth = getSystemCurrentMonth();
   const [timelineType, setTimelineType] = useState<TimelineType>("product");
-  const [availableMonths, setAvailableMonths] = useState<string[]>(AVAILABLE_MONTHS);
+  const [availableMonths, setAvailableMonths] = useState<string[]>(sortMonthsChronologically(AVAILABLE_MONTHS));
   const [selectedMonth, setSelectedMonth] = useState<string>(defaultCurrentMonth);
   const [monthlyStore, setMonthlyStore] = useState<MonthlyStore>({});
   const [isLoaded, setIsLoaded] = useState(false);
@@ -55,6 +57,7 @@ export function useProducts() {
         if (!currentAvailable.includes(realMonth)) {
           currentAvailable.push(realMonth);
         }
+        currentAvailable = sortMonthsChronologically(currentAvailable);
         setAvailableMonths(currentAvailable);
 
         // Always prioritize realMonth on fresh load/rollover unless user explicitly chose a tab in current session
@@ -101,7 +104,20 @@ export function useProducts() {
             if (!months.includes(realMonth)) {
               months.push(realMonth);
             }
+            months = sortMonthsChronologically(months);
             setAvailableMonths(months);
+
+            // Auto-heal cloud database if months in Supabase were not sorted chronologically
+            const isDifferentOrder =
+              Array.isArray(cloudData.availableMonths) &&
+              JSON.stringify(cloudData.availableMonths) !== JSON.stringify(months);
+            if (isDifferentOrder) {
+              saveTimelineToCloud({
+                monthlyStore: store,
+                availableMonths: months,
+                activeMonth: realMonth,
+              }).catch(() => {});
+            }
 
             // Always select realMonth upon fresh load
             const sessionActiveMonth = sessionStorage.getItem(ACTIVE_MONTH_KEY);
@@ -120,7 +136,9 @@ export function useProducts() {
           } else {
             // First time setup or empty database: initialize clean structure for available months without dummy data
             const emptyStore: MonthlyStore = {};
-            const months = AVAILABLE_MONTHS.includes(realMonth) ? AVAILABLE_MONTHS : [...AVAILABLE_MONTHS, realMonth];
+            const months = sortMonthsChronologically(
+              AVAILABLE_MONTHS.includes(realMonth) ? AVAILABLE_MONTHS : [...AVAILABLE_MONTHS, realMonth]
+            );
             months.forEach((m) => {
               emptyStore[m] = {
                 products: [],
@@ -168,7 +186,7 @@ export function useProducts() {
       if (cloudData && cloudData.monthlyStore) {
         setMonthlyStore(cloudData.monthlyStore);
         if (cloudData.availableMonths && cloudData.availableMonths.length > 0) {
-          setAvailableMonths(cloudData.availableMonths);
+          setAvailableMonths(sortMonthsChronologically(cloudData.availableMonths));
         }
         try {
           localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(cloudData.monthlyStore));
@@ -692,15 +710,34 @@ export function useProducts() {
         return;
       }
 
-      const updatedMonths = [...availableMonths, clean];
+      const updatedMonths = sortMonthsChronologically([...availableMonths, clean]);
       setAvailableMonths(updatedMonths);
       try {
         localStorage.setItem(AVAILABLE_MONTHS_KEY, JSON.stringify(updatedMonths));
       } catch (_) {}
 
-      handleSetSelectedMonth(clean);
+      // Ensure newly added month is initialized and synced with the sorted months list
+      setMonthlyStore((prev) => {
+        const defaultAsOf = DEFAULT_AS_OF_BY_MONTH[clean] || `as of 15 ${clean.split(" ")[0]}`;
+        const updated: MonthlyStore = {
+          ...prev,
+          [clean]: prev[clean] || {
+            products: [],
+            enhancements: [],
+            asOfText: defaultAsOf,
+          },
+        };
+        syncStore(updated, updatedMonths, clean);
+        return updated;
+      });
+
+      setSelectedMonth(clean);
+      try {
+        sessionStorage.setItem(ACTIVE_MONTH_KEY, clean);
+        localStorage.setItem(ACTIVE_MONTH_KEY, clean);
+      } catch (_) {}
     },
-    [availableMonths, handleSetSelectedMonth]
+    [availableMonths, syncStore]
   );
 
   // Bulk import

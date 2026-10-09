@@ -400,6 +400,20 @@ export function parseMonthYear(monthStr: string): { monthIndex: number; year: nu
   return { monthIndex: monthIdx, year };
 }
 
+export function sortMonthsChronologically(months: string[]): string[] {
+  return [...months].sort((a, b) => {
+    const parsedA = parseMonthYear(a);
+    const parsedB = parseMonthYear(b);
+    if (!parsedA && !parsedB) return a.localeCompare(b);
+    if (!parsedA) return 1;
+    if (!parsedB) return -1;
+    if (parsedA.year !== parsedB.year) {
+      return parsedA.year - parsedB.year;
+    }
+    return parsedA.monthIndex - parsedB.monthIndex;
+  });
+}
+
 export function getMonthStatus(monthStr: string): "current" | "past" | "future" {
   const parsed = parseMonthYear(monthStr);
   if (!parsed) return "future";
@@ -413,6 +427,21 @@ export function getMonthStatus(monthStr: string): "current" | "past" | "future" 
   if (parsed.monthIndex > currentMonthIdx) return "future";
   return "current";
 }
+
+export const ALL_YEAR_2026_MONTHS = [
+  "JAN 2026",
+  "FEB 2026",
+  "MAR 2026",
+  "APR 2026",
+  "MAY 2026",
+  "JUN 2026",
+  "JUL 2026",
+  "AUG 2026",
+  "SEP 2026",
+  "OCT 2026",
+  "NOV 2026",
+  "DEC 2026",
+];
 
 export const AVAILABLE_MONTHS = [
   "JUN 2026",
@@ -433,6 +462,11 @@ export interface MonthTimelineData {
 export type MonthlyStore = Record<string, MonthTimelineData>;
 
 export const DEFAULT_AS_OF_BY_MONTH: Record<string, string> = {
+  "JAN 2026": "as of 31 Jan",
+  "FEB 2026": "as of 28 Feb",
+  "MAR 2026": "as of 31 Mar",
+  "APR 2026": "as of 30 Apr",
+  "MAY 2026": "as of 31 May",
   "JUN 2026": "as of 30 Jun",
   "JUL 2026": "as of 31 Jul",
   "AUG 2026": "as of 31 Aug",

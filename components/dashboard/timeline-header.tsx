@@ -8,6 +8,7 @@ import {
   ENHANCEMENT_PHASES,
   AVAILABLE_MONTHS,
   getMonthStatus,
+  ALL_YEAR_2026_MONTHS,
 } from "@/lib/timeline-data";
 import {
   Calendar,
@@ -404,19 +405,60 @@ export function TimelineHeader({
       {isAddingMonthModal && (
         <div className="export-hide fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-xl p-5 max-w-sm w-full shadow-xl border border-gray-200 space-y-4">
-            <h3 className="text-sm font-bold text-gray-900">เพิ่มรอบเดือนใหม่</h3>
-            <p className="text-xs text-gray-500">
-              ระบุชื่อรอบเดือน เช่น <code>JAN 2027</code> หรือ <code>Q1 2027</code>
-            </p>
-            <input
-              type="text"
-              value={newMonthInput}
-              onChange={(e) => setNewMonthInput(e.target.value)}
-              placeholder="เช่น JAN 2027"
-              className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#ED1C24]"
-              autoFocus
-            />
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">เพิ่มรอบเดือนใหม่</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                ระบบจะจัดเรียงลำดับเวลา (ม.ค. - ธ.ค.) ให้อัตโนมัติ
+              </p>
+            </div>
+
+            {(() => {
+              const missing2026Months = ALL_YEAR_2026_MONTHS.filter(
+                (m) => !availableMonths.includes(m)
+              );
+              if (missing2026Months.length === 0) return null;
+              return (
+                <div className="space-y-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                  <span className="text-[11px] font-bold text-slate-600 block">
+                    ⚡ เพิ่มด่วนรอบเดือนปี 2026 ที่ยังไม่มี:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {missing2026Months.map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => {
+                          if (onAddNewMonth) {
+                            onAddNewMonth(m);
+                            setIsAddingMonthModal(false);
+                          }
+                        }}
+                        className="px-2 py-1 text-xs font-bold bg-white hover:bg-[#ED1C24] hover:text-white text-slate-700 rounded-md border border-slate-200 shadow-2xs transition-colors"
+                        title={`เพิ่มรอบเดือน ${m}`}
+                      >
+                        + {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div>
+              <label className="text-[11px] font-bold text-gray-600 block mb-1">
+                หรือพิมพ์ระบุชื่อรอบเดือนเอง:
+              </label>
+              <input
+                type="text"
+                value={newMonthInput}
+                onChange={(e) => setNewMonthInput(e.target.value)}
+                placeholder="เช่น JAN 2026 หรือ JAN 2027"
+                className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#ED1C24]"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setIsAddingMonthModal(false)}
