@@ -23,8 +23,11 @@ export function ProductTimeline() {
     setTimelineType,
     selectedMonth,
     setSelectedMonth,
+    selectedYear,
+    setSelectedYear,
+    availableYears,
+    goToCurrentMonth,
     availableMonths,
-    addNewMonth,
     copyFromPreviousMonth,
     asOfText,
     setAsOfText,
@@ -246,8 +249,11 @@ export function ProductTimeline() {
           onTimelineTypeChange={setTimelineType}
           selectedMonth={selectedMonth}
           onMonthChange={setSelectedMonth}
+          selectedYear={selectedYear}
+          onYearChange={setSelectedYear}
+          availableYears={availableYears}
+          onGoToCurrentMonth={goToCurrentMonth}
           availableMonths={availableMonths}
-          onAddNewMonth={addNewMonth}
           asOfText={asOfText}
           onAsOfChange={handleAsOfChange}
           onAddClick={handleOpenAdd}

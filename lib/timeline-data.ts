@@ -428,35 +428,44 @@ export function getMonthStatus(monthStr: string): "current" | "past" | "future" 
   return "current";
 }
 
-export const ALL_YEAR_2026_MONTHS = [
-  "JAN 2026",
-  "FEB 2026",
-  "MAR 2026",
-  "APR 2026",
-  "MAY 2026",
-  "JUN 2026",
-  "JUL 2026",
-  "AUG 2026",
-  "SEP 2026",
-  "OCT 2026",
-  "NOV 2026",
-  "DEC 2026",
-];
+export function getMonthsForYear(year: number): string[] {
+  return MONTH_NAMES.map((m) => `${m} ${year}`);
+}
 
-export const AVAILABLE_MONTHS = [
-  "JAN 2026",
-  "FEB 2026",
-  "MAR 2026",
-  "APR 2026",
-  "MAY 2026",
-  "JUN 2026",
-  "JUL 2026",
-  "AUG 2026",
-  "SEP 2026",
-  "OCT 2026",
-  "NOV 2026",
-  "DEC 2026",
-];
+export function getAvailableYears(monthlyStore?: MonthlyStore): number[] {
+  const currentYear = new Date().getFullYear();
+  const yearSet = new Set<number>([currentYear - 1, currentYear, currentYear + 1]);
+
+  if (monthlyStore) {
+    Object.keys(monthlyStore).forEach((mKey) => {
+      const parsed = parseMonthYear(mKey);
+      if (parsed) {
+        yearSet.add(parsed.year);
+      }
+    });
+  }
+
+  return Array.from(yearSet).sort((a, b) => a - b);
+}
+
+export function getDefaultAsOf(monthStr: string): string {
+  if (DEFAULT_AS_OF_BY_MONTH[monthStr]) {
+    return DEFAULT_AS_OF_BY_MONTH[monthStr];
+  }
+  const parsed = parseMonthYear(monthStr);
+  if (!parsed) return "as of 15th";
+  const mName = MONTH_NAMES[parsed.monthIndex];
+  const lastDays: Record<number, number> = {
+    0: 31, 1: 28, 2: 31, 3: 30, 4: 31, 5: 30,
+    6: 31, 7: 31, 8: 15, 9: 15, 10: 15, 11: 15,
+  };
+  const day = lastDays[parsed.monthIndex] || 15;
+  const monthAbbr = mName.charAt(0) + mName.slice(1).toLowerCase();
+  return `as of ${day} ${monthAbbr}`;
+}
+
+export const ALL_YEAR_2026_MONTHS = getMonthsForYear(2026);
+export const AVAILABLE_MONTHS = getMonthsForYear(new Date().getFullYear() || 2026);
 
 export interface MonthTimelineData {
   products: ProductItem[];

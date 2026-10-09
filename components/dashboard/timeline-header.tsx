@@ -8,7 +8,9 @@ import {
   ENHANCEMENT_PHASES,
   AVAILABLE_MONTHS,
   getMonthStatus,
-  ALL_YEAR_2026_MONTHS,
+  getSystemCurrentMonth,
+  parseMonthYear,
+  getMonthsForYear,
 } from "@/lib/timeline-data";
 import {
   Calendar,
@@ -24,6 +26,7 @@ import {
   BarChart3,
   Send,
   Loader2,
+  MapPin,
 } from "lucide-react";
 import { CloudStatusBadge } from "./cloud-status-badge";
 
@@ -33,7 +36,10 @@ interface TimelineHeaderProps {
   selectedMonth: string;
   onMonthChange: (month: string) => void;
   availableMonths?: string[];
-  onAddNewMonth?: (month: string) => void;
+  selectedYear?: number;
+  onYearChange?: (year: number) => void;
+  availableYears?: number[];
+  onGoToCurrentMonth?: () => void;
   asOfText: string;
   onAsOfChange: (asOf: string) => void;
   onAddClick: () => void;
@@ -56,7 +62,10 @@ export function TimelineHeader({
   selectedMonth,
   onMonthChange,
   availableMonths = AVAILABLE_MONTHS,
-  onAddNewMonth,
+  selectedYear,
+  onYearChange,
+  availableYears,
+  onGoToCurrentMonth,
   asOfText,
   onAsOfChange,
   onAddClick,
@@ -74,22 +83,36 @@ export function TimelineHeader({
 }: TimelineHeaderProps) {
   const [isEditingAsOf, setIsEditingAsOf] = useState(false);
   const [tempAsOf, setTempAsOf] = useState(asOfText);
-  const [isAddingMonthModal, setIsAddingMonthModal] = useState(false);
-  const [newMonthInput, setNewMonthInput] = useState("");
+  const pillsContainerRef = React.useRef<HTMLDivElement>(null);
 
   const isEnhancement = timelineType === "enhancement";
+  const systemMonth = getSystemCurrentMonth();
+  const activeYear = selectedYear || parseMonthYear(selectedMonth)?.year || new Date().getFullYear();
 
-  const currentIndex = availableMonths.indexOf(selectedMonth);
+  React.useEffect(() => {
+    if (pillsContainerRef.current) {
+      const activeEl = pillsContainerRef.current.querySelector<HTMLElement>('[data-selected="true"]');
+      if (activeEl) {
+        activeEl.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+      }
+    }
+  }, [selectedMonth, activeYear]);
+  const yearsList = availableYears && availableYears.length > 0
+    ? availableYears
+    : [activeYear - 1, activeYear, activeYear + 1];
+
+  const displayMonths = getMonthsForYear(activeYear);
+  const currentIndex = displayMonths.indexOf(selectedMonth);
 
   const handlePrevMonth = () => {
     if (currentIndex > 0) {
-      onMonthChange(availableMonths[currentIndex - 1]);
+      onMonthChange(displayMonths[currentIndex - 1]);
     }
   };
 
   const handleNextMonth = () => {
-    if (currentIndex < availableMonths.length - 1) {
-      onMonthChange(availableMonths[currentIndex + 1]);
+    if (currentIndex < displayMonths.length - 1) {
+      onMonthChange(displayMonths[currentIndex + 1]);
     }
   };
 
@@ -98,14 +121,6 @@ export function TimelineHeader({
       onAsOfChange(tempAsOf.trim());
     }
     setIsEditingAsOf(false);
-  };
-
-  const handleCreateMonth = () => {
-    if (newMonthInput.trim() && onAddNewMonth) {
-      onAddNewMonth(newMonthInput.trim());
-      setNewMonthInput("");
-      setIsAddingMonthModal(false);
-    }
   };
 
   return (
@@ -152,13 +167,32 @@ export function TimelineHeader({
           />
         </div>
 
-        {/* Row B: Month Selector Navigation Pills */}
-        <div className="flex items-center justify-between gap-1.5 pt-1 bg-slate-50/80 p-1.5 sm:p-2 rounded-xl border border-slate-200/60">
-          <div className="flex items-center gap-1 shrink-0">
-            <span className="text-xs font-bold text-gray-600 flex items-center gap-1 px-1" title="เลือกรอบเดือน">
-              <Clock className="w-3.5 h-3.5 text-gray-500" />
-              <span className="hidden sm:inline">รอบเดือน:</span>
-            </span>
+        {/* Row B: Month Selector Navigation Pills with Year Switcher & Current Month Jump */}
+        <div className="flex items-center justify-between gap-2 pt-1 bg-slate-50/80 p-1.5 sm:p-2 rounded-xl border border-slate-200/60">
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Year Selector Dropdown (รองรับการดูข้อมูลปีเก่า หรือขึ้นปีใหม่ในอนาคต) */}
+            {onYearChange ? (
+              <div className="flex items-center gap-1 bg-white border border-gray-200/90 rounded-lg px-2 py-1 shadow-2xs">
+                <span className="text-[11px] font-bold text-gray-500">ปี:</span>
+                <select
+                  value={activeYear}
+                  onChange={(e) => onYearChange(parseInt(e.target.value, 10))}
+                  className="text-xs font-black text-gray-800 bg-transparent focus:outline-none cursor-pointer"
+                  title="เลือกปี พ.ศ. / ค.ศ."
+                >
+                  {yearsList.map((y) => (
+                    <option key={y} value={y}>
+                      {y} (พ.ศ. {y + 543})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <span className="text-xs font-bold text-gray-600 flex items-center gap-1 px-1">
+                <Clock className="w-3.5 h-3.5 text-gray-500" />
+                <span>{activeYear}</span>
+              </span>
+            )}
 
             {/* Prev Month Arrow */}
             <button
@@ -172,18 +206,22 @@ export function TimelineHeader({
             </button>
           </div>
 
-          {/* Scrollable Month Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 px-1 flex-1">
-            {availableMonths.map((m) => {
+          {/* Scrollable Month Pills (All 12 Months of the active year) */}
+          <div
+            ref={pillsContainerRef}
+            className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 px-1 flex-1 scroll-smooth"
+          >
+            {displayMonths.map((m) => {
               const isSelected = m === selectedMonth;
               const status = getMonthStatus(m);
-              const isCurrent = status === "current";
+              const isCurrent = m === systemMonth;
               const isPast = status === "past";
               const isFuture = status === "future";
 
               return (
                 <button
                   key={m}
+                  data-selected={isSelected ? "true" : undefined}
                   type="button"
                   onClick={() => onMonthChange(m)}
                   className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold shrink-0 transition-all ${
@@ -197,14 +235,14 @@ export function TimelineHeader({
                   <span>{m}</span>
                   {isCurrent && (
                     <span
-                      className={`text-[9px] px-1 py-0.2 rounded font-semibold ${
-                        isSelected ? "bg-white/30 text-white" : "bg-red-50 text-[#ED1C24]"
+                      className={`text-[9px] px-1 py-0.2 rounded font-black ${
+                        isSelected ? "bg-white/30 text-white" : "bg-red-50 text-[#ED1C24] border border-red-200"
                       }`}
                     >
                       ปัจจุบัน
                     </span>
                   )}
-                  {isPast && (
+                  {!isCurrent && isPast && (
                     <span
                       className={`text-[9px] px-1 py-0.2 rounded font-normal ${
                         isSelected ? "bg-white/30 text-white" : "text-gray-400"
@@ -213,7 +251,7 @@ export function TimelineHeader({
                       ย้อนหลัง
                     </span>
                   )}
-                  {isFuture && (
+                  {!isCurrent && isFuture && (
                     <span
                       className={`text-[9px] px-1 py-0.2 rounded font-normal ${
                         isSelected ? "bg-white/30 text-white" : "text-blue-500"
@@ -227,29 +265,38 @@ export function TimelineHeader({
             })}
           </div>
 
-          {/* Next Month Arrow + Add Month */}
-          <div className="flex items-center gap-1 shrink-0">
+          {/* Next Month Arrow + Jump to Current Month Button */}
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={handleNextMonth}
-              disabled={currentIndex >= availableMonths.length - 1}
+              disabled={currentIndex >= displayMonths.length - 1}
               className="p-1 rounded-md text-gray-500 hover:text-gray-900 hover:bg-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
               title="เดือนถัดไป"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
 
-            {isAdmin && onAddNewMonth && (
-              <button
-                type="button"
-                onClick={() => setIsAddingMonthModal(true)}
-                title="เพิ่มรอบเดือนใหม่"
-                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-gray-600 hover:text-gray-900 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">เพิ่มเดือน</span>
-              </button>
-            )}
+            {/* Jump to Current Month Button */}
+            <button
+              type="button"
+              onClick={() => {
+                if (onGoToCurrentMonth) {
+                  onGoToCurrentMonth();
+                } else {
+                  onMonthChange(systemMonth);
+                }
+              }}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-black rounded-lg transition-all shadow-2xs border ${
+                selectedMonth === systemMonth
+                  ? "bg-[#ED1C24] text-white border-[#ED1C24] shadow-xs"
+                  : "bg-white text-[#ED1C24] border-red-200 hover:bg-red-50"
+              }`}
+              title={`ไปยังเดือนปัจจุบันของระบบ (${systemMonth})`}
+            >
+              <MapPin className="w-3.5 h-3.5" />
+              <span>เดือนปัจจุบัน</span>
+            </button>
           </div>
         </div>
       </div>
@@ -400,84 +447,6 @@ export function TimelineHeader({
           </div>
         </div>
       </div>
-
-      {/* Add New Month Modal (Simple Dialog) */}
-      {isAddingMonthModal && (
-        <div className="export-hide fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl p-5 max-w-sm w-full shadow-xl border border-gray-200 space-y-4">
-            <div>
-              <h3 className="text-sm font-bold text-gray-900">เพิ่มรอบเดือนใหม่</h3>
-              <p className="text-xs text-gray-500 mt-0.5">
-                ระบบจะจัดเรียงลำดับเวลา (ม.ค. - ธ.ค.) ให้อัตโนมัติ
-              </p>
-            </div>
-
-            {(() => {
-              const missing2026Months = ALL_YEAR_2026_MONTHS.filter(
-                (m) => !availableMonths.includes(m)
-              );
-              if (missing2026Months.length === 0) return null;
-              return (
-                <div className="space-y-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                  <span className="text-[11px] font-bold text-slate-600 block">
-                    ⚡ เพิ่มด่วนรอบเดือนปี 2026 ที่ยังไม่มี:
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {missing2026Months.map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => {
-                          if (onAddNewMonth) {
-                            onAddNewMonth(m);
-                            setIsAddingMonthModal(false);
-                          }
-                        }}
-                        className="px-2 py-1 text-xs font-bold bg-white hover:bg-[#ED1C24] hover:text-white text-slate-700 rounded-md border border-slate-200 shadow-2xs transition-colors"
-                        title={`เพิ่มรอบเดือน ${m}`}
-                      >
-                        + {m}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-
-            <div>
-              <label className="text-[11px] font-bold text-gray-600 block mb-1">
-                หรือพิมพ์ระบุชื่อรอบเดือนเอง:
-              </label>
-              <input
-                type="text"
-                value={newMonthInput}
-                onChange={(e) => setNewMonthInput(e.target.value)}
-                placeholder="เช่น JAN 2026 หรือ JAN 2027"
-                className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#ED1C24]"
-                autoFocus
-              />
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setIsAddingMonthModal(false)}
-                className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded-lg"
-              >
-                ยกเลิก
-              </button>
-              <button
-                type="button"
-                onClick={handleCreateMonth}
-                disabled={!newMonthInput.trim()}
-                className="px-3 py-1.5 text-xs font-bold bg-[#ED1C24] text-white rounded-lg hover:bg-[#D4181F] disabled:opacity-50"
-              >
-                เพิ่มรอบเดือน
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

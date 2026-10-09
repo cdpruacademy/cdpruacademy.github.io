@@ -10,11 +10,14 @@ import {
   MonthlyStore,
   INITIAL_MONTHLY_STORE,
   DEFAULT_AS_OF_BY_MONTH,
+  getDefaultAsOf,
   getSystemCurrentMonth,
   parseMonthYear,
   MONTH_NAMES,
   sortMonthsChronologically,
   ALL_YEAR_2026_MONTHS,
+  getMonthsForYear,
+  getAvailableYears,
 } from "@/lib/timeline-data";
 import { exportTimelineToExcel, exportTimelineToJSON } from "@/lib/excel-service";
 import {
@@ -258,7 +261,7 @@ export function useProducts() {
       // If month doesn't exist in store yet, initialize it
       setMonthlyStore((prev) => {
         if (!prev[newMonth]) {
-          const defaultAsOf = DEFAULT_AS_OF_BY_MONTH[newMonth] || `as of 15 ${newMonth.split(" ")[0]}`;
+          const defaultAsOf = getDefaultAsOf(newMonth);
           const updated: MonthlyStore = {
             ...prev,
             [newMonth]: {
@@ -275,6 +278,52 @@ export function useProducts() {
     },
     [syncStore]
   );
+
+  // Dynamic Year support
+  const selectedYear = useMemo(() => {
+    return parseMonthYear(selectedMonth)?.year || new Date().getFullYear();
+  }, [selectedMonth]);
+
+  const availableYears = useMemo(() => {
+    return getAvailableYears(monthlyStore);
+  }, [monthlyStore]);
+
+  const setSelectedYear = useCallback(
+    (year: number) => {
+      const parsed = parseMonthYear(selectedMonth);
+      const mIdx = parsed ? parsed.monthIndex : new Date().getMonth();
+      const targetMonth = `${MONTH_NAMES[mIdx]} ${year}`;
+
+      // Ensure all 12 months for targetYear are present in availableMonths
+      const yearMonths = getMonthsForYear(year);
+      setAvailableMonths((prev) => {
+        const next = sortMonthsChronologically(Array.from(new Set([...prev, ...yearMonths])));
+        try {
+          localStorage.setItem(AVAILABLE_MONTHS_KEY, JSON.stringify(next));
+        } catch (_) {}
+        return next;
+      });
+
+      handleSetSelectedMonth(targetMonth);
+    },
+    [selectedMonth, handleSetSelectedMonth]
+  );
+
+  const goToCurrentMonth = useCallback(() => {
+    const realCurrent = getSystemCurrentMonth();
+    const parsed = parseMonthYear(realCurrent);
+    if (parsed) {
+      const yearMonths = getMonthsForYear(parsed.year);
+      setAvailableMonths((prev) => {
+        const next = sortMonthsChronologically(Array.from(new Set([...prev, ...yearMonths])));
+        try {
+          localStorage.setItem(AVAILABLE_MONTHS_KEY, JSON.stringify(next));
+        } catch (_) {}
+        return next;
+      });
+    }
+    handleSetSelectedMonth(realCurrent);
+  }, [handleSetSelectedMonth]);
 
   // Active month data
   const currentMonthData = useMemo(() => {
@@ -824,6 +873,10 @@ export function useProducts() {
     selectedMonth,
     setSelectedMonth: handleSetSelectedMonth,
     availableMonths,
+    selectedYear,
+    setSelectedYear,
+    availableYears,
+    goToCurrentMonth,
     addNewMonth,
     copyFromPreviousMonth,
     asOfText,
