@@ -128,41 +128,65 @@ export const ChannelSummaryExportBoard = React.forwardRef<
         </div>
       </div>
 
-      {/* 2. Top Summary KPI Strip (Single-line, Zero Fluff) */}
-      <div className="bg-white rounded-2xl px-5 py-3 border border-slate-200/90 shadow-2xs mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-900 text-white text-xs font-black shadow-2xs">
-            <span>📦 ทั้งหมด</span>
-            <span className="text-sm">{totalAll}</span>
-            <span className="text-[11px] font-normal text-slate-300">ชิ้นงาน</span>
+      {/* 2. Top Summary KPI Cards (Sleek, Premium & Compact Executive Trio) */}
+      <div className="grid grid-cols-3 gap-3.5 mb-4">
+        {/* Card 1: Total Projects */}
+        <div className="bg-slate-900 text-white rounded-2xl p-3.5 px-4.5 border border-slate-800 shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
+              ชิ้นงานรวมทั้งหมด
+            </span>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="text-3xl font-black tracking-tight text-white">{totalAll}</span>
+              <span className="text-xs font-bold text-slate-400">ชิ้นงาน</span>
+            </div>
           </div>
-
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-red-50 text-[#ED1C24] border border-red-200 text-xs font-black">
-            <span className="w-2 h-2 rounded-full bg-[#ED1C24]" />
-            <span>New Product</span>
-            <span className="text-sm">{totalProducts}</span>
+          <div className="text-right">
+            <span className="inline-block px-2.5 py-1 rounded-xl bg-slate-800 text-slate-300 text-xs font-black border border-slate-700/80 shadow-2xs">
+              {channelStats.length} ช่องทาง
+            </span>
           </div>
-
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50 text-[#0066CC] border border-blue-200 text-xs font-black">
-            <span className="w-2 h-2 rounded-full bg-[#0066CC]" />
-            <span>Enhancement</span>
-            <span className="text-sm">{totalEnhancements}</span>
-          </div>
-
-          <span className="text-xs font-bold text-slate-400 ml-1">
-            (รวม {channelStats.length} ช่องทางจำหน่าย)
-          </span>
         </div>
 
-        {/* Legend */}
-        <div className="flex items-center gap-3 text-xs font-extrabold text-slate-500">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-xs bg-[#ED1C24]" />
-            <span>New Product</span>
+        {/* Card 2: New Product */}
+        <div className="bg-gradient-to-br from-white via-white to-red-50/50 rounded-2xl p-3.5 px-4.5 border border-red-200/90 shadow-xs flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#ED1C24]" />
+              <span className="text-[11px] font-extrabold text-[#ED1C24] uppercase tracking-wider">
+                New Product
+              </span>
+            </div>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="text-3xl font-black tracking-tight text-[#ED1C24]">{totalProducts}</span>
+              <span className="text-xs font-bold text-slate-500">ชิ้นงาน</span>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-xs bg-[#0066CC]" />
-            <span>Enhancement</span>
+          <div className="text-right">
+            <span className="inline-block px-2.5 py-1 rounded-xl bg-red-50 text-[#ED1C24] text-xs font-black border border-red-200/80 shadow-2xs">
+              {totalAll > 0 ? `${((totalProducts / totalAll) * 100).toFixed(0)}% ของงานทั้งหมด` : "0%"}
+            </span>
+          </div>
+        </div>
+
+        {/* Card 3: Enhancement */}
+        <div className="bg-gradient-to-br from-white via-white to-blue-50/50 rounded-2xl p-3.5 px-4.5 border border-blue-200/90 shadow-xs flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#0066CC]" />
+              <span className="text-[11px] font-extrabold text-[#0066CC] uppercase tracking-wider">
+                Enhancement
+              </span>
+            </div>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="text-3xl font-black tracking-tight text-[#0066CC]">{totalEnhancements}</span>
+              <span className="text-xs font-bold text-slate-500">ชิ้นงาน</span>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="inline-block px-2.5 py-1 rounded-xl bg-blue-50 text-[#0066CC] text-xs font-black border border-blue-200/80 shadow-2xs">
+              {totalAll > 0 ? `${((totalEnhancements / totalAll) * 100).toFixed(0)}% ของงานทั้งหมด` : "0%"}
+            </span>
           </div>
         </div>
       </div>
@@ -172,7 +196,13 @@ export const ChannelSummaryExportBoard = React.forwardRef<
         {/* Table Header */}
         <div className="grid grid-cols-12 px-5 py-2.5 bg-slate-50/90 text-slate-500 font-extrabold text-xs uppercase tracking-wider border-b border-slate-200">
           <div className="col-span-4">อันดับ & ช่องทาง (Channel)</div>
-          <div className="col-span-5 px-2">เปรียบเทียบสัดส่วนชิ้นงาน (Workload)</div>
+          <div className="col-span-5 px-2 flex items-center justify-between">
+            <span>เปรียบเทียบสัดส่วนชิ้นงาน (Workload)</span>
+            <span className="text-[10px] font-bold text-slate-400 normal-case flex items-center gap-2">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-xs bg-[#ED1C24]" />New Product</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-xs bg-[#0066CC]" />Enhancement</span>
+            </span>
+          </div>
           <div className="col-span-3 text-right">จำนวนชิ้นงาน (Total Tasks)</div>
         </div>
 
