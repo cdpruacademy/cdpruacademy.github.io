@@ -47,13 +47,14 @@ export function useProducts() {
       // 1. Read locally cached active month and available months for immediate tab structure
       try {
         const storedMonths = localStorage.getItem(AVAILABLE_MONTHS_KEY);
-        let currentAvailable = [...AVAILABLE_MONTHS];
+        let parsedStored: string[] = [];
         if (storedMonths) {
-          const parsed = JSON.parse(storedMonths);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            currentAvailable = parsed;
-          }
+          try {
+            const p = JSON.parse(storedMonths);
+            if (Array.isArray(p)) parsedStored = p;
+          } catch (_) {}
         }
+        let currentAvailable = Array.from(new Set([...AVAILABLE_MONTHS, ...parsedStored]));
         if (!currentAvailable.includes(realMonth)) {
           currentAvailable.push(realMonth);
         }
@@ -96,22 +97,38 @@ export function useProducts() {
                 asOfText: DEFAULT_AS_OF_BY_MONTH[realMonth] || `as of 15 ${realMonth.split(" ")[0]}`,
               };
             }
-            setMonthlyStore(store);
 
-            let months = Array.isArray(cloudData.availableMonths) && cloudData.availableMonths.length > 0
-              ? [...cloudData.availableMonths]
-              : [...AVAILABLE_MONTHS];
-            if (!months.includes(realMonth)) {
-              months.push(realMonth);
+            // Ensure all 12 months of the year are always present in the month selector
+            const combinedMonths = Array.from(
+              new Set([
+                ...AVAILABLE_MONTHS,
+                ...(Array.isArray(cloudData.availableMonths) ? cloudData.availableMonths : []),
+              ])
+            );
+            if (!combinedMonths.includes(realMonth)) {
+              combinedMonths.push(realMonth);
             }
-            months = sortMonthsChronologically(months);
+            const months = sortMonthsChronologically(combinedMonths);
             setAvailableMonths(months);
 
-            // Auto-heal cloud database if months in Supabase were not sorted chronologically
-            const isDifferentOrder =
-              Array.isArray(cloudData.availableMonths) &&
+            // Pre-populate any missing months with clean empty records so clicking is instant
+            months.forEach((m) => {
+              if (!store[m]) {
+                store[m] = {
+                  products: [],
+                  enhancements: [],
+                  asOfText: DEFAULT_AS_OF_BY_MONTH[m] || `as of 15 ${m.split(" ")[0]}`,
+                };
+              }
+            });
+            setMonthlyStore(store);
+
+            // Auto-heal cloud database so it permanently stores all 12 sorted months
+            const needsCloudUpdate =
+              !Array.isArray(cloudData.availableMonths) ||
+              cloudData.availableMonths.length !== months.length ||
               JSON.stringify(cloudData.availableMonths) !== JSON.stringify(months);
-            if (isDifferentOrder) {
+            if (needsCloudUpdate) {
               saveTimelineToCloud({
                 monthlyStore: store,
                 availableMonths: months,

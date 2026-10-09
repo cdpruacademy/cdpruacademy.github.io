@@ -444,6 +444,11 @@ export const ALL_YEAR_2026_MONTHS = [
 ];
 
 export const AVAILABLE_MONTHS = [
+  "JAN 2026",
+  "FEB 2026",
+  "MAR 2026",
+  "APR 2026",
+  "MAY 2026",
   "JUN 2026",
   "JUL 2026",
   "AUG 2026",
