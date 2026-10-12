@@ -136,7 +136,11 @@ export const ChannelSummaryExportBoard = React.forwardRef<
           <div className="flex flex-col items-end gap-1.5 shrink-0">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-red-50 border border-red-200 text-[#ED1C24] text-xs font-black shadow-xs">
               <Calendar className="w-3.5 h-3.5" />
-              <span>{isAnnual ? "🌟 ภาพรวมทั้งปี 2569" : `รอบเดือน ${selectedPeriod}`}</span>
+              <span>
+                {isAnnual
+                  ? (selectedPeriod.includes("ภาพรวม") ? `🌟 ${selectedPeriod}` : `🌟 ภาพรวมทั้งปี ${selectedPeriod}`)
+                  : `รอบเดือน ${selectedPeriod}`}
+              </span>
             </div>
             <span className="text-[11px] font-semibold text-slate-400">
               ข้อมูล ณ วันที่ {generatedDateText}

@@ -4,7 +4,7 @@ import * as React from "react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useProducts } from "@/hooks/use-products";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
-import { ProductItem } from "@/lib/timeline-data";
+import { ProductItem, getMonthsForYear } from "@/lib/timeline-data";
 import { TimelineHeader, TimelineTrackHeader } from "./timeline-header";
 import { TimelineRow } from "./timeline-row";
 import { TimelineExportBoard } from "./timeline-export-board";
@@ -144,6 +144,50 @@ export function ProductTimeline() {
     },
     [selectedMonth, asOfText]
   );
+
+  // Annual Aggregate Data for the selected year (Summary by Channel of that specific year)
+  const { annualProducts, annualEnhancements } = React.useMemo(() => {
+    if (!monthlyStore) return { annualProducts: [], annualEnhancements: [] };
+
+    const yearMonths = getMonthsForYear(selectedYear);
+    const productMap = new Map<string, ProductItem>();
+    const enhancementMap = new Map<string, ProductItem>();
+
+    yearMonths.forEach((m) => {
+      const mData = monthlyStore[m];
+      if (!mData) return;
+
+      (mData.products || []).forEach((p) => {
+        const key = `${p.name.trim().toLowerCase()}___${(p.broker || "").trim().toLowerCase()}`;
+        if (!productMap.has(key)) {
+          productMap.set(key, p);
+        }
+      });
+
+      (mData.enhancements || []).forEach((e) => {
+        const key = `${e.name.trim().toLowerCase()}___${(e.broker || "").trim().toLowerCase()}`;
+        if (!enhancementMap.has(key)) {
+          enhancementMap.set(key, e);
+        }
+      });
+    });
+
+    return {
+      annualProducts: Array.from(productMap.values()),
+      annualEnhancements: Array.from(enhancementMap.values()),
+    };
+  }, [monthlyStore, selectedYear]);
+
+  // Auto-Sync Snapshots in the background (debounced 2.5s) so the user NEVER needs to manually click save!
+  useEffect(() => {
+    if (!isLoaded || !monthlyStore) return;
+
+    const timer = setTimeout(() => {
+      captureAndUploadSnapshots(false);
+    }, 2500);
+
+    return () => clearTimeout(timer);
+  }, [monthlyStore, selectedMonth, asOfText, isLoaded, selectedYear, captureAndUploadSnapshots]);
 
   // Collect all brokers used in products across all months to prevent accidental data loss warnings
   const allUsedBrokers = React.useMemo(() => {
@@ -410,10 +454,10 @@ export function ProductTimeline() {
         <div style={{ height: "40px" }} />
         <ChannelSummaryExportBoard
           ref={channelSummaryExportRef}
-          selectedPeriod={`${selectedMonth} (${asOfText})`}
-          isAnnual={false}
-          products={currentProductItems}
-          enhancements={currentEnhancementItems}
+          selectedPeriod={`ภาพรวมทั้งปี ${selectedYear + 543}`}
+          isAnnual={true}
+          products={annualProducts}
+          enhancements={annualEnhancements}
           colorMap={colorMap}
         />
       </div>

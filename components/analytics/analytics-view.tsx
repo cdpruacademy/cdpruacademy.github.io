@@ -63,7 +63,9 @@ const isOwnerMatch = (itemOwner: string | undefined, memberName: string) => {
 
 export function AnalyticsView() {
   const { isAdmin, login } = useAdminAuth();
-  const { monthlyStore, availableMonths, getItemsForMonth } = useProducts();
+  const { monthlyStore, availableMonths, getItemsForMonth, selectedYear } = useProducts();
+  const activeYear = selectedYear || new Date().getFullYear();
+  const activeYearTh = activeYear + 543;
 
   const {
     teamMembers,
@@ -116,7 +118,7 @@ export function AnalyticsView() {
         width: 1200,
       });
 
-      const safePeriod = isAnnual ? "All_Year_2026" : selectedPeriod.replace(/\s+/g, "_");
+      const safePeriod = isAnnual ? `All_Year_${activeYear}` : selectedPeriod.replace(/\s+/g, "_");
       const filename = `PRU_CD_Channel_Summary_${safePeriod}.png`;
 
       const link = document.createElement("a");
@@ -145,11 +147,11 @@ export function AnalyticsView() {
         width: 1200,
       });
 
-      const periodLabel = isAnnual ? "ภาพรวมทั้งปี 2569" : selectedPeriod;
+      const periodLabel = isAnnual ? `ภาพรวมทั้งปี ${activeYearTh}` : selectedPeriod;
       const uploadRes = await updateChannelSummarySnapshot(
         dataUrl,
         periodLabel,
-        isAnnual ? "ภาพรวมทั้งปี 2569" : selectedPeriod
+        isAnnual ? `ภาพรวมทั้งปี ${activeYearTh}` : selectedPeriod
       );
 
       if (!uploadRes.success) {
@@ -1646,7 +1648,7 @@ export function AnalyticsView() {
       >
         <ChannelSummaryExportBoard
           ref={channelExportRef}
-          selectedPeriod={selectedPeriod}
+          selectedPeriod={isAnnual ? `ภาพรวมทั้งปี ${activeYearTh}` : selectedPeriod}
           isAnnual={isAnnual}
           products={rawProducts}
           enhancements={rawEnhancements}
