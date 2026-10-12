@@ -32,12 +32,14 @@ import {
   Camera,
   Loader2,
   Download,
+  Send,
 } from "lucide-react";
 import Link from "next/link";
 import { toPng } from "html-to-image";
 
 import { resolveBrokerColor } from "@/lib/broker-colors";
 import { useChannelColors } from "@/hooks/use-channel-colors";
+import { updateChannelSummarySnapshot } from "@/lib/supabase";
 import { ChannelSummaryExportBoard } from "./channel-summary-export-board";
 
 interface AggregatedItem extends ProductItem {
@@ -97,6 +99,7 @@ export function AnalyticsView() {
 
   // Dedicated Off-Screen Board for Clean Channel Summary Export
   const [isExporting, setIsExporting] = useState(false);
+  const [isSendingLine, setIsSendingLine] = useState(false);
   const channelExportRef = React.useRef<HTMLDivElement>(null);
 
   const handleExportImage = async () => {
@@ -109,7 +112,7 @@ export function AnalyticsView() {
       const dataUrl = await toPng(el, {
         cacheBust: true,
         pixelRatio: 2,
-        backgroundColor: "#F8FAFC",
+        backgroundColor: "#FFFFFF",
         width: 1200,
       });
 
@@ -125,6 +128,45 @@ export function AnalyticsView() {
       alert("เกิดข้อผิดพลาดในการบันทึกรูปภาพ: " + (err?.message || err));
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleSendToLine = async () => {
+    if (!channelExportRef.current) return;
+    try {
+      setIsSendingLine(true);
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      const el = channelExportRef.current;
+      const dataUrl = await toPng(el, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: "#FFFFFF",
+        width: 1200,
+      });
+
+      const periodLabel = isAnnual ? "ภาพรวมทั้งปี 2569" : selectedPeriod;
+      const uploadRes = await updateChannelSummarySnapshot(
+        dataUrl,
+        periodLabel,
+        isAnnual ? "ภาพรวมทั้งปี 2569" : selectedPeriod
+      );
+
+      if (!uploadRes.success) {
+        throw new Error(uploadRes.error || "ไม่สามารถอัปโหลดภาพได้");
+      }
+
+      alert(
+        `✅ อัปเดตรูปภาพสรุปตามช่องทางขึ้น Cloud เรียบร้อย!\n\n` +
+        `• หัวข้อ: ${periodLabel}\n` +
+        `• สไตล์รูป: Design PR ประชาสัมพันธ์ใหม่\n\n` +
+        `สมาชิกใน LINE สามารถพิมพ์ "CD รูป" เพื่อรับภาพสรุปชุดนี้ได้ทันทีครับ`
+      );
+    } catch (err: any) {
+      console.error("Send channel summary to LINE error:", err);
+      alert("เกิดข้อผิดพลาดในการส่งรูปเข้า LINE: " + (err?.message || err));
+    } finally {
+      setIsSendingLine(false);
     }
   };
 
@@ -553,6 +595,22 @@ export function AnalyticsView() {
           >
             <Users className="w-3.5 h-3.5 text-blue-600" />
             <span className="hidden sm:inline">จัดการสมาชิกทีม</span> ({teamMembers.length})
+          </button>
+
+          {/* Send to LINE Button */}
+          <button
+            type="button"
+            onClick={handleSendToLine}
+            disabled={isSendingLine}
+            className="export-hide inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#06C755]/10 hover:bg-[#06C755] text-[#05963F] hover:text-white border border-[#06C755] text-xs font-bold rounded-xl shadow-2xs transition-all disabled:opacity-50 cursor-pointer"
+            title="อัปเดตรูปภาพสรุปช่องทางหน้านี้ขึ้น Cloud เพื่อให้ LINE Bot นำไปส่ง"
+          >
+            {isSendingLine ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#06C755]" />
+            ) : (
+              <Send className="w-3.5 h-3.5" />
+            )}
+            <span>{isSendingLine ? "กำลังส่ง..." : "ส่งรูปเข้า LINE"}</span>
           </button>
 
           {/* Export to Image Button */}

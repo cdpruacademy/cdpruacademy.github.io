@@ -446,6 +446,87 @@ export async function saveBothTimelineSnapshots(
   }
 }
 
+/**
+ * Uploads channel summary snapshot alone (useful when exporting from Analytics view)
+ */
+export async function updateChannelSummarySnapshot(
+  channelSummaryDataUrl: string,
+  periodText: string,
+  asOfText: string
+): Promise<{ success: boolean; channelSummaryUrl?: string; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" };
+  }
+
+  try {
+    const toBytes = (dataUrl: string) => {
+      const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, "");
+      const byteChars = atob(base64Data);
+      const byteNums = new Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) {
+        byteNums[i] = byteChars.charCodeAt(i);
+      }
+      return new Uint8Array(byteNums);
+    };
+
+    const fileName = "latest_channel_summary.png";
+
+    // 1. Upload Channel Summary Image
+    const { error: chErr } = await client.storage
+      .from("timeline-snapshots")
+      .upload(fileName, toBytes(channelSummaryDataUrl), {
+        contentType: "image/png",
+        upsert: true,
+      });
+
+    if (chErr) throw new Error("ไม่สามารถอัปโหลด Channel Summary: " + chErr.message);
+
+    const { data: chUrlData } = client.storage
+      .from("timeline-snapshots")
+      .getPublicUrl(fileName);
+    const channelSummaryUrl = `${chUrlData.publicUrl}?t=${Date.now()}`;
+
+    // 2. Fetch existing latest_image record to preserve product & enhancement urls
+    const { data: existingRows } = await client
+      .from("timeline_store")
+      .select("data")
+      .eq("id", "latest_image")
+      .limit(1);
+
+    const existingData = existingRows && existingRows.length > 0 ? existingRows[0].data : {};
+
+    // 3. Upsert into timeline_store
+    await client.from("timeline_store").upsert(
+      {
+        id: "latest_image",
+        active_month: periodText,
+        data: {
+          ...existingData,
+          channel_summary_image_url: channelSummaryUrl,
+          as_of_text: asOfText,
+          updated_at: new Date().toISOString(),
+        },
+        updated_at: new Date().toISOString(),
+        updated_by: "pru_admin",
+      },
+      { onConflict: "id" }
+    );
+
+    return {
+      success: true,
+      channelSummaryUrl,
+    };
+  } catch (err: any) {
+    console.error("Update channel summary snapshot error:", err);
+    return {
+      success: false,
+      error: err?.message || "เกิดข้อผิดพลาดในการบันทึกรูปภาพ",
+    };
+  }
+}
+
+
 export const SUPABASE_SQL_SETUP = `-- Copy & Paste this into Supabase SQL Editor and click 'Run':
 
 create table if not exists public.timeline_store (

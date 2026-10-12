@@ -103,7 +103,7 @@ export function ProductTimeline() {
           channelSummaryDataUrl = await toPng(channelSummaryExportRef.current, {
             cacheBust: true,
             pixelRatio: 2,
-            backgroundColor: "#F8FAFC",
+            backgroundColor: "#FFFFFF",
             width: 1200,
           });
         }
