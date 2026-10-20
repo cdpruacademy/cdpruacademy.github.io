@@ -9,7 +9,13 @@ import { DonutChart, DonutChartSegment } from "@/components/ui/donut-chart";
 import { TeamManagementModal } from "@/components/dashboard/team-management-modal";
 import { AdminLoginModal } from "@/components/auth/admin-login-modal";
 import { motion, AnimatePresence } from "motion/react";
-import { ProductItem, PhaseKey } from "@/lib/timeline-data";
+import {
+  ProductItem,
+  PhaseKey,
+  getMonthsForYear,
+  MONTH_NAMES,
+  parseMonthYear,
+} from "@/lib/timeline-data";
 import {
   BarChart3,
   Users,
@@ -61,11 +67,85 @@ const isOwnerMatch = (itemOwner: string | undefined, memberName: string) => {
   return lowerOwner.includes(lowerMember) || lowerOwner.includes(shortName);
 };
 
+// Helper to check if a date string is in the past or current relative to reference month
+const isDateInPastOrCurrent = (dateStr?: string, referenceMonth?: string): boolean => {
+  if (!dateStr || dateStr.toLowerCase().includes("tbc")) return false;
+  const clean = dateStr.toLowerCase().trim();
+
+  let monthIdx = -1;
+  for (let i = 0; i < MONTH_NAMES.length; i++) {
+    const mAbbr = MONTH_NAMES[i].toLowerCase().slice(0, 3);
+    if (clean.includes(mAbbr)) {
+      monthIdx = i;
+      break;
+    }
+  }
+  if (monthIdx === -1) return false;
+
+  const yMatch = clean.match(/\b(20\d{2}|25\d{2})\b/);
+  const currentYear = new Date().getFullYear();
+  const year = yMatch
+    ? (parseInt(yMatch[0], 10) > 2400 ? parseInt(yMatch[0], 10) - 543 : parseInt(yMatch[0], 10))
+    : currentYear;
+
+  const dMatch = clean.match(/\b(\d{1,2})\b/);
+  const day = dMatch ? parseInt(dMatch[0], 10) : 15;
+
+  const targetDate = new Date(year, monthIdx, day);
+
+  if (referenceMonth && referenceMonth !== "ALL_YEAR") {
+    const parsedRef = parseMonthYear(referenceMonth);
+    if (parsedRef) {
+      const refDate = new Date(parsedRef.year, parsedRef.monthIndex, 31, 23, 59, 59);
+      return targetDate.getTime() <= refDate.getTime();
+    }
+  }
+
+  return targetDate.getTime() <= Date.now();
+};
+
+// Helper to determine if a project has reached/completed target launch
+const checkIsProjectCompleted = (item: ProductItem, referenceMonth?: string): boolean => {
+  // 1. Explicit Target Launch milestone completed
+  if (item.milestones?.launch?.status === "completed") {
+    return true;
+  }
+
+  // 2. Internal training milestone completed (the final phase before/at launch)
+  if (item.milestones?.["internal-training"]?.status === "completed") {
+    return true;
+  }
+
+  // 3. Check if all configured milestones are completed and it's not merely just kick-off
+  const entries = Object.entries(item.milestones || {});
+  const hasAtLeastOne = entries.length > 0;
+  const allExistingCompleted =
+    hasAtLeastOne && entries.every(([, m]) => !m || m.status === "completed");
+  const onlyKickoff = entries.length === 1 && entries[0][0] === "kick-off";
+
+  // 4. If all defined development phases are completed and commercial launch date has arrived/passed
+  if (allExistingCompleted && !onlyKickoff && item.commercialDate && !item.commercialDate.toLowerCase().includes("tbc")) {
+    if (isDateInPastOrCurrent(item.commercialDate, referenceMonth)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 export function AnalyticsView() {
   const { isAdmin, login } = useAdminAuth();
-  const { monthlyStore, availableMonths, getItemsForMonth, selectedYear } = useProducts();
+  const {
+    monthlyStore,
+    availableMonths,
+    getItemsForMonth,
+    selectedYear,
+    setSelectedYear,
+    availableYears,
+  } = useProducts();
   const activeYear = selectedYear || new Date().getFullYear();
   const activeYearTh = activeYear + 543;
+  const yearMonths = useMemo(() => getMonthsForYear(activeYear), [activeYear]);
 
   const {
     teamMembers,
@@ -204,11 +284,11 @@ export function AnalyticsView() {
       };
     }
 
-    // Annual Scope: Aggregate all months and deduplicate distinct projects
+    // Annual Scope: Aggregate all months of activeYear and deduplicate distinct projects
     const productMap = new Map<string, AggregatedItem>();
     const enhancementMap = new Map<string, AggregatedItem>();
 
-    availableMonths.forEach((m) => {
+    yearMonths.forEach((m) => {
       const mData = monthlyStore[m];
       if (!mData) return;
 
@@ -241,7 +321,7 @@ export function AnalyticsView() {
       rawProducts: Array.from(productMap.values()),
       rawEnhancements: Array.from(enhancementMap.values()),
     };
-  }, [monthlyStore, availableMonths, isAnnual, selectedPeriod]);
+  }, [monthlyStore, yearMonths, isAnnual, selectedPeriod]);
 
   // Total Unique Projects in this scope (Unfiltered by member)
   const rawUniqueProjectsCount = rawProducts.length + rawEnhancements.length;
@@ -262,17 +342,24 @@ export function AnalyticsView() {
     return rawEnhancements.filter((e) => isOwnerMatch(e.owner, selectedMember));
   }, [rawEnhancements, selectedMember]);
 
-  // Monthly stats for the Trend Bar (also reflects selectedMember)
+  // Monthly stats for the Trend Bar (strictly 12 months of activeYear, reflects selectedMember and includes cross-month carryovers)
   const monthlyStats = useMemo(() => {
     if (!monthlyStore) return [];
-    return availableMonths.map((m) => {
-      const mData = monthlyStore[m] || { products: [], enhancements: [] };
+    return yearMonths.map((m) => {
+      const pItems = getItemsForMonth
+        ? getItemsForMonth(m, "product")
+        : (monthlyStore[m]?.products || []);
+      const eItems = getItemsForMonth
+        ? getItemsForMonth(m, "enhancement")
+        : (monthlyStore[m]?.enhancements || []);
+
       const pList = selectedMember
-        ? (mData.products || []).filter((p) => isOwnerMatch(p.owner, selectedMember))
-        : mData.products || [];
+        ? pItems.filter((p) => isOwnerMatch(p.owner, selectedMember))
+        : pItems;
       const eList = selectedMember
-        ? (mData.enhancements || []).filter((e) => isOwnerMatch(e.owner, selectedMember))
-        : mData.enhancements || [];
+        ? eItems.filter((e) => isOwnerMatch(e.owner, selectedMember))
+        : eItems;
+
       return {
         month: m,
         productsCount: pList.length,
@@ -280,7 +367,7 @@ export function AnalyticsView() {
         totalCount: pList.length + eList.length,
       };
     });
-  }, [monthlyStore, availableMonths, selectedMember]);
+  }, [monthlyStore, yearMonths, selectedMember, getItemsForMonth]);
 
   // 3. Filtered by type (Product vs Enhancement vs All)
   const activeItems = useMemo(() => {
@@ -291,13 +378,7 @@ export function AnalyticsView() {
 
   // Helper to build status detail for each item
   const buildItemStatus = (item: AggregatedItem) => {
-    const launchM = item.milestones?.launch;
-    const hasCommercialDate = !!(
-      item.commercialDate &&
-      !item.commercialDate.toLowerCase().includes("tbc") &&
-      item.commercialDate.trim() !== ""
-    );
-    const isCompleted = hasCommercialDate || launchM?.status === "completed";
+    const isCompleted = checkIsProjectCompleted(item, selectedPeriod);
 
     let currentPhaseLabel = isCompleted ? "เปิดตัวแล้ว (Launched)" : "รอดำเนินการ";
     if (!isCompleted) {
@@ -309,11 +390,27 @@ export function AnalyticsView() {
         { key: "final-elearning", label: "Final e-Learning" },
         { key: "internal-training", label: "Internal Training" },
       ];
+      let foundPending = false;
       for (const p of phases) {
         const m = item.milestones?.[p.key];
         if (m && m.status !== "completed") {
-          currentPhaseLabel = `รอ ${p.label}`;
+          currentPhaseLabel = `รอ ${p.label.replace("\n", " ")}`;
+          foundPending = true;
           break;
+        }
+      }
+
+      if (!foundPending) {
+        if (item.milestones?.["internal-training"]?.status === "completed") {
+          currentPhaseLabel = item.commercialDate ? `รอ Target Launch (${item.commercialDate})` : "รอ Target Launch";
+        } else if (item.milestones?.["final-approval"]?.status === "completed") {
+          currentPhaseLabel = "รอ Internal Training";
+        } else if (item.milestones?.["first-draft"]?.status === "completed") {
+          currentPhaseLabel = "รอ Final Approval";
+        } else if (item.milestones?.["kick-off"]?.status === "completed") {
+          currentPhaseLabel = "รอ First Draft";
+        } else {
+          currentPhaseLabel = "รอ Kick-off";
         }
       }
     }
@@ -557,6 +654,28 @@ export function AnalyticsView() {
 
         {/* Controls: Timeframe Selector & Actions */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Year Switcher for Analytics */}
+          {availableYears && availableYears.length > 0 && setSelectedYear ? (
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-2xs">
+              <span className="text-[11px] font-bold text-gray-500">ปี:</span>
+              <select
+                value={activeYear}
+                onChange={(e) => {
+                  const newYear = parseInt(e.target.value, 10);
+                  setSelectedYear(newYear);
+                  setSelectedPeriod("ALL_YEAR");
+                }}
+                className="text-xs font-black bg-transparent text-[#ED1C24] focus:outline-none cursor-pointer"
+              >
+                {availableYears.map((y) => (
+                  <option key={y} value={y}>
+                    {y + 543} ({y})
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
           {/* Timeframe Selector (Annual or Monthly) */}
           <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-2xs">
             <Calendar className="w-3.5 h-3.5 text-[#ED1C24]" />
@@ -565,9 +684,9 @@ export function AnalyticsView() {
               onChange={(e) => setSelectedPeriod(e.target.value)}
               className="text-xs font-bold bg-transparent text-gray-800 focus:outline-none cursor-pointer"
             >
-              <option value="ALL_YEAR">🌟 ภาพรวมทั้งปี (All Year)</option>
-              <optgroup label="── เลือกรายเดือน ──">
-                {availableMonths.map((m) => (
+              <option value="ALL_YEAR">🌟 ภาพรวมทั้งปี {activeYearTh} (All Year {activeYear})</option>
+              <optgroup label={`── เลือกรายเดือนปี ${activeYearTh} ──`}>
+                {yearMonths.map((m) => (
                   <option key={m} value={m}>
                     รอบเดือน: {m}
                   </option>
@@ -856,17 +975,20 @@ export function AnalyticsView() {
       <div className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-200 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2 flex-wrap">
               <BarChart3 className="w-4 h-4 text-[#ED1C24]" />
               <span>
                 แนวโน้มและปริมาณโครงการรายเดือน (Monthly Project Volume)
                 {selectedMember && <span className="text-[#ED1C24] font-black"> : {selectedMember}</span>}
               </span>
+              <span className="text-[11px] font-black text-[#ED1C24] bg-red-50 border border-red-200 px-2 py-0.5 rounded-md">
+                ปี {activeYearTh} ({activeYear})
+              </span>
             </h3>
             <p className="text-xs text-gray-500">
               {selectedMember
-                ? `แสดงจำนวนโครงการของ ${selectedMember} ในแต่ละรอบเดือน (คลิกแท่งเพื่อกรองเฉพาะเดือนนั้น)`
-                : "คลิกที่แท่งของแต่ละเดือนเพื่อเจาะลึกดูสถิติเฉพาะเดือนนั้นๆ ได้ทันที"}
+                ? `แสดงจำนวนโครงการของ ${selectedMember} ในแต่ละรอบเดือนของปี ${activeYearTh} (คลิกแท่งเพื่อกรองเฉพาะเดือนนั้น)`
+                : `แสดงจำนวนโครงการทั้ง 12 เดือนของปี ${activeYearTh} (คลิกที่แท่งของแต่ละเดือนเพื่อเจาะลึกดูสถิติได้ทันที)`}
             </p>
           </div>
           {/* Legend */}
@@ -882,8 +1004,8 @@ export function AnalyticsView() {
           </div>
         </div>
 
-        {/* Bar Columns Container */}
-        <div className="grid grid-cols-4 sm:grid-cols-7 lg:grid-cols-12 gap-2 pt-2">
+        {/* Bar Columns Container (Strictly 12 Months of the Selected Year) */}
+        <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-12 gap-2 pt-2">
           {monthlyStats.map((stat) => {
             const isSelected = selectedPeriod === stat.month;
             const maxVal = Math.max(...monthlyStats.map((s) => s.totalCount), 1);
