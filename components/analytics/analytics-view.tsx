@@ -285,36 +285,52 @@ export function AnalyticsView() {
     }
 
     // Annual Scope: Aggregate all months of activeYear and deduplicate distinct projects
+    // Taking the latest month's progress and merging completed milestones chronologically
     const productMap = new Map<string, AggregatedItem>();
     const enhancementMap = new Map<string, AggregatedItem>();
+
+    const mergeItem = (
+      map: Map<string, AggregatedItem>,
+      item: ProductItem,
+      month: string
+    ) => {
+      const key = `${item.name.trim().toLowerCase()}___${(item.broker || "").trim().toLowerCase()}`;
+      if (!map.has(key)) {
+        map.set(key, { ...item, activeMonths: [month] });
+      } else {
+        const existing = map.get(key)!;
+        const months = existing.activeMonths || [];
+        if (!months.includes(month)) {
+          months.push(month);
+        }
+
+        // Merge milestones so that any completed milestone in any month is retained
+        const mergedMilestones = { ...(existing.milestones || {}), ...(item.milestones || {}) };
+        Object.entries(existing.milestones || {}).forEach(([mKey, mVal]) => {
+          if (
+            mVal?.status === "completed" &&
+            (!mergedMilestones[mKey as PhaseKey] || mergedMilestones[mKey as PhaseKey]?.status !== "completed")
+          ) {
+            mergedMilestones[mKey as PhaseKey] = mVal;
+          }
+        });
+
+        // The iteration runs chronologically (JAN -> DEC), so the latest month's dates, labels, and owner take precedence
+        map.set(key, {
+          ...existing,
+          ...item,
+          milestones: mergedMilestones,
+          activeMonths: months,
+        });
+      }
+    };
 
     yearMonths.forEach((m) => {
       const mData = monthlyStore[m];
       if (!mData) return;
 
-      (mData.products || []).forEach((p) => {
-        const key = `${p.name.trim().toLowerCase()}___${(p.broker || "").trim().toLowerCase()}`;
-        if (!productMap.has(key)) {
-          productMap.set(key, { ...p, activeMonths: [m] });
-        } else {
-          const existing = productMap.get(key)!;
-          if (existing.activeMonths && !existing.activeMonths.includes(m)) {
-            existing.activeMonths.push(m);
-          }
-        }
-      });
-
-      (mData.enhancements || []).forEach((e) => {
-        const key = `${e.name.trim().toLowerCase()}___${(e.broker || "").trim().toLowerCase()}`;
-        if (!enhancementMap.has(key)) {
-          enhancementMap.set(key, { ...e, activeMonths: [m] });
-        } else {
-          const existing = enhancementMap.get(key)!;
-          if (existing.activeMonths && !existing.activeMonths.includes(m)) {
-            existing.activeMonths.push(m);
-          }
-        }
-      });
+      (mData.products || []).forEach((p) => mergeItem(productMap, p, m));
+      (mData.enhancements || []).forEach((e) => mergeItem(enhancementMap, e, m));
     });
 
     return {
