@@ -39,6 +39,16 @@ function doGet(e) {
     sendMondayMorningSummary();
     return ContentService.createTextOutput("Monday summary triggered successfully!").setMimeType(ContentService.MimeType.TEXT);
   }
+
+  // ?action=process_announcements&key=<CRON_SECRET> ส่งประกาศที่ถึงเวลา
+  // (ให้ระบบภายนอกเรียกทุก 5 นาที แทน Trigger ของ GAS)
+  if (e && e.parameter && e.parameter.action === "process_announcements") {
+    if (!CRON_SECRET || e.parameter.key !== CRON_SECRET) {
+      return ContentService.createTextOutput("Forbidden").setMimeType(ContentService.MimeType.TEXT);
+    }
+    processAnnouncementQueue();
+    return ContentService.createTextOutput("Announcement queue processed").setMimeType(ContentService.MimeType.TEXT);
+  }
   return ContentService.createTextOutput("CD-Notify Webhook is Active!").setMimeType(ContentService.MimeType.TEXT);
 }
 
@@ -1212,8 +1222,14 @@ function buildAnnouncementFlex(item) {
 }
 
 function processAnnouncementQueue() {
-  const lock = LockService.getScriptLock();
-  if (!lock.tryLock(10000)) return;
+  // กันการรันซ้อนกัน ถ้าใช้ LockService ไม่ได้ก็ทำงานต่อ (เรียกห่างกัน 5 นาทีอยู่แล้ว)
+  let lock = null;
+  try {
+    lock = LockService.getScriptLock();
+    if (!lock.tryLock(10000)) return;
+  } catch (e) {
+    lock = null;
+  }
 
   try {
     const row = getTimelineStoreRow("announcements");
@@ -1270,7 +1286,7 @@ function processAnnouncementQueue() {
   } catch (e) {
     Logger.log("processAnnouncementQueue Error: " + e.message);
   } finally {
-    lock.releaseLock();
+    if (lock) lock.releaseLock();
   }
 }
 
