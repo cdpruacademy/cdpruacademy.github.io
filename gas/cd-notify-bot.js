@@ -4,10 +4,18 @@
 // Last Updated: October 2026
 // =========================================================================
 
-const LINE_CHANNEL_ACCESS_TOKEN = "QJ1ohoG5r1RUWJVLFmiWMalvMXT7cTGQVa3hPbQtSL9UBSyjFqQl3Uw7e6RTjoveDrPiI/T72BgXsaviPgqcs0yZsrua9l4n6Z9GPfyIxRkKTfN4rD0UXVlw2XMHOStnLI+p01XSg8obGdREzTD05gdB04t89/1O/w1cDnyilFU=";
+// 🔐 Secrets อยู่ใน Script Properties (Project Settings > Script properties) ห้ามใส่ในโค้ด
+//   LINE_CHANNEL_ACCESS_TOKEN : Channel access token จาก LINE Developers Console
+//   SUPABASE_SECRET_KEY       : Secret key (sb_secret_...) จาก Supabase > Project Settings > API Keys
+//   MANAGER_PIN               : PIN สำหรับคำสั่ง "CD auth <PIN>" ยืนยันห้อง Lead
+//   CRON_SECRET               : ค่าสุ่มยาว ๆ สำหรับเรียก ?action=send_monday&key=<CRON_SECRET>
+// รันฟังก์ชัน checkScriptProperties() หนึ่งครั้งเพื่อตรวจว่าตั้งค่าครบ
+const SCRIPT_PROPS = PropertiesService.getScriptProperties();
+const LINE_CHANNEL_ACCESS_TOKEN = SCRIPT_PROPS.getProperty("LINE_CHANNEL_ACCESS_TOKEN") || "";
 const SUPABASE_URL = "https://bwevlsmrtbqbgsqjpppn.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_-o_L_yfoqNCpq4NnP1tiHQ_kFbmbiMF";
-const MANAGER_PIN = "8888";
+const SUPABASE_SECRET_KEY = SCRIPT_PROPS.getProperty("SUPABASE_SECRET_KEY") || "";
+const MANAGER_PIN = SCRIPT_PROPS.getProperty("MANAGER_PIN") || "";
+const CRON_SECRET = SCRIPT_PROPS.getProperty("CRON_SECRET") || "";
 const DASHBOARD_WEB_URL = "https://cdpruacademy.github.io/";
 
 // Palette สีของช่องทางจำหน่าย (ตรงกับหน้า Dashboard)
@@ -23,8 +31,11 @@ const CHANNEL_COLORS = {
 
 // 0. HTTP GET Endpoint (สำหรับ Web Cron เช่น cron-job.org หรือเปิดเช็กสถานะ)
 function doGet(e) {
-  // หากมีพารามิเตอร์ ?action=send_monday จะสั่งส่งสรุปวันจันทร์ทันที
+  // หากมีพารามิเตอร์ ?action=send_monday&key=<CRON_SECRET> จะสั่งส่งสรุปวันจันทร์ทันที
   if (e && e.parameter && e.parameter.action === "send_monday") {
+    if (!CRON_SECRET || e.parameter.key !== CRON_SECRET) {
+      return ContentService.createTextOutput("Forbidden").setMimeType(ContentService.MimeType.TEXT);
+    }
     sendMondayMorningSummary();
     return ContentService.createTextOutput("Monday summary triggered successfully!").setMimeType(ContentService.MimeType.TEXT);
   }
@@ -116,11 +127,11 @@ function handleSmartCdCommand(replyToken, rawText, groupId) {
     return;
   }
 
-  // D. ระบบยืนยันสิทธิ์ห้อง Lead: "CD auth 8888"
+  // D. ระบบยืนยันสิทธิ์ห้อง Lead: "CD auth <PIN>"
   if (cleanQuery.startsWith("auth")) {
     const parts = query.split(/\s+/);
     const pin = parts[1] || "";
-    if (pin === MANAGER_PIN) {
+    if (MANAGER_PIN && pin === MANAGER_PIN) {
       if (groupId) {
         addLeadRoomToSupabase(groupId);
         replyLineText(replyToken, "✅ ยืนยันสิทธิ์ห้อง Lead สำเร็จ!\nห้องนี้สามารถดูโหลดงานรายคนได้แล้วครับ พิมพ์ CD เพื่อดูเมนูได้เลย");
@@ -137,7 +148,7 @@ function handleSmartCdCommand(replyToken, rawText, groupId) {
   if (cleanQuery.includes("workload") || cleanQuery.includes("ภาระงาน") || cleanQuery.includes("โหลดงาน")) {
     const leadRooms = getLeadRoomsFromSupabase();
     if (!leadRooms.includes(groupId)) {
-      replyLineText(replyToken, "🔒 เมนูนี้เฉพาะห้อง Lead เท่านั้น\nพิมพ์ CD auth 8888 เพื่อปลดล็อกสิทธิ์ครับ");
+      replyLineText(replyToken, "🔒 เมนูนี้เฉพาะห้อง Lead เท่านั้น\nติดต่อหัวหน้าทีมเพื่อขอ PIN ยืนยันห้องครับ");
       return;
     }
     replyTeamWorkload(replyToken);
@@ -887,7 +898,7 @@ function getNormalizedTimelineData() {
 
     const url = SUPABASE_URL + "/rest/v1/timeline_store?id=eq.current&select=data,active_month";
     const resp = UrlFetchApp.fetch(url, {
-      headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY },
+      headers: { "apikey": SUPABASE_SECRET_KEY, "Authorization": "Bearer " + SUPABASE_SECRET_KEY },
       muteHttpExceptions: true
     });
     const rows = JSON.parse(resp.getContentText());
@@ -943,7 +954,7 @@ function getLatestImagesFromSupabase() {
   try {
     const url = SUPABASE_URL + "/rest/v1/timeline_store?id=eq.latest_image&select=data";
     const resp = UrlFetchApp.fetch(url, {
-      headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY },
+      headers: { "apikey": SUPABASE_SECRET_KEY, "Authorization": "Bearer " + SUPABASE_SECRET_KEY },
       muteHttpExceptions: true
     });
     const rows = JSON.parse(resp.getContentText());
@@ -958,8 +969,8 @@ function saveGroupIdToSupabase(groupId) {
     UrlFetchApp.fetch(SUPABASE_URL + "/rest/v1/timeline_store", {
       method: "post",
       headers: {
-        "apikey": SUPABASE_ANON_KEY,
-        "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+        "apikey": SUPABASE_SECRET_KEY,
+        "Authorization": "Bearer " + SUPABASE_SECRET_KEY,
         "Content-Type": "application/json",
         "Prefer": "resolution=merge-duplicates"
       },
@@ -973,7 +984,7 @@ function getLeadRoomsFromSupabase() {
   try {
     const url = SUPABASE_URL + "/rest/v1/timeline_store?id=eq.line_lead_rooms&select=data";
     const resp = UrlFetchApp.fetch(url, {
-      headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY },
+      headers: { "apikey": SUPABASE_SECRET_KEY, "Authorization": "Bearer " + SUPABASE_SECRET_KEY },
       muteHttpExceptions: true
     });
     const rows = JSON.parse(resp.getContentText());
@@ -991,8 +1002,8 @@ function addLeadRoomToSupabase(groupId) {
       UrlFetchApp.fetch(SUPABASE_URL + "/rest/v1/timeline_store", {
         method: "post",
         headers: {
-          "apikey": SUPABASE_ANON_KEY,
-          "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+          "apikey": SUPABASE_SECRET_KEY,
+          "Authorization": "Bearer " + SUPABASE_SECRET_KEY,
           "Content-Type": "application/json",
           "Prefer": "resolution=merge-duplicates"
         },
@@ -1031,7 +1042,7 @@ function sendMondayMorningSummary() {
   try {
     const groupUrl = SUPABASE_URL + "/rest/v1/timeline_store?id=eq.line_group_info&select=data";
     const gResp = UrlFetchApp.fetch(groupUrl, {
-      headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY },
+      headers: { "apikey": SUPABASE_SECRET_KEY, "Authorization": "Bearer " + SUPABASE_SECRET_KEY },
       muteHttpExceptions: true
     });
     const gRows = JSON.parse(gResp.getContentText());
@@ -1113,4 +1124,11 @@ function setupMondayWeeklyTrigger() {
     .create();
 
   Logger.log("✅ ตั้งค่า Trigger ส่งทุกวันจันทร์ เรียบร้อยแล้ว!");
+}
+
+// 16. ตรวจว่า Script Properties ตั้งค่าครบ (รันใน Script Editor หนึ่งครั้งหลังตั้งค่า)
+function checkScriptProperties() {
+  const required = ["LINE_CHANNEL_ACCESS_TOKEN", "SUPABASE_SECRET_KEY", "MANAGER_PIN", "CRON_SECRET"];
+  const missing = required.filter(function (k) { return !SCRIPT_PROPS.getProperty(k); });
+  Logger.log(missing.length ? "❌ ยังไม่ได้ตั้งค่า: " + missing.join(", ") : "✅ Script Properties ครบแล้ว");
 }

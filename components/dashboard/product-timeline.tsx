@@ -179,15 +179,16 @@ export function ProductTimeline() {
   }, [monthlyStore, selectedYear]);
 
   // Auto-Sync Snapshots in the background (debounced 2.5s) so the user NEVER needs to manually click save!
+  // Admin only: viewers must not render and overwrite the shared LINE images
   useEffect(() => {
-    if (!isLoaded || !monthlyStore) return;
+    if (!isAdmin || !isLoaded || !monthlyStore) return;
 
     const timer = setTimeout(() => {
       captureAndUploadSnapshots(false);
     }, 2500);
 
     return () => clearTimeout(timer);
-  }, [monthlyStore, selectedMonth, asOfText, isLoaded, selectedYear, captureAndUploadSnapshots]);
+  }, [isAdmin, monthlyStore, selectedMonth, asOfText, isLoaded, selectedYear, captureAndUploadSnapshots]);
 
   // Collect all brokers used in products across all months to prevent accidental data loss warnings
   const allUsedBrokers = React.useMemo(() => {

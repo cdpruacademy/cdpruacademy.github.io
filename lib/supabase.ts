@@ -69,15 +69,85 @@ export function getSupabaseClient(): SupabaseClient | null {
 
   try {
     cachedClient = createClient(config.url, config.anonKey, {
-      auth: { persistSession: false },
+      auth: { persistSession: true, autoRefreshToken: true },
     });
     currentClientUrl = config.url;
     currentClientKey = config.anonKey;
+    adminCheckCache = null;
     return cachedClient;
   } catch (err) {
     console.error("Failed to initialize Supabase client", err);
     return null;
   }
+}
+
+// One shared team account (Supabase > Authentication > Users). Only the password is secret.
+export const TEAM_ADMIN_EMAIL = "cdpruacademy@gmail.com";
+
+const NOT_ADMIN_ERROR = "ต้องเข้าสู่ระบบ Admin ก่อนบันทึกข้อมูล";
+
+// Admin check result cached per signed-in user so every hook instance shares one RPC call
+let adminCheckCache: { userId: string; result: Promise<boolean> } | null = null;
+
+/**
+ * True when the current Supabase session belongs to an email listed in public.admin_users.
+ * Writes are enforced by RLS on the server; this only drives the UI and skips doomed writes.
+ */
+export async function isCurrentUserAdmin(): Promise<boolean> {
+  const client = getSupabaseClient();
+  if (!client) return false;
+
+  const { data } = await client.auth.getSession();
+  const userId = data.session?.user.id;
+  if (!userId) {
+    adminCheckCache = null;
+    return false;
+  }
+
+  if (!adminCheckCache || adminCheckCache.userId !== userId) {
+    adminCheckCache = {
+      userId,
+      result: (async () => {
+        const { data: isAdmin, error } = await client.rpc("is_admin");
+        if (error) {
+          console.warn("is_admin check failed:", error.message);
+          return false;
+        }
+        return isAdmin === true;
+      })(),
+    };
+  }
+  return adminCheckCache.result;
+}
+
+export async function signInAdmin(
+  password: string
+): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" };
+  }
+
+  const { error } = await client.auth.signInWithPassword({
+    email: TEAM_ADMIN_EMAIL,
+    password,
+  });
+  if (error) {
+    return { success: false, error: "รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง" };
+  }
+
+  adminCheckCache = null;
+  if (!(await isCurrentUserAdmin())) {
+    await client.auth.signOut();
+    return { success: false, error: "บัญชีนี้ไม่มีสิทธิ์ Admin กรุณาติดต่อผู้ดูแลระบบ" };
+  }
+  return { success: true };
+}
+
+export async function signOutAdmin(): Promise<void> {
+  const client = getSupabaseClient();
+  adminCheckCache = null;
+  if (client) await client.auth.signOut();
 }
 
 /**
@@ -172,6 +242,10 @@ export async function saveTimelineToCloud(
     return { success: false, error: "ไม่ได้กำหนดค่าการเชื่อมต่อ Cloud Database" };
   }
 
+  if (!(await isCurrentUserAdmin())) {
+    return { success: false, error: NOT_ADMIN_ERROR };
+  }
+
   try {
     const row = {
       id: "current",
@@ -255,6 +329,10 @@ export async function uploadTimelineSnapshot(
     return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" };
   }
 
+  if (!(await isCurrentUserAdmin())) {
+    return { success: false, error: NOT_ADMIN_ERROR };
+  }
+
   try {
     const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, "");
     const byteCharacters = atob(base64Data);
@@ -334,6 +412,10 @@ export async function saveBothTimelineSnapshots(
   const client = getSupabaseClient();
   if (!client) {
     return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" };
+  }
+
+  if (!(await isCurrentUserAdmin())) {
+    return { success: false, error: NOT_ADMIN_ERROR };
   }
 
   try {
@@ -459,6 +541,10 @@ export async function updateChannelSummarySnapshot(
     return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" };
   }
 
+  if (!(await isCurrentUserAdmin())) {
+    return { success: false, error: NOT_ADMIN_ERROR };
+  }
+
   try {
     const toBytes = (dataUrl: string) => {
       const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, "");
@@ -527,31 +613,7 @@ export async function updateChannelSummarySnapshot(
 }
 
 
-export const SUPABASE_SQL_SETUP = `-- Copy & Paste this into Supabase SQL Editor and click 'Run':
-
-create table if not exists public.timeline_store (
-  id text primary key default 'current',
-  data jsonb not null default '{}'::jsonb,
-  available_months jsonb default '[]'::jsonb,
-  active_month text default 'AUG 2026',
-  updated_at timestamptz default now(),
-  updated_by text default 'admin'
-);
-
--- Enable RLS
-alter table public.timeline_store enable row level security;
-
--- Drop existing policies if any
-drop policy if exists "Allow public read" on public.timeline_store;
-drop policy if exists "Allow anon write" on public.timeline_store;
-
--- Policies for public reading and anon saving
-create policy "Allow public read" on public.timeline_store
-  for select using (true);
-
-create policy "Allow anon write" on public.timeline_store
-  for all using (true) with check (true);
-`;
+// Table setup + RLS policies live in supabase/migrations/ (admin-only writes).
 
 /**
  * Fetch announcements from Supabase Cloud DB with strict 1-year retention filter
@@ -595,6 +657,10 @@ export async function saveAnnouncementsToCloud(
     return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" };
   }
 
+  if (!(await isCurrentUserAdmin())) {
+    return { success: false, error: NOT_ADMIN_ERROR };
+  }
+
   try {
     // Strictly prune anything older than 365 days
     const pruned = filterWithinOneYear(items);
@@ -635,6 +701,10 @@ export async function uploadAnnouncementImage(
     return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" };
   }
 
+  if (!(await isCurrentUserAdmin())) {
+    return { success: false, error: NOT_ADMIN_ERROR };
+  }
+
   try {
     const safeName = fileName || `announcement_${Date.now()}.png`;
     const cleanFileName = `announcements/${Date.now()}_${safeName.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
@@ -672,6 +742,10 @@ export async function triggerLineAnnouncementBroadcast(
   const client = getSupabaseClient();
   if (!client) {
     return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" };
+  }
+
+  if (!(await isCurrentUserAdmin())) {
+    return { success: false, error: NOT_ADMIN_ERROR };
   }
 
   try {

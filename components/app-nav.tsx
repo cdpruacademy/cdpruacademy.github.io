@@ -111,8 +111,9 @@ export function AppNav() {
                   </span>
                   <button
                     type="button"
-                    onClick={logout}
+                    onClick={() => void logout()}
                     title="ออกจากโหมด Admin"
+                    aria-label="ออกจากโหมด Admin"
                     className="p-1.5 text-gray-400 hover:text-[#ED1C24] hover:bg-red-50 rounded-lg transition-colors"
                   >
                     <LogOut className="w-4 h-4" />

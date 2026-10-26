@@ -8,6 +8,7 @@ import {
 } from "@/lib/announcement-data";
 import {
   fetchAnnouncementsFromCloud,
+  isCurrentUserAdmin,
   saveAnnouncementsToCloud,
   triggerLineAnnouncementBroadcast,
 } from "@/lib/supabase";
@@ -88,33 +89,39 @@ export function useAnnouncements() {
     }
   }, []);
 
-  // Check scheduled announcements: auto-trigger if scheduled time has passed
+  // Check scheduled announcements: auto-trigger if scheduled time has passed.
+  // Only an admin session may send and mark items as sent; viewers leave them pending.
   useEffect(() => {
     if (!isLoaded || announcements.length === 0) return;
 
     const now = Date.now();
-    let hasChanges = false;
+    const isDue = (item: AnnouncementItem) => {
+      if (item.status !== "pending" || !item.scheduledAt) return false;
+      const schedTime = new Date(item.scheduledAt).getTime();
+      return !isNaN(schedTime) && schedTime <= now;
+    };
+    if (!announcements.some(isDue)) return;
 
-    const updated = announcements.map((item) => {
-      if (item.status === "pending" && item.scheduledAt) {
-        const schedTime = new Date(item.scheduledAt).getTime();
-        if (!isNaN(schedTime) && schedTime <= now) {
-          hasChanges = true;
-          // Trigger broadcast through Bot
-          triggerLineAnnouncementBroadcast(item).catch(console.error);
-          return {
-            ...item,
-            status: "sent" as const,
-            sentAt: new Date().toISOString(),
-          };
-        }
-      }
-      return item;
+    let cancelled = false;
+    isCurrentUserAdmin().then((ok) => {
+      if (!ok || cancelled) return;
+
+      const updated = announcements.map((item) => {
+        if (!isDue(item)) return item;
+        // Trigger broadcast through Bot
+        triggerLineAnnouncementBroadcast(item).catch(console.error);
+        return {
+          ...item,
+          status: "sent" as const,
+          sentAt: new Date().toISOString(),
+        };
+      });
+      syncStore(updated);
     });
 
-    if (hasChanges) {
-      syncStore(updated);
-    }
+    return () => {
+      cancelled = true;
+    };
   }, [isLoaded, announcements, syncStore]);
 
   // Add new announcement
