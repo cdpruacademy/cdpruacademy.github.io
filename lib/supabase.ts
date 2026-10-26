@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { MonthlyStore, getSystemCurrentMonth } from "./timeline-data";
-import { AnnouncementItem, filterWithinOneYear } from "./announcement-data";
+import { AnnouncementItem, filterWithinOneYear, mergeBotResults } from "./announcement-data";
 
 export interface SupabaseConfig {
   url: string;
@@ -219,6 +219,8 @@ export async function fetchTimelineFromCloud(): Promise<CloudTimelinePayload | n
       return null;
     }
 
+    knownTimelineVersion = data.updated_at || null;
+
     return {
       monthlyStore: data.data,
       availableMonths: Array.isArray(data.available_months) ? data.available_months : [],
@@ -234,42 +236,85 @@ export async function fetchTimelineFromCloud(): Promise<CloudTimelinePayload | n
 /**
  * Save timeline store to Supabase Cloud DB
  */
-export async function saveTimelineToCloud(
-  payload: CloudTimelinePayload
-): Promise<{ success: boolean; error?: string }> {
-  const client = getSupabaseClient();
-  if (!client) {
-    return { success: false, error: "ไม่ได้กำหนดค่าการเชื่อมต่อ Cloud Database" };
-  }
+// Version (updated_at) of the timeline row this browser last loaded or saved.
+// Saves only succeed when the row still has this version, so a stale tab cannot
+// silently overwrite a newer save made somewhere else.
+let knownTimelineVersion: string | null = null;
+const ownTimelineVersions = new Set<string>();
+let timelineSaveQueue: Promise<unknown> = Promise.resolve();
 
-  if (!(await isCurrentUserAdmin())) {
-    return { success: false, error: NOT_ADMIN_ERROR };
-  }
+export const TIMELINE_CONFLICT_ERROR =
+  "มีคนอื่นบันทึกข้อมูลไปก่อนหน้า การแก้ไขล่าสุดของคุณยังไม่ได้บันทึก กรุณาโหลดข้อมูลล่าสุดแล้วแก้อีกครั้ง";
 
-  try {
-    const row = {
-      id: "current",
-      data: payload.monthlyStore,
-      available_months: payload.availableMonths,
-      active_month: payload.activeMonth || getSystemCurrentMonth(),
-      updated_at: new Date().toISOString(),
-      updated_by: "pru_admin",
-    };
+type TimelineSaveResult = { success: boolean; conflict?: boolean; error?: string };
 
-    const { error } = await client.from("timeline_store").upsert(row, {
-      onConflict: "id",
-    });
+export async function saveTimelineToCloud(payload: CloudTimelinePayload): Promise<TimelineSaveResult> {
+  // Captured synchronously at call time: the version this change was based on.
+  // The next save in this tab builds on this one, so the known version advances optimistically.
+  const baseVersion = knownTimelineVersion;
+  const newVersion = new Date().toISOString();
+  knownTimelineVersion = newVersion;
+  ownTimelineVersions.add(newVersion);
 
-    if (error) {
-      console.error("Cloud DB save error:", error);
-      return { success: false, error: error.message };
+  const run = async (): Promise<TimelineSaveResult> => {
+    const client = getSupabaseClient();
+    if (!client) {
+      knownTimelineVersion = baseVersion;
+      return { success: false, error: "ไม่ได้กำหนดค่าการเชื่อมต่อ Cloud Database" };
     }
 
-    return { success: true };
-  } catch (err: any) {
-    console.error("Cloud DB save exception:", err);
-    return { success: false, error: err && err.message ? err.message : "บันทึกข้อมูลไม่สำเร็จ" };
-  }
+    if (!(await isCurrentUserAdmin())) {
+      knownTimelineVersion = baseVersion;
+      return { success: false, error: NOT_ADMIN_ERROR };
+    }
+
+    try {
+      const row = {
+        id: "current",
+        data: payload.monthlyStore,
+        available_months: payload.availableMonths,
+        active_month: payload.activeMonth || getSystemCurrentMonth(),
+        updated_at: newVersion,
+        updated_by: "pru_admin",
+      };
+
+      if (baseVersion) {
+        const { data, error } = await client
+          .from("timeline_store")
+          .update(row)
+          .eq("id", "current")
+          .eq("updated_at", baseVersion)
+          .select("updated_at");
+
+        if (error) {
+          console.error("Cloud DB save error:", error);
+          return { success: false, error: error.message };
+        }
+        if (!data || data.length === 0) {
+          return { success: false, conflict: true, error: TIMELINE_CONFLICT_ERROR };
+        }
+      } else {
+        // Nothing loaded yet: only create the row, never replace an existing one
+        const { error } = await client.from("timeline_store").insert(row);
+        if (error) {
+          if (error.code === "23505") {
+            return { success: false, conflict: true, error: TIMELINE_CONFLICT_ERROR };
+          }
+          console.error("Cloud DB save error:", error);
+          return { success: false, error: error.message };
+        }
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      console.error("Cloud DB save exception:", err);
+      return { success: false, error: err && err.message ? err.message : "บันทึกข้อมูลไม่สำเร็จ" };
+    }
+  };
+
+  const result = timelineSaveQueue.then(run, run);
+  timelineSaveQueue = result;
+  return result;
 }
 
 /**
@@ -295,6 +340,9 @@ export function subscribeToTimelineCloud(
         (change) => {
           const row = change.new as any;
           if (!row || row.id !== "current" || !row.data) return;
+          // Echo of this tab's own save: nothing new to apply
+          if (ownTimelineVersions.has(new Date(row.updated_at).toISOString())) return;
+          knownTimelineVersion = row.updated_at;
 
           onUpdate({
             monthlyStore: row.data,
@@ -651,7 +699,7 @@ export async function fetchAnnouncementsFromCloud(): Promise<AnnouncementItem[] 
  */
 export async function saveAnnouncementsToCloud(
   items: AnnouncementItem[]
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; items?: AnnouncementItem[]; error?: string }> {
   const client = getSupabaseClient();
   if (!client) {
     return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" };
@@ -662,8 +710,9 @@ export async function saveAnnouncementsToCloud(
   }
 
   try {
-    // Strictly prune anything older than 365 days
-    const pruned = filterWithinOneYear(items);
+    // Keep send results the bot wrote since this page loaded, then prune anything older than 365 days
+    const cloudItems = (await fetchAnnouncementsFromCloud()) || [];
+    const pruned = filterWithinOneYear(mergeBotResults(items, cloudItems));
 
     const { error } = await client.from("timeline_store").upsert(
       {
@@ -683,7 +732,7 @@ export async function saveAnnouncementsToCloud(
       return { success: false, error: error.message };
     }
 
-    return { success: true };
+    return { success: true, items: pruned };
   } catch (err: any) {
     return { success: false, error: err?.message || "เกิดข้อผิดพลาดในการบันทึกประกาศ" };
   }
@@ -730,46 +779,6 @@ export async function uploadAnnouncementImage(
     };
   } catch (err: any) {
     return { success: false, error: err?.message || "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ" };
-  }
-}
-
-/**
- * Broadcast an announcement via LINE Bot by recording to 'latest_announcement' queue
- */
-export async function triggerLineAnnouncementBroadcast(
-  announcement: AnnouncementItem
-): Promise<{ success: boolean; error?: string }> {
-  const client = getSupabaseClient();
-  if (!client) {
-    return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" };
-  }
-
-  if (!(await isCurrentUserAdmin())) {
-    return { success: false, error: NOT_ADMIN_ERROR };
-  }
-
-  try {
-    const { error } = await client.from("timeline_store").upsert(
-      {
-        id: "latest_announcement",
-        data: {
-          ...announcement,
-          broadcast_status: "ready_to_send",
-          broadcast_requested_at: new Date().toISOString(),
-        },
-        updated_at: new Date().toISOString(),
-        updated_by: "pru_admin",
-      },
-      { onConflict: "id" }
-    );
-
-    if (error) {
-      return { success: false, error: error.message };
-    }
-
-    return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err?.message || "เกิดข้อผิดพลาดในการส่งประกาศเข้า Bot" };
   }
 }
 

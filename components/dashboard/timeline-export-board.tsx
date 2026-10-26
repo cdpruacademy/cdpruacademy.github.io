@@ -78,6 +78,8 @@ export const TimelineExportBoard = React.forwardRef<HTMLDivElement, TimelineExpo
                 isAdmin={false}
                 onEdit={() => {}}
                 onDelete={() => {}}
+                onPause={() => {}}
+                onResume={() => {}}
                 customColorMap={colorMap}
               />
             ))

@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRef, useState } from "react";
 import { ProductItem, PHASES, TimelineType } from "@/lib/timeline-data";
 import { ElearningMonitorIcon } from "./elearning-icon";
-import { Edit2, Download, Trash2 } from "lucide-react";
+import { Edit2, Download, Trash2, PauseCircle, PlayCircle } from "lucide-react";
 import { toPng } from "html-to-image";
 import { resolveBrokerColor } from "@/lib/broker-colors";
 
@@ -13,7 +13,9 @@ interface TimelineRowProps {
   timelineType?: TimelineType;
   isAdmin?: boolean;
   onEdit: (product: ProductItem) => void;
-  onDelete: (id: string) => void;
+  onDelete: (product: ProductItem) => void;
+  onPause: (product: ProductItem) => void;
+  onResume: (product: ProductItem) => void;
   customColorMap?: Record<string, string>;
 }
 
@@ -23,6 +25,8 @@ export function TimelineRow({
   isAdmin = false,
   onEdit,
   onDelete,
+  onPause,
+  onResume,
   customColorMap = {},
 }: TimelineRowProps) {
   const rowRef = useRef<HTMLDivElement>(null);
@@ -97,7 +101,9 @@ export function TimelineRow({
   return (
     <div
       ref={rowRef}
-      className="group relative grid grid-cols-[220px_1fr_130px] items-center gap-2 py-3 px-1 rounded-xl hover:bg-slate-50/70 transition-colors border-b border-gray-100 last:border-b-0"
+      className={`group relative grid grid-cols-[220px_1fr_130px] items-center gap-2 py-3 px-1 rounded-xl hover:bg-slate-50/70 transition-colors border-b border-gray-100 last:border-b-0 ${
+        product.isPaused ? "opacity-60 grayscale" : ""
+      }`}
     >
       {/* Floating Action Buttons on Hover */}
       <div className="export-hide absolute right-2 top-1 z-30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-white/95 backdrop-blur-xs px-2 py-1 rounded-lg shadow-sm border border-gray-200">
@@ -120,12 +126,35 @@ export function TimelineRow({
         >
           <Download className="w-3.5 h-3.5" />
         </button>
+        {isAdmin &&
+          (product.isPaused ? (
+            <button
+              type="button"
+              onClick={() => onResume(product)}
+              className="p-1 text-gray-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors"
+              title="ทำต่อ"
+              aria-label="ทำต่อ"
+            >
+              <PlayCircle className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onPause(product)}
+              className="p-1 text-gray-600 hover:text-amber-700 hover:bg-amber-50 rounded transition-colors"
+              title="หยุด project นี้ชั่วคราว"
+              aria-label="หยุด project นี้ชั่วคราว"
+            >
+              <PauseCircle className="w-3.5 h-3.5" />
+            </button>
+          ))}
         {isAdmin && (
           <button
             type="button"
-            onClick={() => onDelete(product.id)}
+            onClick={() => onDelete(product)}
             className="p-1 text-gray-600 hover:text-[#ED1C24] hover:bg-red-50 rounded transition-colors"
-            title="ลบแถวนี้ (Admin)"
+            title="ลบถาวร"
+            aria-label="ลบถาวร"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
@@ -145,6 +174,12 @@ export function TimelineRow({
             >
               [{product.broker}]
             </span>
+            {product.isPaused && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-slate-600 bg-white border border-slate-300 px-1 rounded shrink-0">
+                <PauseCircle className="w-2.5 h-2.5" />
+                หยุดชั่วคราว
+              </span>
+            )}
           </div>
           <span className="text-[11px] font-medium text-[#64748B] truncate" title={product.owner}>
             {product.owner}

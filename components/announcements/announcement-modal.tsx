@@ -380,7 +380,7 @@ export function AnnouncementModal({
                       <span>⚡ ส่งเข้ากลุ่ม LINE ทันที</span>
                     </div>
                     <div className="text-[11px] text-gray-500 mt-0.5">
-                      บอทจะส่ง Flex Card เข้ากลุ่มทันทีที่บันทึก
+                      บอทจะส่ง Flex Card เข้ากลุ่มภายใน 5 นาทีหลังบันทึก
                     </div>
                   </div>
                 </label>
@@ -522,7 +522,7 @@ export function AnnouncementModal({
                     <span>ยืนยันการส่งข้อความเข้ากลุ่ม LINE หรือไม่?</span>
                   </div>
                   <p className="text-[11px] text-amber-800">
-                    บอทจะส่งข้อความและรูปภาพเข้ากลุ่มสมาชิกทันที
+                    บอทจะส่งข้อความและรูปภาพเข้ากลุ่มภายใน 5 นาที
                   </p>
                   <div className="flex items-center gap-2 pt-1">
                     <button

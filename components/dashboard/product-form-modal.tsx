@@ -40,7 +40,6 @@ import {
   User,
   Clock,
   Sparkles,
-  AlertTriangle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -191,7 +190,6 @@ export function ProductFormModal({
   );
 
   const [errors, setErrors] = useState<{ name?: string; owner?: string }>({});
-  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -303,7 +301,6 @@ export function ProductFormModal({
       setMilestonesState(createInitialMilestones());
     }
     setErrors({});
-    setIsConfirmingDelete(false);
     setIsSubmitting(false);
   }, [productToEdit, isOpen, isEnhancement, brokerOptions]);
 
@@ -809,44 +806,16 @@ export function ProductFormModal({
           <div className="shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-t border-gray-200 bg-gray-50/90 backdrop-blur-xs flex items-center justify-between gap-3 z-10 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <div>
               {productToEdit && onDelete && (
-                <div>
-                  {isConfirmingDelete ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-[#ED1C24] font-semibold flex items-center gap-1">
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                        ยืนยันการลบ?
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={handleDelete}
-                        className="h-8 text-xs"
-                      >
-                        ยืนยัน
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setIsConfirmingDelete(false)}
-                        className="h-8 text-xs"
-                      >
-                        ยกเลิก
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setIsConfirmingDelete(true)}
-                      className="text-[#ED1C24] hover:text-[#D4181F] hover:bg-red-50 text-xs gap-1.5 h-9"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">ลบรายการนี้</span>
-                      <span className="sm:hidden">ลบ</span>
-                    </Button>
-                  )}
-                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDelete}
+                  className="text-[#ED1C24] hover:text-[#D4181F] hover:bg-red-50 text-xs gap-1.5 h-9"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>ลบถาวร</span>
+                </Button>
               )}
             </div>
 

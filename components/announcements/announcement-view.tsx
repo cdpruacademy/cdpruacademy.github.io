@@ -21,6 +21,7 @@ import {
   ShieldAlert,
   Loader2,
   Layers,
+  XCircle,
 } from "lucide-react";
 
 export function AnnouncementView() {
@@ -78,10 +79,7 @@ export function AnnouncementView() {
     sendNowImmediately: boolean
   ) => {
     if (itemToEdit) {
-      await updateAnnouncement(itemToEdit.id, data);
-      if (sendNowImmediately) {
-        await broadcastNow(itemToEdit.id);
-      }
+      await updateAnnouncement(itemToEdit.id, data, sendNowImmediately);
     } else {
       await addAnnouncement(data, sendNowImmediately);
     }
@@ -91,9 +89,9 @@ export function AnnouncementView() {
     setBroadcastingId(id);
     try {
       await broadcastNow(id);
-      alert("✅ ส่งข้อความประกาศเข้ากลุ่ม LINE เรียบร้อยแล้วครับ!");
+      alert("✅ เข้าคิวแล้ว บอทจะส่งเข้ากลุ่ม LINE ภายใน 5 นาที");
     } catch (err: any) {
-      alert("เกิดข้อผิดพลาดในการส่งเข้า LINE: " + (err?.message || err));
+      alert("เข้าคิวส่ง LINE ไม่สำเร็จ: " + (err?.message || err));
     } finally {
       setBroadcastingId(null);
     }
@@ -145,6 +143,11 @@ export function AnnouncementView() {
             <span className="px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
               รอส่ง {stats.pending}
             </span>
+            {stats.failed > 0 && (
+              <span className="px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-200">
+                ส่งไม่สำเร็จ {stats.failed}
+              </span>
+            )}
           </div>
 
           {isAdmin && (
@@ -248,6 +251,8 @@ export function AnnouncementView() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {announcements.map((item) => {
             const isSent = item.status === "sent";
+            const isFailed = item.status === "failed";
+            const isDue = item.status === "pending" && new Date(item.scheduledAt).getTime() <= Date.now();
             const authorColor = item.authorColor || "#ED1C24";
 
             return (
@@ -276,6 +281,19 @@ export function AnnouncementView() {
                           <CheckCircle2 className="w-3 h-3" />
                           <span>ส่งเข้า LINE แล้ว</span>
                         </span>
+                      ) : isFailed ? (
+                        <span
+                          className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full"
+                          title={item.sendError}
+                        >
+                          <XCircle className="w-3 h-3" />
+                          <span>ส่งไม่สำเร็จ</span>
+                        </span>
+                      ) : isDue ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <span>บอทกำลังจะส่ง (ภายใน 5 นาที)</span>
+                        </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
                           <Clock className="w-3 h-3" />
@@ -289,6 +307,12 @@ export function AnnouncementView() {
                           : `กำหนดส่ง ${formatDateTime(item.scheduledAt)}`}
                       </span>
                     </div>
+
+                    {isFailed && item.sendError && (
+                      <p className="text-[11px] text-red-700 bg-red-50 border border-red-100 rounded-lg px-2 py-1.5">
+                        {item.sendError}
+                      </p>
+                    )}
 
                     {/* Title */}
                     <h2 className="text-sm font-black text-gray-900 leading-snug line-clamp-2">
@@ -322,7 +346,8 @@ export function AnnouncementView() {
                         type="button"
                         onClick={() => handleBroadcast(item.id)}
                         disabled={broadcastingId === item.id}
-                        title={isSent ? "ส่งซ้ำเข้ากลุ่ม LINE" : "ส่งเข้ากลุ่ม LINE ทันที"}
+                        title={isSent ? "ส่งซ้ำเข้ากลุ่ม LINE" : isFailed ? "ลองส่งอีกครั้ง" : "ส่งเข้ากลุ่ม LINE ทันที"}
+                        aria-label={isSent ? "ส่งซ้ำเข้ากลุ่ม LINE" : isFailed ? "ลองส่งอีกครั้ง" : "ส่งเข้ากลุ่ม LINE ทันที"}
                         className="p-1.5 rounded-lg text-gray-500 hover:text-[#06C755] hover:bg-green-50 transition-colors"
                       >
                         {broadcastingId === item.id ? (

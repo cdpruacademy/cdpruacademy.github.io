@@ -129,6 +129,11 @@ export interface ProductItem {
   isCrossMonth?: boolean; // True if this item appears because target launch matches current selected month
   originalMonth?: string; // e.g. "AUG 2026" where it was originally created
   isDeleted?: boolean;
+  // Saved on the copy stored in the month the project was paused / resumed (see getPauseInfo)
+  pauseState?: "paused" | "resumed";
+  // Computed for display only, never saved
+  isPaused?: boolean;
+  pausedSince?: string;
 }
 
 // 1. Initial 9 New Products (Red theme)
@@ -398,6 +403,110 @@ export function parseMonthYear(monthStr: string): { monthIndex: number; year: nu
   const year = parseInt(parts[1], 10);
   if (monthIdx === -1 || isNaN(year)) return null;
   return { monthIndex: monthIdx, year };
+}
+
+/** Negative when a is before b. Unparseable months sort first. */
+export function compareMonthKeys(a: string, b: string): number {
+  const pa = parseMonthYear(a);
+  const pb = parseMonthYear(b);
+  const va = pa ? pa.year * 12 + pa.monthIndex : -1;
+  const vb = pb ? pb.year * 12 + pb.monthIndex : -1;
+  return va - vb;
+}
+
+/**
+ * Pause status of a project as of `month`: the latest pause/resume event saved on any
+ * copy of the project in that month or earlier wins.
+ */
+export function getPauseInfo(
+  store: MonthlyStore,
+  id: string,
+  month: string
+): { paused: boolean; since?: string } {
+  let latest: { month: string; state: "paused" | "resumed" } | null = null;
+
+  for (const [mKey, mData] of Object.entries(store)) {
+    if (compareMonthKeys(mKey, month) > 0) continue;
+    const copies = [...(mData?.products || []), ...(mData?.enhancements || [])];
+    const copy = copies.find((p) => p.id === id && p.pauseState);
+    if (!copy?.pauseState) continue;
+    if (!latest || compareMonthKeys(mKey, latest.month) > 0) {
+      latest = { month: mKey, state: copy.pauseState };
+    }
+  }
+
+  return latest?.state === "paused" ? { paused: true, since: latest.month } : { paused: false };
+}
+
+/**
+ * Projects paused before `month` are hidden; a project paused in `month` itself stays
+ * visible with isPaused so the team can see what was paused that month.
+ */
+export function applyPauseState(
+  store: MonthlyStore,
+  items: ProductItem[],
+  month: string
+): ProductItem[] {
+  const result: ProductItem[] = [];
+  items.forEach((item) => {
+    const info = getPauseInfo(store, item.id, month);
+    if (!info.paused) {
+      result.push(item);
+    } else if (info.since && compareMonthKeys(info.since, month) === 0) {
+      result.push({ ...item, isPaused: true, pausedSince: info.since });
+    }
+  });
+  return result;
+}
+
+/** Latest saved copy of a project in `month` or earlier (falls back to any copy). */
+export function findLatestCopy(
+  store: MonthlyStore,
+  id: string,
+  month: string
+): ProductItem | undefined {
+  let best: { month: string; item: ProductItem } | null = null;
+  let fallback: ProductItem | undefined;
+  for (const [mKey, mData] of Object.entries(store)) {
+    const copies = [...(mData?.products || []), ...(mData?.enhancements || [])];
+    const copy = copies.find((p) => p.id === id && !p.isDeleted);
+    if (!copy) continue;
+    fallback = fallback || copy;
+    if (compareMonthKeys(mKey, month) > 0) continue;
+    if (!best || compareMonthKeys(mKey, best.month) > 0) best = { month: mKey, item: copy };
+  }
+  return best?.item || fallback;
+}
+
+/** Projects paused before `month` and not resumed yet, for the "paused" section. */
+export function getPausedItemsForMonth(
+  store: MonthlyStore,
+  month: string,
+  type: TimelineType
+): ProductItem[] {
+  const ids = new Set<string>();
+  Object.entries(store).forEach(([mKey, mData]) => {
+    if (compareMonthKeys(mKey, month) > 0) return;
+    const list = type === "product" ? mData?.products : mData?.enhancements;
+    (list || []).forEach((p) => {
+      if (p.pauseState === "paused") ids.add(p.id);
+    });
+  });
+
+  const result: ProductItem[] = [];
+  ids.forEach((id) => {
+    const info = getPauseInfo(store, id, month);
+    if (!info.paused || !info.since || compareMonthKeys(info.since, month) >= 0) return;
+    const copy = findLatestCopy(store, id, month);
+    if (copy) result.push({ ...copy, isPaused: true, pausedSince: info.since });
+  });
+  return result.sort((a, b) => compareMonthKeys(b.pausedSince || "", a.pausedSince || ""));
+}
+
+/** Strip display-only fields before an item is saved. */
+export function toStoredItem(item: ProductItem): ProductItem {
+  const { isPaused: _isPaused, pausedSince: _pausedSince, ...stored } = item;
+  return stored;
 }
 
 export function sortMonthsChronologically(months: string[]): string[] {

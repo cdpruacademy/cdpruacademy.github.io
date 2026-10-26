@@ -4,18 +4,19 @@ import * as React from "react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useProducts } from "@/hooks/use-products";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
-import { ProductItem, getMonthsForYear } from "@/lib/timeline-data";
+import { ProductItem, getMonthsForYear, getSystemCurrentMonth } from "@/lib/timeline-data";
 import { TimelineHeader, TimelineTrackHeader } from "./timeline-header";
 import { TimelineRow } from "./timeline-row";
 import { TimelineExportBoard } from "./timeline-export-board";
 import { ChannelSummaryExportBoard } from "@/components/analytics/channel-summary-export-board";
 import { ProductFormModal } from "./product-form-modal";
+import { ProjectActionDialog, ProjectAction } from "./project-action-dialog";
 import { BrokerColorModal } from "./broker-color-modal";
 import { useTeamMembers } from "@/hooks/use-team-members";
 import { useChannelColors } from "@/hooks/use-channel-colors";
 import { toPng } from "html-to-image";
 import { uploadTimelineSnapshot, saveBothTimelineSnapshots } from "@/lib/supabase";
-import { Plus, AlertCircle, ShieldCheck, Loader2 } from "lucide-react";
+import { Plus, AlertCircle, ShieldCheck, Loader2, PauseCircle, PlayCircle, ChevronDown } from "lucide-react";
 
 export function ProductTimeline() {
   const {
@@ -37,14 +38,20 @@ export function ProductTimeline() {
     isLoaded,
     addProduct,
     updateProduct,
-    deleteProduct,
+    pauseProduct,
+    resumeProduct,
+    deleteProductPermanently,
+    pausedItems,
     resetToDefault,
     exportExcel,
     exportJSON,
     monthlyStore,
     isCloudConnected,
     isSyncing,
+    syncConflict,
+    reloadFromCloud,
   } = useProducts();
+  const [isReloading, setIsReloading] = useState(false);
 
   const { isAdmin } = useAdminAuth();
   const {
@@ -179,16 +186,18 @@ export function ProductTimeline() {
   }, [monthlyStore, selectedYear]);
 
   // Auto-Sync Snapshots in the background (debounced 2.5s) so the user NEVER needs to manually click save!
-  // Admin only: viewers must not render and overwrite the shared LINE images
+  // Admin only, current month only: the LINE bot always shows this calendar month,
+  // so browsing an older month must not replace the images it sends
+  const isViewingCurrentMonth = selectedMonth === getSystemCurrentMonth();
   useEffect(() => {
-    if (!isAdmin || !isLoaded || !monthlyStore) return;
+    if (!isAdmin || !isViewingCurrentMonth || !isLoaded || !monthlyStore) return;
 
     const timer = setTimeout(() => {
       captureAndUploadSnapshots(false);
     }, 2500);
 
     return () => clearTimeout(timer);
-  }, [isAdmin, monthlyStore, selectedMonth, asOfText, isLoaded, selectedYear, captureAndUploadSnapshots]);
+  }, [isAdmin, isViewingCurrentMonth, monthlyStore, selectedMonth, asOfText, isLoaded, selectedYear, captureAndUploadSnapshots]);
 
   // Collect all brokers used in products across all months to prevent accidental data loss warnings
   const allUsedBrokers = React.useMemo(() => {
@@ -223,8 +232,19 @@ export function ProductTimeline() {
     }
   };
 
-  const handleDeleteProduct = (id: string) => {
-    deleteProduct(id);
+  const [pendingAction, setPendingAction] = useState<ProjectAction | null>(null);
+  const [isPausedListOpen, setIsPausedListOpen] = useState(false);
+
+  const handleConfirmAction = (action: ProjectAction) => {
+    if (action.type === "pause") pauseProduct(action.product.id);
+    else if (action.type === "resume") resumeProduct(action.product.id);
+    else deleteProductPermanently(action.product.id);
+    setPendingAction(null);
+  };
+
+  const handleDeleteFromForm = (id: string) => {
+    const product = currentItems.find((p) => p.id === id) || productToEdit;
+    if (product) setPendingAction({ type: "delete", product });
   };
 
   const handleAsOfChange = (text: string) => {
@@ -278,6 +298,13 @@ export function ProductTimeline() {
   };
 
   const handleSendToLine = () => {
+    if (!isViewingCurrentMonth) {
+      alert(
+        `บอท LINE แสดงข้อมูลเดือนปัจจุบัน (${getSystemCurrentMonth()}) เท่านั้น
+กดปุ่ม "เดือนปัจจุบัน" ก่อน แล้วค่อยส่งรูปเข้า LINE`
+      );
+      return;
+    }
     captureAndUploadSnapshots(true);
   };
 
@@ -314,6 +341,37 @@ export function ProductTimeline() {
           isCloudConnected={isCloudConnected}
           isSyncing={isSyncing}
         />
+
+        {syncConflict && (
+          <div
+            role="alert"
+            className="export-hide mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3"
+          >
+            <div className="flex items-start gap-2 text-sm text-amber-900">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
+              <span>
+                มีคนอื่นบันทึกข้อมูลไปก่อนหน้า การแก้ไขล่าสุดของคุณ<strong>ยังไม่ได้บันทึก</strong>{" "}
+                กรุณาโหลดข้อมูลล่าสุด แล้วแก้อีกครั้ง
+              </span>
+            </div>
+            <button
+              type="button"
+              disabled={isReloading}
+              onClick={async () => {
+                setIsReloading(true);
+                try {
+                  await reloadFromCloud();
+                } finally {
+                  setIsReloading(false);
+                }
+              }}
+              className="shrink-0 inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-60 rounded-lg transition-colors"
+            >
+              {isReloading && <Loader2 className="w-4 h-4 animate-spin" />}
+              โหลดข้อมูลล่าสุด
+            </button>
+          </div>
+        )}
 
         {/* Timeline Table Area with Unified Horizontal Scroll */}
         <div className="overflow-x-auto pb-4 mt-2">
@@ -372,10 +430,58 @@ export function ProductTimeline() {
                   timelineType={timelineType}
                   isAdmin={isAdmin}
                   onEdit={handleOpenEdit}
-                  onDelete={handleDeleteProduct}
+                  onDelete={(product) => setPendingAction({ type: "delete", product })}
+                  onPause={(product) => setPendingAction({ type: "pause", product })}
+                  onResume={(product) => setPendingAction({ type: "resume", product })}
                   customColorMap={colorMap}
                 />
               ))
+            )}
+
+            {/* Projects paused in an earlier month: hidden from the timeline, listed here */}
+            {isLoaded && pausedItems.length > 0 && (
+              <div className="export-hide mt-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/60">
+                <button
+                  type="button"
+                  onClick={() => setIsPausedListOpen((v) => !v)}
+                  aria-expanded={isPausedListOpen}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm font-semibold text-slate-700"
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    <PauseCircle className="w-4 h-4 text-slate-500" />
+                    งานที่หยุดชั่วคราว ({pausedItems.length})
+                  </span>
+                  <ChevronDown
+                    className={`w-4 h-4 text-slate-500 transition-transform ${isPausedListOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+                {isPausedListOpen && (
+                  <ul className="divide-y divide-slate-200 border-t border-slate-200">
+                    {pausedItems.map((item) => (
+                      <li key={item.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-gray-800 truncate">
+                            {item.name.replace(/\n/g, " ")}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            [{item.broker}] · {item.owner} · หยุดตั้งแต่ {item.pausedSince}
+                          </div>
+                        </div>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => setPendingAction({ type: "resume", product: item })}
+                            className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
+                          >
+                            <PlayCircle className="w-3.5 h-3.5" />
+                            ทำต่อ
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -411,11 +517,19 @@ export function ProductTimeline() {
           selectedMonth={selectedMonth}
           productToEdit={productToEdit}
           onSave={handleSaveProduct}
-          onDelete={handleDeleteProduct}
+          onDelete={handleDeleteFromForm}
           teamMembers={teamMembers}
           availableBrokers={colorMap}
         />
       )}
+
+      <ProjectActionDialog
+        key={pendingAction ? `${pendingAction.type}-${pendingAction.product.id}` : "none"}
+        action={pendingAction}
+        selectedMonth={selectedMonth}
+        onConfirm={handleConfirmAction}
+        onClose={() => setPendingAction(null)}
+      />
 
       {/* Broker Color Customizer Modal */}
       <BrokerColorModal

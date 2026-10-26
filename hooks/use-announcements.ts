@@ -8,9 +8,7 @@ import {
 } from "@/lib/announcement-data";
 import {
   fetchAnnouncementsFromCloud,
-  isCurrentUserAdmin,
   saveAnnouncementsToCloud,
-  triggerLineAnnouncementBroadcast,
 } from "@/lib/supabase";
 
 const ANNOUNCEMENTS_STORAGE_KEY = "pru_announcements_cache_v1";
@@ -81,84 +79,78 @@ export function useAnnouncements() {
 
     setIsSaving(true);
     try {
-      await saveAnnouncementsToCloud(pruned);
-    } catch (err) {
-      console.error("Failed to save announcements to cloud:", err);
+      const res = await saveAnnouncementsToCloud(pruned);
+      if (!res.success) throw new Error(res.error || "บันทึกประกาศไม่สำเร็จ");
+      // The saved list may include send results the bot wrote in the meantime
+      if (res.items) setAnnouncements(res.items);
     } finally {
       setIsSaving(false);
     }
   }, []);
 
-  // Check scheduled announcements: auto-trigger if scheduled time has passed.
-  // Only an admin session may send and mark items as sent; viewers leave them pending.
+  // The LINE bot sends queued items and records the result in the cloud row:
+  // refresh every 30 seconds while anything is still waiting to be sent
+  const hasPending = announcements.some((a) => a.status === "pending");
   useEffect(() => {
-    if (!isLoaded || announcements.length === 0) return;
-
-    const now = Date.now();
-    const isDue = (item: AnnouncementItem) => {
-      if (item.status !== "pending" || !item.scheduledAt) return false;
-      const schedTime = new Date(item.scheduledAt).getTime();
-      return !isNaN(schedTime) && schedTime <= now;
-    };
-    if (!announcements.some(isDue)) return;
-
-    let cancelled = false;
-    isCurrentUserAdmin().then((ok) => {
-      if (!ok || cancelled) return;
-
-      const updated = announcements.map((item) => {
-        if (!isDue(item)) return item;
-        // Trigger broadcast through Bot
-        triggerLineAnnouncementBroadcast(item).catch(console.error);
-        return {
-          ...item,
-          status: "sent" as const,
-          sentAt: new Date().toISOString(),
-        };
+    if (!isLoaded || !hasPending) return;
+    const timer = setInterval(async () => {
+      const cloudItems = await fetchAnnouncementsFromCloud();
+      if (!cloudItems) return;
+      setAnnouncements((prev) => {
+        const cloudById = new Map(cloudItems.map((c) => [c.id, c]));
+        return prev.map((item) => {
+          const c = cloudById.get(item.id);
+          return c && c.processedQueuedAt && c.processedQueuedAt === item.queuedAt
+            ? { ...item, status: c.status, sentAt: c.sentAt, sendError: c.sendError, processedQueuedAt: c.processedQueuedAt }
+            : item;
+        });
       });
-      syncStore(updated);
-    });
+    }, 30000);
+    return () => clearInterval(timer);
+  }, [isLoaded, hasPending]);
 
-    return () => {
-      cancelled = true;
+  // Fields that put an item in the bot's queue: now, or at the scheduled time
+  const queueFields = (sendNow: boolean, scheduledAt: string) => {
+    const nowIso = new Date().toISOString();
+    return {
+      status: "pending" as const,
+      scheduledAt: sendNow ? nowIso : scheduledAt,
+      queuedAt: nowIso,
+      sentAt: undefined,
+      sendError: undefined,
     };
-  }, [isLoaded, announcements, syncStore]);
+  };
 
-  // Add new announcement
+  // Add new announcement (always queued: the bot does the actual sending)
   const addAnnouncement = useCallback(
     async (
       payload: Omit<AnnouncementItem, "id" | "createdAt">,
       sendNowImmediately = false
     ) => {
-      const nowIso = new Date().toISOString();
-      const status = sendNowImmediately ? "sent" : payload.status;
-      const sentAt = sendNowImmediately ? nowIso : payload.sentAt;
-
       const newItem: AnnouncementItem = {
         ...payload,
+        ...queueFields(sendNowImmediately, payload.scheduledAt),
         id: `ann-${Date.now()}`,
-        status,
-        sentAt,
-        createdAt: nowIso,
+        createdAt: new Date().toISOString(),
       };
 
-      const nextList = [newItem, ...announcements];
-      await syncStore(nextList);
-
-      if (sendNowImmediately) {
-        await triggerLineAnnouncementBroadcast(newItem);
-      }
-
+      await syncStore([newItem, ...announcements]);
       return newItem;
     },
     [announcements, syncStore]
   );
 
-  // Update existing announcement
+  // Update existing announcement and queue it again (saving from the form re-sends it)
   const updateAnnouncement = useCallback(
-    async (id: string, updates: Partial<AnnouncementItem>) => {
+    async (id: string, updates: Partial<AnnouncementItem>, sendNowImmediately = false) => {
       const nextList = announcements.map((item) =>
-        item.id === id ? { ...item, ...updates } : item
+        item.id === id
+          ? {
+              ...item,
+              ...updates,
+              ...queueFields(sendNowImmediately, updates.scheduledAt || item.scheduledAt),
+            }
+          : item
       );
       await syncStore(nextList);
     },
@@ -174,25 +166,13 @@ export function useAnnouncements() {
     [announcements, syncStore]
   );
 
-  // Manual immediate broadcast trigger (e.g. from Admin button)
+  // Send now / resend from the card button: queue it for the bot's next run
   const broadcastNow = useCallback(
     async (id: string) => {
-      const target = announcements.find((item) => item.id === id);
-      if (!target) return;
-
-      const nowIso = new Date().toISOString();
-      const updatedItem: AnnouncementItem = {
-        ...target,
-        status: "sent",
-        sentAt: nowIso,
-      };
-
       const nextList = announcements.map((item) =>
-        item.id === id ? updatedItem : item
+        item.id === id ? { ...item, ...queueFields(true, item.scheduledAt) } : item
       );
-
       await syncStore(nextList);
-      await triggerLineAnnouncementBroadcast(updatedItem);
     },
     [announcements, syncStore]
   );
@@ -202,7 +182,7 @@ export function useAnnouncements() {
     return announcements
       .filter((item) => {
         if (filterStatus === "sent") return item.status === "sent";
-        if (filterStatus === "pending") return item.status === "pending";
+        if (filterStatus === "pending") return item.status === "pending" || item.status === "failed";
         return true;
       })
       .filter((item) => {
@@ -222,7 +202,8 @@ export function useAnnouncements() {
     const total = announcements.length;
     const sent = announcements.filter((a) => a.status === "sent").length;
     const pending = announcements.filter((a) => a.status === "pending").length;
-    return { total, sent, pending };
+    const failed = announcements.filter((a) => a.status === "failed").length;
+    return { total, sent, pending, failed };
   }, [announcements]);
 
   return {

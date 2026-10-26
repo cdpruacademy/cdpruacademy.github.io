@@ -880,9 +880,61 @@ function replyTeamWorkload(replyToken) {
 }
 
 // 13. Normalizer & Supabase Helpers (รองรับงานค้างข้ามเดือน ไม่หลุดเป็น 0)
+const MONTH_KEYS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+
+// "OCT 2026" -> ตัวเลขที่เรียงลำดับได้ (-1 ถ้าอ่านไม่ออก)
+function monthKeyValue(key) {
+  const parts = String(key || "").trim().split(/\s+/);
+  const idx = MONTH_KEYS.indexOf((parts[0] || "").toUpperCase());
+  const year = parseInt(parts[1], 10);
+  return idx < 0 || isNaN(year) ? -1 : year * 12 + idx;
+}
+
+// บอทใช้เดือนปัจจุบันตามปฏิทิน (เวลาไทย) เสมอ ไม่ขึ้นกับเดือนที่ Admin เปิดดูบนเว็บ
+function getCurrentMonthKey() {
+  return Utilities.formatDate(new Date(), "Asia/Bangkok", "MMM yyyy").toUpperCase();
+}
+
+// งานที่ยัง active ในเดือนเป้าหมาย: ใช้สำเนาล่าสุดของแต่ละงาน ข้ามงานที่ถูกลบ, หยุดชั่วคราว
+// และงานจากเดือนก่อนที่ Launch แล้ว (กติกาเดียวกับหน้าเว็บ)
+function collectActiveItems(allMonths, targetMonth, listKey) {
+  const target = monthKeyValue(targetMonth);
+  const latest = {};
+  const pause = {};
+
+  for (const mName in allMonths) {
+    const v = monthKeyValue(mName);
+    if (v < 0 || v > target) continue;
+    const mData = allMonths[mName] || {};
+
+    (mData.products || []).concat(mData.enhancements || []).forEach(it => {
+      if (it && it.pauseState && (!pause[it.id] || v > pause[it.id].v)) {
+        pause[it.id] = { v: v, state: it.pauseState };
+      }
+    });
+
+    (mData[listKey] || []).forEach(it => {
+      const id = it.id || it.name;
+      if (!latest[id] || v > latest[id].v) latest[id] = { v: v, item: it };
+    });
+  }
+
+  const result = [];
+  for (const id in latest) {
+    const entry = latest[id];
+    const it = entry.item;
+    if (it.isDeleted) continue;
+    if (pause[id] && pause[id].state === "paused") continue;
+    const launched = it.milestones && it.milestones["launch"] && it.milestones["launch"].status === "completed";
+    if (entry.v < target && launched) continue;
+    result.push(it);
+  }
+  return result;
+}
+
 function getNormalizedTimelineData() {
   const result = {
-    activeMonth: "OCT 2026",
+    activeMonth: getCurrentMonthKey(),
     asOfText: "as of ล่าสุด",
     products: [],
     enhancements: [],
@@ -890,13 +942,7 @@ function getNormalizedTimelineData() {
   };
 
   try {
-    const imgData = getLatestImagesFromSupabase();
-    if (imgData && imgData.month) {
-      result.activeMonth = imgData.month;
-      if (imgData.as_of_text) result.asOfText = imgData.as_of_text;
-    }
-
-    const url = SUPABASE_URL + "/rest/v1/timeline_store?id=eq.current&select=data,active_month";
+    const url = SUPABASE_URL + "/rest/v1/timeline_store?id=eq.current&select=data";
     const resp = UrlFetchApp.fetch(url, {
       headers: { "apikey": SUPABASE_SECRET_KEY, "Authorization": "Bearer " + SUPABASE_SECRET_KEY },
       muteHttpExceptions: true
@@ -904,42 +950,10 @@ function getNormalizedTimelineData() {
     const rows = JSON.parse(resp.getContentText());
     if (rows && rows.length > 0 && rows[0].data) {
       const allMonths = rows[0].data;
-      if (rows[0].active_month) result.activeMonth = rows[0].active_month;
-
-      // 1. ดึงข้อมูลของเดือนเป้าหมาย
       const currentMonthData = allMonths[result.activeMonth] || {};
-      const directProducts = (currentMonthData.products || []).slice();
-      const directEnhancements = (currentMonthData.enhancements || []).slice();
 
-      // 2. ดึงงานค้างจากเดือนก่อนหน้ามารวมด้วย (เหมือนหน้าเว็บ)
-      const existingProductIds = new Set(directProducts.map(p => p.id || p.name));
-      const existingEnhancementIds = new Set(directEnhancements.map(e => e.id || e.name));
-
-      for (const mName in allMonths) {
-        if (mName === result.activeMonth) continue;
-        const mData = allMonths[mName] || {};
-
-        (mData.products || []).forEach(p => {
-          const isCompleted = p.milestones && p.milestones["launch"] && p.milestones["launch"].status === "completed";
-          const idKey = p.id || p.name;
-          if (!isCompleted && !existingProductIds.has(idKey)) {
-            directProducts.push(p);
-            existingProductIds.add(idKey);
-          }
-        });
-
-        (mData.enhancements || []).forEach(e => {
-          const isCompleted = e.milestones && e.milestones["launch"] && e.milestones["launch"].status === "completed";
-          const idKey = e.id || e.name;
-          if (!isCompleted && !existingEnhancementIds.has(idKey)) {
-            directEnhancements.push(e);
-            existingEnhancementIds.add(idKey);
-          }
-        });
-      }
-
-      result.products = directProducts;
-      result.enhancements = directEnhancements;
+      result.products = collectActiveItems(allMonths, result.activeMonth, "products");
+      result.enhancements = collectActiveItems(allMonths, result.activeMonth, "enhancements");
       result.items = result.products.concat(result.enhancements);
       if (currentMonthData.asOfText) result.asOfText = currentMonthData.asOfText;
     }
@@ -1124,6 +1138,152 @@ function setupMondayWeeklyTrigger() {
     .create();
 
   Logger.log("✅ ตั้งค่า Trigger ส่งทุกวันจันทร์ เรียบร้อยแล้ว!");
+}
+
+// 17. ส่งประกาศจากหน้าเว็บเข้ากลุ่ม LINE
+// หน้าเว็บบันทึกประกาศเป็น status "pending" (มี queuedAt) แล้วฟังก์ชันนี้ส่งเมื่อถึงเวลา
+// ตั้ง Trigger ทุก 5 นาทีด้วย setupAnnouncementQueueTrigger() (รันครั้งเดียว)
+// =========================================================================
+function getTimelineStoreRow(id) {
+  const resp = UrlFetchApp.fetch(SUPABASE_URL + "/rest/v1/timeline_store?id=eq." + encodeURIComponent(id) + "&select=data", {
+    headers: { "apikey": SUPABASE_SECRET_KEY, "Authorization": "Bearer " + SUPABASE_SECRET_KEY },
+    muteHttpExceptions: true
+  });
+  const rows = JSON.parse(resp.getContentText());
+  return rows && rows.length > 0 ? rows[0] : null;
+}
+
+function pushLineMessages(to, messages) {
+  const resp = UrlFetchApp.fetch("https://api.line.me/v2/bot/message/push", {
+    method: "post",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + LINE_CHANNEL_ACCESS_TOKEN
+    },
+    payload: JSON.stringify({ to: to, messages: messages }),
+    muteHttpExceptions: true
+  });
+  const code = resp.getResponseCode();
+  if (code === 200) return { ok: true };
+
+  let detail = resp.getContentText();
+  try {
+    detail = JSON.parse(detail).message || detail;
+  } catch (e) {}
+  if (code === 429) detail = "โควตาข้อความ LINE ของเดือนนี้เต็มแล้ว (" + detail + ")";
+  return { ok: false, error: "LINE ตอบกลับ " + code + ": " + detail };
+}
+
+function buildAnnouncementFlex(item) {
+  const title = String(item.title || "ประกาศ");
+  const content = String(item.content || "").slice(0, 1500);
+  const bubble = {
+    type: "bubble",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        { type: "text", text: "📢 ประกาศจากทีม CD", size: "xs", color: "#ED1C24", weight: "bold" },
+        { type: "text", text: title, size: "md", weight: "bold", wrap: true, color: "#1E293B" },
+        { type: "text", text: content || " ", size: "sm", wrap: true, color: "#475569" },
+        { type: "text", text: "โดย " + (item.author || "ทีม CD"), size: "xxs", color: "#94A3B8" }
+      ]
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "button",
+          style: "link",
+          height: "sm",
+          action: { type: "uri", label: "ดูประกาศทั้งหมด", uri: DASHBOARD_WEB_URL + "announcements" }
+        }
+      ]
+    }
+  };
+
+  if (item.imageUrl && /^https:\/\//.test(item.imageUrl)) {
+    bubble.hero = { type: "image", url: item.imageUrl, size: "full", aspectRatio: "20:13", aspectMode: "cover" };
+  }
+
+  return { type: "flex", altText: ("📢 " + title).slice(0, 400), contents: bubble };
+}
+
+function processAnnouncementQueue() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return;
+
+  try {
+    const row = getTimelineStoreRow("announcements");
+    const items = row && row.data && Array.isArray(row.data.items) ? row.data.items : [];
+    const now = Date.now();
+    const results = {};
+
+    let groupId = "";
+    const groupRow = getTimelineStoreRow("line_group_info");
+    if (groupRow && groupRow.data && groupRow.data.groupId) groupId = groupRow.data.groupId;
+
+    items.forEach(item => {
+      if (item.status !== "pending" || !item.queuedAt) return;
+      const due = new Date(item.scheduledAt).getTime();
+      if (isNaN(due) || due > now) return;
+
+      const res = groupId
+        ? pushLineMessages(groupId, [buildAnnouncementFlex(item)])
+        : { ok: false, error: "บอทยังไม่รู้จักกลุ่ม LINE: พิมพ์ CD ในกลุ่มหนึ่งครั้งแล้วกดส่งใหม่" };
+      results[item.id] = { queuedAt: item.queuedAt, ok: res.ok, error: res.error || "" };
+      Logger.log("Announcement " + item.id + ": " + (res.ok ? "sent" : res.error));
+    });
+
+    if (Object.keys(results).length === 0) return;
+
+    // อ่านใหม่ก่อนเขียน เพื่อไม่ทับประกาศที่หน้าเว็บเพิ่งบันทึกระหว่างที่บอทกำลังส่ง
+    const fresh = getTimelineStoreRow("announcements");
+    const freshData = (fresh && fresh.data) || { items: [] };
+    const nowIso = new Date().toISOString();
+    freshData.items = (freshData.items || []).map(item => {
+      const r = results[item.id];
+      if (!r || item.queuedAt !== r.queuedAt) return item;
+      const updated = Object.assign({}, item, { status: r.ok ? "sent" : "failed", processedQueuedAt: r.queuedAt });
+      if (r.ok) {
+        updated.sentAt = nowIso;
+        delete updated.sendError;
+      } else {
+        updated.sendError = r.error;
+      }
+      return updated;
+    });
+    freshData.updated_at = nowIso;
+
+    UrlFetchApp.fetch(SUPABASE_URL + "/rest/v1/timeline_store?id=eq.announcements", {
+      method: "patch",
+      headers: {
+        "apikey": SUPABASE_SECRET_KEY,
+        "Authorization": "Bearer " + SUPABASE_SECRET_KEY,
+        "Content-Type": "application/json"
+      },
+      payload: JSON.stringify({ data: freshData, updated_at: nowIso, updated_by: "cd_notify_bot" }),
+      muteHttpExceptions: true
+    });
+  } catch (e) {
+    Logger.log("processAnnouncementQueue Error: " + e.message);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// รันครั้งเดียวใน Script Editor: ให้บอทเช็คคิวประกาศทุก 5 นาที (ไม่กระทบ Trigger วันจันทร์)
+function setupAnnouncementQueueTrigger() {
+  const triggers = ScriptApp.getProjectTriggers();
+  for (let i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === "processAnnouncementQueue") {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  ScriptApp.newTrigger("processAnnouncementQueue").timeBased().everyMinutes(5).create();
+  Logger.log("✅ ตั้งค่า Trigger ส่งประกาศทุก 5 นาที เรียบร้อยแล้ว!");
 }
 
 // 16. ตรวจว่า Script Properties ตั้งค่าครบ (รันใน Script Editor หนึ่งครั้งหลังตั้งค่า)

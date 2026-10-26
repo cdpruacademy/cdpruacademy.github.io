@@ -15,6 +15,11 @@ import {
   parseMonthYear,
   MONTH_NAMES,
   sortMonthsChronologically,
+  compareMonthKeys,
+  applyPauseState,
+  findLatestCopy,
+  getPausedItemsForMonth,
+  toStoredItem,
   ALL_YEAR_2026_MONTHS,
   getMonthsForYear,
   getAvailableYears,
@@ -40,6 +45,8 @@ export function useProducts() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isCloudConnected, setIsCloudConnected] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  // Set when a save was refused because the cloud copy is newer than this tab's data
+  const [syncConflict, setSyncConflict] = useState(false);
 
   // Initialize strictly from Supabase Cloud DB (with cached data only as instant offline mirror)
   useEffect(() => {
@@ -239,6 +246,8 @@ export function useProducts() {
             setIsSyncing(false);
             if (res.success) {
               setIsCloudConnected(true);
+            } else if (res.conflict) {
+              setSyncConflict(true);
             }
           })
           .catch(() => {
@@ -446,7 +455,16 @@ export function useProducts() {
         });
       });
 
-      return [...nativeList, ...crossMonthItems];
+      // A project edited in several months has one copy per month: show only the latest copy
+      const latestCrossMonth = new Map<string, ProductItem>();
+      crossMonthItems.forEach((item) => {
+        const existing = latestCrossMonth.get(item.id);
+        if (!existing || compareMonthKeys(item.originalMonth || "", existing.originalMonth || "") > 0) {
+          latestCrossMonth.set(item.id, item);
+        }
+      });
+
+      return applyPauseState(monthlyStore, [...nativeList, ...latestCrossMonth.values()], month);
     },
     [monthlyStore, matchesTargetMonth]
   );
@@ -516,13 +534,13 @@ export function useProducts() {
               ? {
                   ...currentMonthObj,
                   products: currentMonthObj.products.map((p) =>
-                    p.id === id ? { ...p, ...updates, isCrossMonth: false } : p
+                    p.id === id ? toStoredItem({ ...p, ...updates, isCrossMonth: false }) : p
                   ),
                 }
               : {
                   ...currentMonthObj,
                   enhancements: currentMonthObj.enhancements.map((p) =>
-                    p.id === id ? { ...p, ...updates, isCrossMonth: false } : p
+                    p.id === id ? toStoredItem({ ...p, ...updates, isCrossMonth: false }) : p
                   ),
                 };
 
@@ -536,24 +554,15 @@ export function useProducts() {
 
         // Item carried over from an earlier month: clone/fork it into selectedMonth
         // so changes are saved in the current month while preserving earlier month's history!
-        let sourceItem: ProductItem | undefined;
-        for (const mData of Object.values(prev)) {
-          const list = timelineType === "product" ? mData.products : mData.enhancements;
-          const found = list?.find((p) => p.id === id);
-          if (found) {
-            sourceItem = found;
-            break;
-          }
-        }
-
+        const sourceItem = findLatestCopy(prev, id, selectedMonth);
         if (!sourceItem) return prev;
 
-        const forkedItem: ProductItem = {
+        const forkedItem: ProductItem = toStoredItem({
           ...sourceItem,
           ...updates,
           month: selectedMonth,
           isCrossMonth: false,
-        };
+        });
 
         const updatedMonth =
           timelineType === "product"
@@ -577,120 +586,90 @@ export function useProducts() {
     [timelineType, selectedMonth, syncStore]
   );
 
-  const deleteProduct = useCallback(
-    (id: string) => {
+  // Pause or resume a project from selectedMonth onward; earlier months keep their history
+  const setProjectPauseState = useCallback(
+    (id: string, state: "paused" | "resumed") => {
       setMonthlyStore((prev) => {
-        const currentMonthObj = prev[selectedMonth] || {
+        const listKey = timelineType === "product" ? "products" : "enhancements";
+        const monthObj = prev[selectedMonth] || {
           products: [],
           enhancements: [],
-          asOfText: DEFAULT_AS_OF_BY_MONTH[selectedMonth] || "as of 15th",
+          asOfText: getDefaultAsOf(selectedMonth),
         };
-        const currentList =
-          timelineType === "product" ? currentMonthObj.products : currentMonthObj.enhancements;
-        const isNativeInCurrentMonth = currentList?.some((p) => p.id === id);
+        const list = monthObj[listKey] || [];
+        const native = list.find((p) => p.id === id);
 
-        if (isNativeInCurrentMonth) {
-          // Check if this item also exists in an earlier month
-          let existsInEarlierMonth = false;
-          for (const [mKey, mData] of Object.entries(prev)) {
-            if (mKey === selectedMonth) continue;
-            const list = timelineType === "product" ? mData.products : mData.enhancements;
-            if (list?.some((p) => p.id === id)) {
-              existsInEarlierMonth = true;
-              break;
+        let nextList: ProductItem[];
+        if (native) {
+          nextList = list.map((p) => {
+            if (p.id !== id) return p;
+            // Resuming in the month it was paused just undoes the pause
+            if (state === "resumed" && p.pauseState === "paused") {
+              const { pauseState: _pauseState, ...rest } = p;
+              return rest;
             }
-          }
-
-          if (existsInEarlierMonth) {
-            // Mark tombstone in selectedMonth so auto-carryover doesn't pull it back into selectedMonth
-            const updatedMonth =
-              timelineType === "product"
-                ? {
-                    ...currentMonthObj,
-                    products: currentMonthObj.products.map((p) =>
-                      p.id === id ? { ...p, isDeleted: true } : p
-                    ),
-                  }
-                : {
-                    ...currentMonthObj,
-                    enhancements: currentMonthObj.enhancements.map((p) =>
-                      p.id === id ? { ...p, isDeleted: true } : p
-                    ),
-                  };
-
-            const updated: MonthlyStore = {
-              ...prev,
-              [selectedMonth]: updatedMonth,
-            };
-            syncStore(updated);
-            return updated;
-          } else {
-            // Native only in selectedMonth: filter out
-            const updatedMonth =
-              timelineType === "product"
-                ? {
-                    ...currentMonthObj,
-                    products: currentMonthObj.products.filter((p) => p.id !== id),
-                  }
-                : {
-                    ...currentMonthObj,
-                    enhancements: currentMonthObj.enhancements.filter((p) => p.id !== id),
-                  };
-
-            const updated: MonthlyStore = {
-              ...prev,
-              [selectedMonth]: updatedMonth,
-            };
-            syncStore(updated);
-            return updated;
-          }
+            return { ...p, pauseState: state };
+          });
+        } else {
+          const source = findLatestCopy(prev, id, selectedMonth);
+          if (!source) return prev;
+          nextList = [
+            ...list,
+            toStoredItem({ ...source, month: selectedMonth, isCrossMonth: false, pauseState: state }),
+          ];
         }
-
-        // If carried over from earlier month, record a tombstone in selectedMonth
-        // so it disappears from selectedMonth without deleting from earlier month
-        let sourceItem: ProductItem | undefined;
-        for (const mData of Object.values(prev)) {
-          const list = timelineType === "product" ? mData.products : mData.enhancements;
-          const found = list?.find((p) => p.id === id);
-          if (found) {
-            sourceItem = found;
-            break;
-          }
-        }
-
-        const tombstoneItem: ProductItem = {
-          ...(sourceItem || {
-            id,
-            broker: "ttb",
-            name: "",
-            owner: "",
-            milestones: {},
-          }),
-          id,
-          month: selectedMonth,
-          isDeleted: true,
-        };
-
-        const updatedMonth =
-          timelineType === "product"
-            ? {
-                ...currentMonthObj,
-                products: [...(currentMonthObj.products || []), tombstoneItem],
-              }
-            : {
-                ...currentMonthObj,
-                enhancements: [...(currentMonthObj.enhancements || []), tombstoneItem],
-              };
 
         const updated: MonthlyStore = {
           ...prev,
-          [selectedMonth]: updatedMonth,
+          [selectedMonth]: { ...monthObj, [listKey]: nextList },
         };
         syncStore(updated);
         return updated;
       });
     },
     [timelineType, selectedMonth, syncStore]
+  );
+
+  const pauseProduct = useCallback((id: string) => setProjectPauseState(id, "paused"), [setProjectPauseState]);
+  const resumeProduct = useCallback((id: string) => setProjectPauseState(id, "resumed"), [setProjectPauseState]);
+
+  // Entered by mistake: remove every copy of the project from every month
+  const deleteProductPermanently = useCallback(
+    (id: string) => {
+      setMonthlyStore((prev) => {
+        const updated: MonthlyStore = {};
+        Object.entries(prev).forEach(([mKey, mData]) => {
+          updated[mKey] = {
+            ...mData,
+            products: (mData.products || []).filter((p) => p.id !== id),
+            enhancements: (mData.enhancements || []).filter((p) => p.id !== id),
+          };
+        });
+        syncStore(updated);
+        return updated;
+      });
+    },
+    [syncStore]
+  );
+
+  // Discard this tab's unsaved view and load the latest saved timeline
+  const reloadFromCloud = useCallback(async () => {
+    const cloudData = await fetchTimelineFromCloud();
+    if (cloudData?.monthlyStore) {
+      setMonthlyStore(cloudData.monthlyStore);
+      if (cloudData.availableMonths.length > 0) {
+        setAvailableMonths(sortMonthsChronologically(cloudData.availableMonths));
+      }
+      try {
+        localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(cloudData.monthlyStore));
+      } catch (_) {}
+      setSyncConflict(false);
+    }
+  }, []);
+
+  const pausedItems = useMemo(
+    () => getPausedItemsForMonth(monthlyStore, selectedMonth, timelineType),
+    [monthlyStore, selectedMonth, timelineType]
   );
 
   const resetToDefault = useCallback(() => {
@@ -888,7 +867,10 @@ export function useProducts() {
     isLoaded,
     addProduct,
     updateProduct,
-    deleteProduct,
+    pauseProduct,
+    resumeProduct,
+    deleteProductPermanently,
+    pausedItems,
     resetToDefault,
     importItems,
     exportExcel,
@@ -897,6 +879,8 @@ export function useProducts() {
     isCloudConnected,
     setIsCloudConnected,
     isSyncing,
+    syncConflict,
+    reloadFromCloud,
     handleCloudDataLoaded,
   };
 }

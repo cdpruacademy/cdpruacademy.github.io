@@ -15,6 +15,9 @@ import {
   getMonthsForYear,
   MONTH_NAMES,
   parseMonthYear,
+  getPauseInfo,
+  getSystemCurrentMonth,
+  compareMonthKeys,
 } from "@/lib/timeline-data";
 import {
   BarChart3,
@@ -39,6 +42,7 @@ import {
   Loader2,
   Download,
   Send,
+  PauseCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { toPng } from "html-to-image";
@@ -173,7 +177,7 @@ export function AnalyticsView() {
   // Delivery Status Popup Modal State (User Request: เปิดเป็น Popup ไม่ต้องเลื่อนจอ)
   const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
   const [modalMember, setModalMember] = useState<string | null>(null);
-  const [modalStatusFilter, setModalStatusFilter] = useState<"pending" | "completed" | "all">("pending");
+  const [modalStatusFilter, setModalStatusFilter] = useState<"pending" | "completed" | "paused" | "all">("pending");
   const [modalSearchQuery, setModalSearchQuery] = useState("");
 
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -329,13 +333,25 @@ export function AnalyticsView() {
       const mData = monthlyStore[m];
       if (!mData) return;
 
-      (mData.products || []).forEach((p) => mergeItem(productMap, p, m));
-      (mData.enhancements || []).forEach((e) => mergeItem(enhancementMap, e, m));
+      (mData.products || []).forEach((p) => !p.isDeleted && mergeItem(productMap, p, m));
+      (mData.enhancements || []).forEach((e) => !e.isDeleted && mergeItem(enhancementMap, e, m));
     });
 
+    // Latest status of the year: as of December, or this month for the current year
+    const lastMonthOfYear = yearMonths[yearMonths.length - 1];
+    const currentMonth = getSystemCurrentMonth();
+    const statusMonth =
+      compareMonthKeys(currentMonth, lastMonthOfYear) < 0 ? currentMonth : lastMonthOfYear;
+    const withPause = (item: AggregatedItem): AggregatedItem => {
+      const info = getPauseInfo(monthlyStore, item.id, statusMonth);
+      return info.paused
+        ? { ...item, isPaused: true, pausedSince: info.since }
+        : { ...item, isPaused: false, pausedSince: undefined };
+    };
+
     return {
-      rawProducts: Array.from(productMap.values()),
-      rawEnhancements: Array.from(enhancementMap.values()),
+      rawProducts: Array.from(productMap.values()).map(withPause),
+      rawEnhancements: Array.from(enhancementMap.values()).map(withPause),
     };
   }, [monthlyStore, yearMonths, isAnnual, selectedPeriod]);
 
@@ -376,11 +392,15 @@ export function AnalyticsView() {
         ? eItems.filter((e) => isOwnerMatch(e.owner, selectedMember))
         : eItems;
 
+      const pausedCount = [...pList, ...eList].filter((i) => i.isPaused).length;
+      const productsCount = pList.filter((i) => !i.isPaused).length;
+      const enhancementsCount = eList.filter((i) => !i.isPaused).length;
       return {
         month: m,
-        productsCount: pList.length,
-        enhancementsCount: eList.length,
-        totalCount: pList.length + eList.length,
+        productsCount,
+        enhancementsCount,
+        pausedCount,
+        totalCount: productsCount + enhancementsCount + pausedCount,
       };
     });
   }, [monthlyStore, yearMonths, selectedMember, getItemsForMonth]);
@@ -395,9 +415,12 @@ export function AnalyticsView() {
   // Helper to build status detail for each item
   const buildItemStatus = (item: AggregatedItem) => {
     const isCompleted = checkIsProjectCompleted(item, selectedPeriod);
+    const isPaused = !isCompleted && Boolean(item.isPaused);
 
     let currentPhaseLabel = isCompleted ? "เปิดตัวแล้ว (Launched)" : "รอดำเนินการ";
-    if (!isCompleted) {
+    if (isPaused) {
+      currentPhaseLabel = item.pausedSince ? `หยุดชั่วคราวตั้งแต่ ${item.pausedSince}` : "หยุดชั่วคราว";
+    } else if (!isCompleted) {
       const phases: { key: PhaseKey; label: string }[] = [
         { key: "kick-off", label: "Kick-off" },
         { key: "first-draft", label: "First Draft" },
@@ -434,6 +457,7 @@ export function AnalyticsView() {
     return {
       ...item,
       isCompleted,
+      isPaused,
       currentPhaseLabel,
       isCoOwned: isItemCoOwned(item.owner),
     };
@@ -444,8 +468,9 @@ export function AnalyticsView() {
     return activeItems.map(buildItemStatus);
   }, [activeItems]);
 
-  // Total KPIs
+  // Total KPIs (paused projects still count: the team did work on them this year)
   const totalProjects = products.length + enhancements.length;
+  const pausedProjectsCount = itemsWithStatus.filter((i) => i.isPaused).length;
   const newProductCount = products.length;
   const enhancementCount = enhancements.length;
   const totalElearning = [...products, ...enhancements].filter((i) =>
@@ -493,7 +518,11 @@ export function AnalyticsView() {
   }, [rawProducts, rawEnhancements]);
 
   const allTeamPendingCount = useMemo(
-    () => allTeamItemsWithStatus.filter((i) => !i.isCompleted).length,
+    () => allTeamItemsWithStatus.filter((i) => !i.isCompleted && !i.isPaused).length,
+    [allTeamItemsWithStatus]
+  );
+  const allTeamPausedCount = useMemo(
+    () => allTeamItemsWithStatus.filter((i) => i.isPaused).length,
     [allTeamItemsWithStatus]
   );
   const allTeamCompletedCount = useMemo(
@@ -504,10 +533,10 @@ export function AnalyticsView() {
   const memberStats = useMemo(() => {
     const stats: Record<
       string,
-      { total: number; completed: number; pending: number; shared: number; solo: number }
+      { total: number; completed: number; pending: number; paused: number; shared: number; solo: number }
     > = {};
     teamMembers.forEach((m) => {
-      stats[m] = { total: 0, completed: 0, pending: 0, shared: 0, solo: 0 };
+      stats[m] = { total: 0, completed: 0, pending: 0, paused: 0, shared: 0, solo: 0 };
     });
 
     allTeamItemsWithStatus.forEach((item) => {
@@ -520,6 +549,8 @@ export function AnalyticsView() {
 
           if (item.isCompleted) {
             stats[member].completed += 1;
+          } else if (item.isPaused) {
+            stats[member].paused += 1;
           } else {
             stats[member].pending += 1;
           }
@@ -534,10 +565,11 @@ export function AnalyticsView() {
   // If selectedMember is chosen: Show that member's completion status (เสร็จ vs ค้าง)
   const memberSegments: DonutChartSegment[] = useMemo(() => {
     if (selectedMember) {
-      const mStat = memberStats[selectedMember] || { total: 0, completed: 0, pending: 0 };
+      const mStat = memberStats[selectedMember] || { total: 0, completed: 0, pending: 0, paused: 0 };
       return [
         { label: "เสร็จสมบูรณ์แล้ว", value: mStat.completed, color: "#10B981" },
         { label: "ยังไม่เสร็จ / ค้างอยู่", value: mStat.pending, color: "#F59E0B" },
+        ...(mStat.paused > 0 ? [{ label: "หยุดชั่วคราว", value: mStat.paused, color: "#94A3B8" }] : []),
       ];
     }
     return teamMembers.map((member) => ({
@@ -581,13 +613,15 @@ export function AnalyticsView() {
     return allTeamItemsWithStatus.filter((i) => isOwnerMatch(i.owner, modalMember));
   }, [allTeamItemsWithStatus, modalMember]);
 
-  const modalPendingItems = useMemo(() => modalItems.filter((i) => !i.isCompleted), [modalItems]);
+  const modalPendingItems = useMemo(() => modalItems.filter((i) => !i.isCompleted && !i.isPaused), [modalItems]);
   const modalCompletedItems = useMemo(() => modalItems.filter((i) => i.isCompleted), [modalItems]);
+  const modalPausedItems = useMemo(() => modalItems.filter((i) => i.isPaused), [modalItems]);
 
   const modalDisplayedItems = useMemo(() => {
     let list = modalItems;
     if (modalStatusFilter === "pending") list = modalPendingItems;
     else if (modalStatusFilter === "completed") list = modalCompletedItems;
+    else if (modalStatusFilter === "paused") list = modalPausedItems;
 
     if (!modalSearchQuery.trim()) return list;
 
@@ -598,7 +632,7 @@ export function AnalyticsView() {
         (item.broker || "").toLowerCase().includes(q) ||
         (item.owner || "").toLowerCase().includes(q)
     );
-  }, [modalItems, modalStatusFilter, modalPendingItems, modalCompletedItems, modalSearchQuery]);
+  }, [modalItems, modalStatusFilter, modalPendingItems, modalCompletedItems, modalPausedItems, modalSearchQuery]);
 
   // If Not Admin, render Security Lock Gate
   if (!isAdmin) {
@@ -785,6 +819,9 @@ export function AnalyticsView() {
                 <span>รวม {memberStats[selectedMember]?.total || 0} งาน</span>
                 <span className="text-amber-700">(ค้าง {memberStats[selectedMember]?.pending || 0})</span>
                 <span className="text-emerald-700">(เสร็จ {memberStats[selectedMember]?.completed || 0})</span>
+                {(memberStats[selectedMember]?.paused || 0) > 0 && (
+                  <span className="text-slate-500">(หยุดชั่วคราว {memberStats[selectedMember]?.paused})</span>
+                )}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md">
@@ -793,6 +830,9 @@ export function AnalyticsView() {
                 <span className="text-gray-400 font-normal">|</span>
                 <span className="text-amber-700 font-bold">ค้าง {allTeamPendingCount}</span>
                 <span className="text-emerald-700 font-bold">เสร็จ {allTeamCompletedCount}</span>
+                {allTeamPausedCount > 0 && (
+                  <span className="text-slate-500 font-bold">หยุดชั่วคราว {allTeamPausedCount}</span>
+                )}
               </span>
             )}
           </div>
@@ -919,6 +959,12 @@ export function AnalyticsView() {
             <div className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
               {totalProjects}
             </div>
+            {pausedProjectsCount > 0 && (
+              <div className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500">
+                <PauseCircle className="w-3 h-3" />
+                หยุดชั่วคราว {pausedProjectsCount}
+              </div>
+            )}
             <div className="text-[11px] text-gray-400">
               {selectedMember
                 ? "นับโครงการที่ได้รับมอบหมาย"
@@ -1077,6 +1123,16 @@ export function AnalyticsView() {
                           }}
                           className="w-full bg-[#0066CC]"
                           title={`Enhancement: ${stat.enhancementsCount}`}
+                        />
+                      )}
+                      {/* Paused this month */}
+                      {stat.pausedCount > 0 && (
+                        <div
+                          style={{
+                            height: `${(stat.pausedCount / stat.totalCount) * 100}%`,
+                          }}
+                          className="w-full bg-[#94A3B8]"
+                          title={`หยุดชั่วคราว: ${stat.pausedCount}`}
                         />
                       )}
                     </div>
@@ -1500,8 +1556,8 @@ export function AnalyticsView() {
 
               {/* Modal Body */}
               <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
-                {/* 2 Big Summary Cards inside Modal */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Summary Cards inside Modal */}
+                <div className={`grid grid-cols-1 gap-3 ${modalPausedItems.length > 0 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
                   {/* Card 1: Pending */}
                   <button
                     type="button"
@@ -1567,6 +1623,41 @@ export function AnalyticsView() {
                       </div>
                     </div>
                   </button>
+
+                  {/* Card 3: Paused (only when there are any) */}
+                  {modalPausedItems.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setModalStatusFilter("paused")}
+                      className={`text-left p-3.5 sm:p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                        modalStatusFilter === "paused"
+                          ? "bg-slate-50 border-slate-400 ring-2 ring-slate-400/20 shadow-xs"
+                          : "bg-white hover:bg-slate-50 border-gray-200 hover:border-slate-300"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 uppercase">
+                            <span className="w-2 h-2 rounded-full bg-slate-400" />
+                            <span>หยุดชั่วคราว</span>
+                          </div>
+                          <div className="text-2xl sm:text-3xl font-black text-slate-500 mt-1">
+                            {modalPausedItems.length}{" "}
+                            <span className="text-xs font-bold text-slate-500">โครงการ</span>
+                          </div>
+                        </div>
+                        <div
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                            modalStatusFilter === "paused"
+                              ? "bg-slate-500 text-white"
+                              : "bg-slate-100 text-slate-500"
+                          }`}
+                        >
+                          <PauseCircle className="w-5 h-5" />
+                        </div>
+                      </div>
+                    </button>
+                  )}
                 </div>
 
                 {/* Filter and Search Row inside Modal */}
@@ -1578,6 +1669,8 @@ export function AnalyticsView() {
                           ? "bg-amber-50 text-amber-800 border border-amber-200"
                           : modalStatusFilter === "completed"
                           ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                          : modalStatusFilter === "paused"
+                          ? "bg-slate-50 text-slate-600 border border-slate-300"
                           : "bg-slate-100 text-slate-800 border border-slate-200"
                       }`}
                     >
@@ -1585,12 +1678,15 @@ export function AnalyticsView() {
                       {modalStatusFilter === "completed" && (
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                       )}
+                      {modalStatusFilter === "paused" && <PauseCircle className="w-3.5 h-3.5 text-slate-500" />}
                       {modalStatusFilter === "all" && <Layers className="w-3.5 h-3.5 text-slate-600" />}
                       <span>
                         {modalStatusFilter === "pending"
                           ? `งานที่ค้างอยู่ (${modalDisplayedItems.length})`
                           : modalStatusFilter === "completed"
                           ? `งานที่เสร็จแล้ว (${modalDisplayedItems.length})`
+                          : modalStatusFilter === "paused"
+                          ? `งานที่หยุดชั่วคราว (${modalDisplayedItems.length})`
                           : `งานทั้งหมด (${modalDisplayedItems.length})`}
                       </span>
                     </span>
@@ -1682,6 +1778,10 @@ export function AnalyticsView() {
                             {item.isCompleted ? (
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
                                 <CheckCircle2 className="w-3 h-3 text-emerald-600" /> เปิดตัวแล้ว
+                              </span>
+                            ) : item.isPaused ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-300 shrink-0">
+                                <PauseCircle className="w-3 h-3 text-slate-500" /> {item.currentPhaseLabel}
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 shrink-0">
