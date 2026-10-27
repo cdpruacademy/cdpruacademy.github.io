@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
-import { Sarabun, Geist_Mono } from "next/font/google";
+import { Noto_Sans_Thai, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppNav } from "@/components/app-nav";
 import { NotifyHost } from "@/components/notify-host";
 import { cn } from "@/lib/utils";
 
-// PRU Academy uses Sarabun for Thai, English and figures, in two weights only
-const sarabun = Sarabun({
+// One family for Thai, English and figures (see DESIGN.md)
+const notoThai = Noto_Sans_Thai({
   subsets: ["thai", "latin"],
-  weight: ["400", "700"],
-  variable: "--font-sarabun",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-noto-thai",
 });
 const fontMono = Geist_Mono({
   subsets: ["latin"],
@@ -29,7 +29,7 @@ export default function RootLayout({
   return (
     <html
       lang="th"
-      className={cn("antialiased", fontMono.variable, "font-sans", sarabun.variable)}
+      className={cn("antialiased", fontMono.variable, "font-sans", notoThai.variable)}
     >
       <body className="min-h-screen bg-paper text-ink flex flex-col pb-16 md:pb-0">
         <AppNav />

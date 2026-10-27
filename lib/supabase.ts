@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import type { Partner } from "./partners";
 import { MonthlyStore, getSystemCurrentMonth } from "./timeline-data";
 import { AnnouncementItem, filterWithinOneYear, mergeBotResults } from "./announcement-data";
 
@@ -782,3 +783,49 @@ export async function uploadAnnouncementImage(
   }
 }
 
+
+/**
+ * Partners and their channels (row id "partners"). Everyone reads; only an admin saves.
+ */
+export async function fetchPartnersFromCloud(): Promise<Partner[] | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+  try {
+    const { data, error } = await client
+      .from("timeline_store")
+      .select("data")
+      .eq("id", "partners")
+      .maybeSingle();
+    if (error || !data?.data || !Array.isArray(data.data.items)) return null;
+    return data.data.items as Partner[];
+  } catch (err) {
+    console.warn("fetchPartnersFromCloud error:", err);
+    return null;
+  }
+}
+
+export async function savePartnersToCloud(
+  items: Partner[]
+): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" };
+  if (!(await isCurrentUserAdmin())) return { success: false, error: NOT_ADMIN_ERROR };
+  try {
+    const now = new Date().toISOString();
+    const { error } = await client.from("timeline_store").upsert(
+      {
+        id: "partners",
+        data: { items, updated_at: now },
+        updated_at: now,
+        updated_by: "pru_admin",
+      },
+      { onConflict: "id" }
+    );
+    return error ? { success: false, error: error.message } : { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "บันทึก Partner ไม่สำเร็จ",
+    };
+  }
+}

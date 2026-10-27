@@ -9,33 +9,25 @@ import {
   getMonthsForYear,
   getSystemCurrentMonth,
 } from "@/lib/timeline-data"
-import { TimelineHeader, TimelineTrackHeader } from "./timeline-header"
-import { TimelineRow, TimelineLegend } from "./timeline-row"
-import { PruIcon } from "@/components/pru-icon"
-import { thaiMonthLabel, THAI_MONTHS } from "./timeline-header"
+import { TimelineHero } from "./timeline-header"
+import { getProgress } from "./timeline-row"
+import { StepTiles, TimelineTable, groupByPartner } from "./timeline-summary"
+import { Icon } from "@/components/icon"
+import { PageBody, PageHero, card, cardButton } from "@/components/page-hero"
 import { TimelineMobileList } from "./timeline-mobile-list"
 import { TimelineExportBoard } from "./timeline-export-board"
 import { ChannelSummaryExportBoard } from "@/components/analytics/channel-summary-export-board"
 import { ProductFormModal } from "./product-form-modal"
 import { ProjectActionDialog, ProjectAction } from "./project-action-dialog"
-import { BrokerColorModal } from "./broker-color-modal"
 import { useTeamMembers } from "@/hooks/use-team-members"
-import { useChannelColors } from "@/hooks/use-channel-colors"
+import { usePartners } from "@/hooks/use-partners"
 import { toPng } from "html-to-image"
 import {
   uploadTimelineSnapshot,
   saveBothTimelineSnapshots,
 } from "@/lib/supabase"
 import { toast } from "@/lib/notify"
-import {
-  Plus,
-  AlertCircle,
-  ShieldCheck,
-  Loader2,
-  PauseCircle,
-  PlayCircle,
-  ChevronDown,
-} from "lucide-react"
+import { Loader2 } from "lucide-react"
 
 export function ProductTimeline() {
   const {
@@ -78,16 +70,9 @@ export function ProductTimeline() {
     resetToDefault: resetTeamMembers,
   } = useTeamMembers()
 
-  const {
-    colorMap,
-    updateChannelColor: handleColorChange,
-    addChannel: handleAddChannel,
-    deleteChannel: handleDeleteChannel,
-    resetToDefault: handleResetColors,
-  } = useChannelColors(monthlyStore)
+  const { partners } = usePartners()
 
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isColorModalOpen, setIsColorModalOpen] = useState(false)
   const [productToEdit, setProductToEdit] = useState<ProductItem | null>(null)
   const [isExportingAll, setIsExportingAll] = useState(false)
   const [isSendingLine, setIsSendingLine] = useState(false)
@@ -219,22 +204,6 @@ export function ProductTimeline() {
     captureAndUploadSnapshots,
   ])
 
-  // Collect all brokers used in products across all months to prevent accidental data loss warnings
-  const allUsedBrokers = React.useMemo(() => {
-    const list: string[] = []
-    if (monthlyStore) {
-      Object.values(monthlyStore).forEach((m) => {
-        ;(m.products || []).forEach((p) => {
-          if (p.broker) list.push(p.broker)
-        })
-        ;(m.enhancements || []).forEach((p) => {
-          if (p.broker) list.push(p.broker)
-        })
-      })
-    }
-    return list
-  }, [monthlyStore])
-
   const handleOpenAdd = () => {
     setProductToEdit(null)
     setIsModalOpen(true)
@@ -251,70 +220,10 @@ export function ProductTimeline() {
     } else {
       addProduct(data)
     }
-    if (data.broker && !colorMap[data.broker]) {
-      handleAddChannel(data.broker, "#7E1518")
-    }
   }
 
   const [pendingAction, setPendingAction] = useState<ProjectAction | null>(null)
 
-  // Summary cards: next target launch from today, and how many launch next month
-  const monthSummary = React.useMemo(() => {
-    const MONTHS = [
-      "jan",
-      "feb",
-      "mar",
-      "apr",
-      "may",
-      "jun",
-      "jul",
-      "aug",
-      "sep",
-      "oct",
-      "nov",
-      "dec",
-    ]
-    const parse = (str?: string) => {
-      if (!str || /tbc/i.test(str)) return null
-      const lower = str.toLowerCase()
-      const mIdx = MONTHS.findIndex((m) => lower.includes(m))
-      if (mIdx < 0) return null
-      const y = lower.match(/\b(20\d{2}|25\d{2})\b/)
-      const year = y
-        ? Number(y[0]) > 2400
-          ? Number(y[0]) - 543
-          : Number(y[0])
-        : new Date().getFullYear()
-      const d = lower.match(/\b(\d{1,2})\b/)
-      return new Date(year, mIdx, d ? Number(d[0]) : 15)
-    }
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1)
-    let next: { label: string; name: string; at: number } | null = null
-    let nextMonthCount = 0
-    currentItems.forEach((item) => {
-      const date = parse(item.commercialDate)
-      if (!date) return
-      if (date >= today && (!next || date.getTime() < next.at)) {
-        next = {
-          label: `${date.getDate()} ${THAI_MONTHS[date.getMonth()].slice(0, 3)}.`,
-          name: item.name.replace(/\n/g, " "),
-          at: date.getTime(),
-        }
-      }
-      if (
-        date.getFullYear() === nextMonth.getFullYear() &&
-        date.getMonth() === nextMonth.getMonth()
-      )
-        nextMonthCount += 1
-    })
-    return {
-      next: next as { label: string; name: string } | null,
-      nextMonthCount,
-      nextMonthLabel: THAI_MONTHS[nextMonth.getMonth()],
-    }
-  }, [currentItems])
   const [isPausedListOpen, setIsPausedListOpen] = useState(false)
 
   const handleConfirmAction = (action: ProjectAction) => {
@@ -329,33 +238,22 @@ export function ProductTimeline() {
     if (product) setPendingAction({ type: "delete", product })
   }
 
-  const handleAsOfChange = (text: string) => {
-    setAsOfText(text)
-  }
-
-  // Clean Image Export (Completely Filters Out All Buttons)
+  // "Save image" downloads the same board the LINE bot sends, so the file looks like the LINE image
   const handleExportAll = async () => {
-    if (!dashboardRef.current) return
+    const el =
+      timelineType === "product"
+        ? productExportRef.current
+        : enhancementExportRef.current
+    if (!el) return
     try {
       setIsExportingAll(true)
       await new Promise((resolve) => setTimeout(resolve, 100))
-
-      const el = dashboardRef.current
-      const exportWidth = Math.max(el.scrollWidth, 1200)
-
       const dataUrl = await toPng(el, {
         cacheBust: true,
         pixelRatio: 2,
-        backgroundColor: "#ffffff",
-        width: exportWidth,
-        filter: (node) => {
-          if (node.classList && node.classList.contains("export-hide")) {
-            return false
-          }
-          return true
-        },
+        backgroundColor: "#F7F5F3",
+        width: 1280,
       })
-
       const link = document.createElement("a")
       const prefix =
         timelineType === "product"
@@ -368,8 +266,8 @@ export function ProductTimeline() {
       link.href = dataUrl
       link.click()
     } catch (err) {
-      console.error("Failed to export dashboard image", err)
-      toast.error("Export ภาพรวมไม่สำเร็จ กรุณาลองใหม่อีกครั้ง")
+      console.error("Failed to export timeline image", err)
+      toast.error("บันทึกรูปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง")
     } finally {
       setIsExportingAll(false)
     }
@@ -385,11 +283,25 @@ export function ProductTimeline() {
     captureAndUploadSnapshots(true)
   }
 
+  const groups = groupByPartner(currentItems, partners, timelineType)
+  const completedCount = currentItems.filter(
+    (i) => getProgress(i, timelineType).isFinished
+  ).length
+  const onHoldCount = currentItems.filter((i) => i.isPaused).length
+  const rowHandlers = {
+    onEdit: handleOpenEdit,
+    onDelete: (product: ProductItem) =>
+      setPendingAction({ type: "delete", product }),
+    onPause: (product: ProductItem) =>
+      setPendingAction({ type: "pause", product }),
+    onResume: (product: ProductItem) =>
+      setPendingAction({ type: "resume", product }),
+  }
+
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 sm:py-10 lg:px-10">
-      <div ref={dashboardRef} className="flex flex-col gap-6 bg-paper sm:gap-8">
-        {/* Timeline Header */}
-        <TimelineHeader
+    <div ref={dashboardRef}>
+      <PageHero>
+        <TimelineHero
           timelineType={timelineType}
           onTimelineTypeChange={setTimelineType}
           selectedMonth={selectedMonth}
@@ -398,28 +310,42 @@ export function ProductTimeline() {
           onYearChange={setSelectedYear}
           availableYears={availableYears}
           onGoToCurrentMonth={goToCurrentMonth}
-          availableMonths={availableMonths}
           asOfText={asOfText}
-          onAsOfChange={handleAsOfChange}
+          onAsOfChange={setAsOfText}
+          counts={
+            isLoaded
+              ? {
+                  total: currentItems.length,
+                  completed: completedCount,
+                  inProgress: currentItems.length - completedCount - onHoldCount,
+                  onHold: onHoldCount,
+                }
+              : undefined
+          }
+          groups={isLoaded ? groups : []}
           onAddClick={handleOpenAdd}
           onExportAllClick={handleExportAll}
-          onOpenColorModal={() => setIsColorModalOpen(true)}
           onSendLineClick={handleSendToLine}
           isSendingLine={isSendingLine}
           isExporting={isExportingAll}
           isAdmin={isAdmin}
           isCloudConnected={isCloudConnected}
           isSyncing={isSyncing}
-          itemCount={isLoaded ? currentItems.length : undefined}
         />
+      </PageHero>
 
+      <PageBody className="flex flex-col gap-5">
         {syncConflict && (
           <div
             role="alert"
-            className="export-hide mt-3 flex flex-col justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center"
+            className={`${card} flex flex-col justify-between gap-3 px-5 py-4 sm:flex-row sm:items-center`}
           >
-            <div className="flex items-start gap-2 text-sm text-amber-900">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <div className="flex items-start gap-2.5 text-sm text-ink">
+              <Icon
+                name="warning"
+                size={20}
+                className="mt-0.5 shrink-0 text-brand-ink"
+              />
               <span>
                 มีคนอื่นบันทึกข้อมูลไปก่อนหน้า การแก้ไขล่าสุดของคุณ
                 <strong>ยังไม่ได้บันทึก</strong> กรุณาโหลดข้อมูลล่าสุด
@@ -437,257 +363,134 @@ export function ProductTimeline() {
                   setIsReloading(false)
                 }
               }}
-              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-amber-700 disabled:opacity-60"
+              className={cardButton}
             >
               {isReloading && <Loader2 className="h-4 w-4 animate-spin" />}
-              โหลดข้อมูลล่าสุด
+              Reload latest data
             </button>
           </div>
         )}
 
-        {isLoaded && currentItems.length > 0 && (
-          <section
-            aria-label="ภาพรวมเดือนนี้"
-            className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6"
+        {isLoaded && (
+          <StepTiles items={currentItems} timelineType={timelineType} />
+        )}
+
+        {!isLoaded ? (
+          <div
+            className={`${card} flex flex-col items-center gap-3 py-16 text-center`}
           >
-            <div className="flex justify-between gap-4 border-2 border-rule bg-white px-6 py-5">
-              <div>
-                <div className="text-sm text-ink-soft">โครงการในเดือนนี้</div>
-                <div className="text-[40px] leading-tight font-bold">
-                  {currentItems.length}
-                </div>
-              </div>
-              <PruIcon
-                name="document"
-                size={40}
-                strokeWidth={3}
-                className="text-pru-red"
+            <Loader2 className="h-7 w-7 animate-spin text-brand-ink" />
+            <p className="text-sm font-semibold text-ink">
+              กำลังโหลดข้อมูลจาก Cloud…
+            </p>
+          </div>
+        ) : currentItems.length === 0 ? (
+          <div
+            className={`${card} flex flex-col items-center gap-3 px-6 py-14 text-center`}
+          >
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface text-ink-soft">
+              <Icon name="folder" size={28} />
+            </span>
+            <h2 className="text-lg font-bold">No projects in {selectedMonth}</h2>
+            <p className="text-sm text-ink-soft">
+              {isAdmin
+                ? "เพิ่ม project แรกของเดือนนี้ได้เลย"
+                : "เข้าสู่ระบบ Admin เพื่อเพิ่ม project ในเดือนนี้"}
+            </p>
+            {isAdmin && (
+              <button type="button" onClick={handleOpenAdd} className={cardButton}>
+                <Icon name="plus" size={18} />
+                Add project
+              </button>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="md:hidden">
+              <TimelineMobileList
+                items={currentItems}
+                timelineType={timelineType}
+                isAdmin={isAdmin}
+                partners={partners}
+                {...rowHandlers}
               />
             </div>
-            <div className="flex justify-between gap-4 border-2 border-rule bg-white px-6 py-5">
-              <div className="min-w-0">
-                <div className="text-sm text-ink-soft">Launch ถัดไป</div>
-                {monthSummary.next ? (
-                  <>
-                    <div className="text-[28px] leading-snug font-bold text-pru-red">
-                      {monthSummary.next.label}
+            <section className={`${card} hidden overflow-hidden md:block`}>
+              <div className="overflow-x-auto">
+                <div className="min-w-[1160px]">
+                  <TimelineTable
+                    items={currentItems}
+                    timelineType={timelineType}
+                    partners={partners}
+                    isAdmin={isAdmin}
+                    {...rowHandlers}
+                  />
+                </div>
+              </div>
+            </section>
+          </>
+        )}
+
+        {/* Projects on hold since an earlier month: hidden from the timeline, listed here */}
+        {isLoaded && pausedItems.length > 0 && (
+          <section className={`${card} overflow-hidden`}>
+            <button
+              type="button"
+              onClick={() => setIsPausedListOpen((v) => !v)}
+              aria-expanded={isPausedListOpen}
+              className="flex touch-target w-full items-center justify-between gap-2 px-5 py-4 text-[15px] font-semibold text-ink"
+            >
+              <span className="inline-flex items-center gap-2.5">
+                <Icon name="onHold" size={20} className="text-ink-soft" />
+                On hold ({pausedItems.length})
+              </span>
+              <Icon
+                name="chevronDown"
+                size={18}
+                className={`text-ink-soft transition-transform ${isPausedListOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+            {isPausedListOpen && (
+              <ul className="divide-y divide-surface border-t border-surface">
+                {pausedItems.map((item) => (
+                  <li
+                    key={item.id}
+                    className="flex items-center justify-between gap-3 px-5 py-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-ink">
+                        {item.name.replace(/\n/g, " ")}
+                      </div>
+                      <div className="text-xs text-ink-soft">
+                        {item.broker} · {item.owner} · On hold since{" "}
+                        {item.pausedSince}
+                      </div>
                     </div>
-                    <div
-                      className="truncate text-sm"
-                      title={monthSummary.next.name}
-                    >
-                      {monthSummary.next.name}
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-[28px] leading-snug font-bold">—</div>
-                )}
-              </div>
-              <PruIcon
-                name="target"
-                size={40}
-                strokeWidth={3}
-                className="shrink-0 text-pru-red"
-              />
-            </div>
-            <div className="flex justify-between gap-4 border-2 border-rule bg-white px-6 py-5">
-              <div>
-                <div className="text-sm text-ink-soft">
-                  รอ Launch ในเดือน{monthSummary.nextMonthLabel}
-                </div>
-                <div className="text-[40px] leading-tight font-bold">
-                  {monthSummary.nextMonthCount}{" "}
-                  <span className="text-base font-normal text-ink-soft">
-                    โครงการ
-                  </span>
-                </div>
-              </div>
-              <PruIcon
-                name="clock"
-                size={40}
-                strokeWidth={3}
-                className="text-pru-red"
-              />
-            </div>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPendingAction({ type: "resume", product: item })
+                        }
+                        className={cardButton}
+                      >
+                        <Icon name="refresh" size={16} />
+                        Resume
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         )}
 
-        {/* Timeline table (desktop) / project cards (phones) */}
-        <div className="md:overflow-x-auto md:border-2 md:border-rule md:bg-white">
-          <div className="md:min-w-[1080px]">
-            {/* Phase Track Column Header (Scrolls together with Rows); phones use cards instead */}
-            <div className="hidden md:block">
-              <TimelineTrackHeader timelineType={timelineType} />
-            </div>
+        <footer className="flex items-center justify-between pt-2 text-xs text-ink-soft">
+          <span>{isAdmin ? "Admin mode" : "View only"}</span>
+          <span>Prudential Thailand · ฝ่ายพัฒนาหลักสูตร</span>
+        </footer>
+      </PageBody>
 
-            {!isLoaded ? (
-              /* Loading Skeleton / Spinner (Zero Flicker) */
-              <div className="space-y-4 py-14 text-center">
-                <div className="mx-auto inline-flex h-12 w-12 animate-pulse items-center justify-center rounded-full bg-red-50 text-brand-ink">
-                  <Loader2 className="h-6 w-6 animate-spin text-brand-ink" />
-                </div>
-                <div className="space-y-1.5">
-                  <p className="text-sm font-semibold text-gray-700">
-                    กำลังเชื่อมต่อและโหลดข้อมูลจาก Cloud...
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    ดึงข้อมูลรอบเดือน {selectedMonth} จาก Supabase
-                  </p>
-                </div>
-                {/* 3 Ghost Skeletons */}
-                <div className="mx-auto max-w-2xl space-y-2 pt-2 opacity-60">
-                  <div className="h-14 animate-pulse rounded-xl bg-gray-100" />
-                  <div className="h-14 animate-pulse rounded-xl bg-gray-100" />
-                  <div className="h-14 animate-pulse rounded-xl bg-gray-100" />
-                </div>
-              </div>
-            ) : currentItems.length === 0 ? (
-              <div className="my-2 rounded-xl border-2 border-dashed border-gray-200 py-8 text-center">
-                <AlertCircle className="mx-auto mb-1.5 h-8 w-8 text-gray-500" />
-                <h3 className="text-sm font-bold text-gray-700">
-                  ยังไม่มีข้อมูลใน{" "}
-                  {timelineType === "product"
-                    ? "New Product Timeline"
-                    : "Enhancement Timeline"}{" "}
-                  รอบเดือน ({selectedMonth})
-                </h3>
-                <p className="mt-0.5 mb-2 text-xs text-gray-500">
-                  {isAdmin
-                    ? "กดปุ่มด้านล่างเพื่อเริ่มเพิ่มข้อมูล หรือกดคัดลอกจากเดือนก่อนหน้า"
-                    : "เข้าสู่โหมด Admin เพื่อเพิ่มข้อมูลในรอบเดือนนี้"}
-                </p>
-                {isAdmin ? (
-                  <button
-                    type="button"
-                    onClick={handleOpenAdd}
-                    className="export-hide inline-flex touch-target items-center gap-1.5 rounded-lg bg-brand-fill px-4 py-1.5 text-xs font-semibold text-white shadow-xs transition-all hover:bg-brand-hover"
-                  >
-                    <Plus className="h-4 w-4" />
-                    เพิ่มข้อมูลรอบนี้
-                  </button>
-                ) : null}
-              </div>
-            ) : (
-              <>
-                <div className="md:hidden">
-                  <TimelineMobileList
-                    items={currentItems}
-                    timelineType={timelineType}
-                    isAdmin={isAdmin}
-                    colorMap={colorMap}
-                    onEdit={handleOpenEdit}
-                    onDelete={(product) =>
-                      setPendingAction({ type: "delete", product })
-                    }
-                    onPause={(product) =>
-                      setPendingAction({ type: "pause", product })
-                    }
-                    onResume={(product) =>
-                      setPendingAction({ type: "resume", product })
-                    }
-                  />
-                </div>
-                <div className="hidden md:block">
-                  {currentItems.map((item) => (
-                    <TimelineRow
-                      key={item.id}
-                      product={item}
-                      timelineType={timelineType}
-                      isAdmin={isAdmin}
-                      onEdit={handleOpenEdit}
-                      onDelete={(product) =>
-                        setPendingAction({ type: "delete", product })
-                      }
-                      onPause={(product) =>
-                        setPendingAction({ type: "pause", product })
-                      }
-                      onResume={(product) =>
-                        setPendingAction({ type: "resume", product })
-                      }
-                      customColorMap={colorMap}
-                    />
-                  ))}
-                  <TimelineLegend />
-                </div>
-              </>
-            )}
-
-            {/* Projects paused in an earlier month: hidden from the timeline, listed here */}
-            {isLoaded && pausedItems.length > 0 && (
-              <div className="export-hide mt-4 border-2 border-dashed border-gray-300 bg-paper md:m-6 md:mt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsPausedListOpen((v) => !v)}
-                  aria-expanded={isPausedListOpen}
-                  className="flex touch-target w-full items-center justify-between gap-2 px-5 py-4 text-[15px] font-bold text-ink"
-                >
-                  <span className="inline-flex items-center gap-2.5">
-                    <PruIcon name="pause" size={22} className="text-ink-soft" />
-                    งานที่หยุดชั่วคราว ({pausedItems.length})
-                  </span>
-                  <ChevronDown
-                    className={`h-4 w-4 text-slate-500 transition-transform ${isPausedListOpen ? "rotate-180" : ""}`}
-                  />
-                </button>
-                {isPausedListOpen && (
-                  <ul className="divide-y divide-slate-200 border-t border-slate-200">
-                    {pausedItems.map((item) => (
-                      <li
-                        key={item.id}
-                        className="flex items-center justify-between gap-3 px-3 py-2"
-                      >
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-semibold text-gray-800">
-                            {item.name.replace(/\n/g, " ")}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            [{item.broker}] · {item.owner} · หยุดตั้งแต่{" "}
-                            {item.pausedSince}
-                          </div>
-                        </div>
-                        {isAdmin && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setPendingAction({
-                                type: "resume",
-                                product: item,
-                              })
-                            }
-                            className="inline-flex touch-target shrink-0 items-center gap-1.5 border-2 border-ink bg-white px-3 py-1.5 text-sm font-bold text-ink hover:bg-surface"
-                          >
-                            <PruIcon name="clock" size={16} />
-                            ทำต่อ
-                          </button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Clean Footer (without tips) */}
-        <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3 text-xs text-gray-500">
-          <div className="export-hide flex items-center gap-1">
-            {isAdmin ? (
-              <>
-                <ShieldCheck className="h-3.5 w-3.5 text-green-600" />
-                <span>สิทธิ์ Admin: เปิดใช้งาน</span>
-              </>
-            ) : (
-              <span>โหมดผู้ชม (Read-only)</span>
-            )}
-          </div>
-          <div className="font-medium text-gray-500">
-            Prudential Thailand • ฝ่ายพัฒนาหลักสูตร
-          </div>
-        </div>
-      </div>
-
-      {/* Redesigned Centered Shadcn Modal for Add/Edit */}
       {isModalOpen && (
         <ProductFormModal
           key={
@@ -706,7 +509,7 @@ export function ProductTimeline() {
           onSave={handleSaveProduct}
           onDelete={handleDeleteFromForm}
           teamMembers={teamMembers}
-          availableBrokers={colorMap}
+          partners={partners}
         />
       )}
 
@@ -722,54 +525,41 @@ export function ProductTimeline() {
         onClose={() => setPendingAction(null)}
       />
 
-      {/* Broker Color Customizer Modal */}
-      <BrokerColorModal
-        isOpen={isColorModalOpen}
-        onClose={() => setIsColorModalOpen(false)}
-        onColorChange={handleColorChange}
-        onAddChannel={handleAddChannel}
-        onDeleteChannel={handleDeleteChannel}
-        onResetColors={handleResetColors}
-        currentColors={colorMap}
-        allProductsBrokers={allUsedBrokers}
-      />
-
-      {/* Hidden Off-Screen Container for Seamless 2K Auto-Snapshots without Screen Flickering.
-          Only admins capture LINE images, so viewers skip rendering these boards. */}
-      {isAdmin && (
-        <div
-          className="pointer-events-none fixed top-0 overflow-hidden select-none"
-          style={{ left: "-99999px", width: "1280px", zIndex: -9999 }}
-          aria-hidden="true"
-        >
-          <TimelineExportBoard
-            ref={productExportRef}
-            timelineType="product"
-            selectedMonth={selectedMonth}
-            asOfText={asOfText}
-            items={currentProductItems}
-            colorMap={colorMap}
-          />
-          <div style={{ height: "40px" }} />
-          <TimelineExportBoard
-            ref={enhancementExportRef}
-            timelineType="enhancement"
-            selectedMonth={selectedMonth}
-            asOfText={asOfText}
-            items={currentEnhancementItems}
-            colorMap={colorMap}
-          />
-          <div style={{ height: "40px" }} />
+      {/* Off-screen boards: the LINE images, also what "Save image" downloads */}
+      <div
+        className="pointer-events-none fixed top-0 overflow-hidden select-none"
+        style={{ left: "-99999px", width: "1280px", zIndex: -9999 }}
+        aria-hidden="true"
+      >
+        <TimelineExportBoard
+          ref={productExportRef}
+          timelineType="product"
+          selectedMonth={selectedMonth}
+          asOfText={asOfText}
+          items={currentProductItems}
+          partners={partners}
+        />
+        <div style={{ height: "40px" }} />
+        <TimelineExportBoard
+          ref={enhancementExportRef}
+          timelineType="enhancement"
+          selectedMonth={selectedMonth}
+          asOfText={asOfText}
+          items={currentEnhancementItems}
+          partners={partners}
+        />
+        <div style={{ height: "40px" }} />
+        {isAdmin && (
           <ChannelSummaryExportBoard
             ref={channelSummaryExportRef}
             selectedPeriod={`ทั้งปี ${selectedYear + 543}`}
             isAnnual={true}
             products={annualProducts}
             enhancements={annualEnhancements}
-            colorMap={colorMap}
+            partners={partners}
           />
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

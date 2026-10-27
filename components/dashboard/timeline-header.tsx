@@ -13,7 +13,15 @@ import {
 } from "@/lib/timeline-data"
 import { Loader2 } from "lucide-react"
 import { CloudStatusBadge } from "./cloud-status-badge"
-import { Eyebrow, PruIcon } from "@/components/pru-icon"
+import { Icon, PHASE_ICONS } from "@/components/icon"
+import {
+  HeroSegment,
+  card,
+  heroButton,
+  heroButtonSolid,
+} from "@/components/page-hero"
+import { PHASE_HEADINGS, TIMELINE_GRID, TIMELINE_GRID_COMPACT } from "./timeline-row"
+import { PartnerGroup, PartnerMix } from "./timeline-summary"
 
 export const THAI_MONTHS = [
   "มกราคม",
@@ -30,28 +38,48 @@ export const THAI_MONTHS = [
   "ธันวาคม",
 ]
 
+export const EN_MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+]
+
 /** "OCT 2026" -> "ตุลาคม 2026" */
 export function thaiMonthLabel(monthKey: string): string {
   const parsed = parseMonthYear(monthKey)
   return parsed ? `${THAI_MONTHS[parsed.monthIndex]} ${parsed.year}` : monthKey
 }
 
-interface TimelineHeaderProps {
+/** "OCT 2026" -> "October 2026" */
+export function monthLabel(monthKey: string): string {
+  const parsed = parseMonthYear(monthKey)
+  return parsed ? `${EN_MONTHS[parsed.monthIndex]} ${parsed.year}` : monthKey
+}
+
+interface TimelineHeroProps {
   timelineType: TimelineType
   onTimelineTypeChange: (type: TimelineType) => void
   selectedMonth: string
   onMonthChange: (month: string) => void
-  availableMonths?: string[]
   selectedYear?: number
   onYearChange?: (year: number) => void
   availableYears?: number[]
   onGoToCurrentMonth?: () => void
   asOfText: string
   onAsOfChange: (asOf: string) => void
-  itemCount?: number
+  counts?: { total: number; completed: number; inProgress: number; onHold: number }
+  groups: PartnerGroup[]
   onAddClick: () => void
   onExportAllClick: () => void
-  onOpenColorModal: () => void
   onSendLineClick?: () => void
   isSendingLine?: boolean
   isExporting?: boolean
@@ -60,10 +88,11 @@ interface TimelineHeaderProps {
   isSyncing?: boolean
 }
 
-const outlineButton =
-  "touch-target inline-flex items-center gap-2 h-11 px-4 border-2 border-rule bg-white text-[15px] font-bold text-ink hover:border-ink transition-colors disabled:opacity-50"
+const heroSelect =
+  "h-10 rounded-full border-[1.5px] border-white/55 bg-transparent px-4 text-sm font-semibold text-white [&>option]:text-ink"
 
-export function TimelineHeader({
+/** The red band of the Timeline page: controls, the month's headline numbers and the partner mix */
+export function TimelineHero({
   timelineType,
   onTimelineTypeChange,
   selectedMonth,
@@ -74,33 +103,29 @@ export function TimelineHeader({
   onGoToCurrentMonth,
   asOfText,
   onAsOfChange,
-  itemCount,
+  counts,
+  groups,
   onAddClick,
   onExportAllClick,
-  onOpenColorModal,
   onSendLineClick,
   isSendingLine = false,
   isExporting = false,
   isAdmin = false,
   isCloudConnected = false,
   isSyncing = false,
-}: TimelineHeaderProps) {
+}: TimelineHeroProps) {
   const [isEditingAsOf, setIsEditingAsOf] = useState(false)
   const [tempAsOf, setTempAsOf] = useState(asOfText)
 
-  const isEnhancement = timelineType === "enhancement"
   const systemMonth = getSystemCurrentMonth()
   const activeYear =
-    selectedYear ||
-    parseMonthYear(selectedMonth)?.year ||
-    new Date().getFullYear()
+    selectedYear || parseMonthYear(selectedMonth)?.year || new Date().getFullYear()
   const yearsList =
     availableYears && availableYears.length > 0
       ? availableYears
       : [activeYear - 1, activeYear, activeYear + 1]
   const displayMonths = getMonthsForYear(activeYear)
   const currentIndex = displayMonths.indexOf(selectedMonth)
-  const parsedSelected = parseMonthYear(selectedMonth)
 
   const goToCurrent = () =>
     onGoToCurrentMonth ? onGoToCurrentMonth() : onMonthChange(systemMonth)
@@ -110,180 +135,43 @@ export function TimelineHeader({
     setIsEditingAsOf(false)
   }
 
+  const roundButton =
+    "touch-target inline-flex h-10 w-10 items-center justify-center rounded-full border-[1.5px] border-white/55 text-white hover:bg-white/15 disabled:opacity-40"
+
   return (
-    <div className="flex w-full flex-col gap-6">
-      {/* Title + actions. The title stays in exported images; the buttons do not. */}
-      <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
-        <div className="flex min-w-0 flex-col gap-3">
-          <Eyebrow>
-            {isEnhancement ? "Enhancement Timeline" : "New Product Timeline"}
-          </Eyebrow>
-          <h1 className="m-0 text-[28px] leading-tight font-bold text-ink sm:text-[40px]">
-            งานเดือน{" "}
-            <span className="text-pru-red">
-              {parsedSelected ? thaiMonthLabel(selectedMonth) : selectedMonth}
-            </span>
-          </h1>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-ink-soft">
-            {isEditingAsOf ? (
-              <span className="export-hide inline-flex items-center gap-2">
-                <label htmlFor="as-of-input" className="sr-only">
-                  ข้อมูล ณ วันที่
-                </label>
-                <input
-                  id="as-of-input"
-                  type="text"
-                  value={tempAsOf}
-                  autoFocus
-                  onChange={(e) => setTempAsOf(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleSaveAsOf()
-                    if (e.key === "Escape") setIsEditingAsOf(false)
-                  }}
-                  placeholder="เช่น as of 31 Aug"
-                  className="h-9 w-40 border-2 border-ink bg-white px-2 text-sm text-ink"
-                />
-                <button
-                  type="button"
-                  onClick={handleSaveAsOf}
-                  className="h-9 touch-target bg-brand-fill px-3 text-sm font-bold text-white"
-                >
-                  บันทึก
-                </button>
-              </span>
-            ) : isAdmin ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setTempAsOf(asOfText)
-                  setIsEditingAsOf(true)
-                }}
-                title="แก้ไขวันที่ของข้อมูล"
-                className="inline-flex items-center gap-1.5 text-ink-soft underline decoration-dotted underline-offset-4 hover:text-ink"
-              >
-                <PruIcon name="calendar" size={16} />
-                {asOfText}
-              </button>
-            ) : (
-              <span className="inline-flex items-center gap-1.5">
-                <PruIcon name="calendar" size={16} />
-                {asOfText}
-              </span>
-            )}
-            {typeof itemCount === "number" && (
-              <span>· {itemCount} โครงการ</span>
-            )}
-            <span className="export-hide">
-              <CloudStatusBadge
-                isCloudConnected={isCloudConnected}
-                isSyncing={isSyncing}
-              />
-            </span>
-          </div>
-        </div>
-
-        <div className="export-hide flex flex-wrap items-center gap-3">
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={onOpenColorModal}
-              className={`${outlineButton} hidden md:inline-flex`}
-              title="จัดการช่องทางและสี"
-            >
-              <PruIcon name="board" size={18} />
-              ช่องทาง
-            </button>
-          )}
+    <div className="flex flex-col gap-6">
+      {/* Controls */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <HeroSegment
+            label="Timeline type"
+            value={timelineType}
+            onChange={onTimelineTypeChange}
+            options={[
+              { value: "product", label: "New Product" },
+              { value: "enhancement", label: "Enhancement" },
+            ]}
+          />
           <button
             type="button"
-            onClick={onExportAllClick}
-            disabled={isExporting}
-            className={`${outlineButton} hidden md:inline-flex`}
-            title="บันทึกหน้านี้เป็นรูปภาพ PNG"
-          >
-            <PruIcon name="document" size={18} />
-            {isExporting ? "กำลังสร้างรูป..." : "บันทึกเป็นรูป"}
-          </button>
-          {onSendLineClick && (
-            <button
-              type="button"
-              onClick={onSendLineClick}
-              disabled={isSendingLine}
-              className={outlineButton}
-            >
-              {isSendingLine ? (
-                <Loader2 className="h-[18px] w-[18px] animate-spin" />
-              ) : (
-                <PruIcon name="send" size={18} />
-              )}
-              {isSendingLine ? "กำลังส่ง..." : "ส่งรูปเข้า LINE"}
-            </button>
-          )}
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={onAddClick}
-              className="inline-flex h-11 touch-target items-center gap-2 border-2 border-brand-fill bg-brand-fill px-5 text-[15px] font-bold text-white hover:border-brand-hover hover:bg-brand-hover"
-            >
-              <PruIcon name="plus" size={18} strokeWidth={4} />
-              เพิ่มงาน
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Controls: type, month and year */}
-      <div className="export-hide flex flex-wrap items-center justify-between gap-3">
-        <div
-          role="tablist"
-          aria-label="ประเภทงาน"
-          className="flex border-2 border-rule bg-white"
-        >
-          {(["product", "enhancement"] as TimelineType[]).map((type) => {
-            const selected = timelineType === type
-            return (
-              <button
-                key={type}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                onClick={() => onTimelineTypeChange(type)}
-                className={`h-11 touch-target px-4 text-[15px] sm:px-5 ${selected ? "bg-ink font-bold text-white" : "bg-white text-ink hover:bg-surface"}`}
-              >
-                {type === "product" ? "New Product" : "Enhancement"}
-              </button>
-            )
-          })}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() =>
-              currentIndex > 0 && onMonthChange(displayMonths[currentIndex - 1])
-            }
+            onClick={() => currentIndex > 0 && onMonthChange(displayMonths[currentIndex - 1])}
             disabled={currentIndex <= 0}
-            aria-label="เดือนก่อนหน้า"
-            className="inline-flex h-11 touch-target w-11 items-center justify-center border-2 border-rule bg-white text-ink disabled:opacity-40"
+            aria-label="Previous month"
+            className={roundButton}
           >
-            <PruIcon name="chevronLeft" size={18} strokeWidth={4} />
+            <Icon name="chevronLeft" size={18} strokeWidth={2} />
           </button>
-          <label className="relative inline-flex items-center">
-            <span className="sr-only">เลือกเดือน</span>
-            <PruIcon
-              name="calendar"
-              size={18}
-              className="pointer-events-none absolute left-3 text-pru-red"
-            />
+          <label className="inline-flex items-center">
+            <span className="sr-only">Month</span>
             <select
               value={currentIndex >= 0 ? selectedMonth : ""}
               onChange={(e) => onMonthChange(e.target.value)}
-              className="h-11 border-2 border-rule bg-white pr-3 pl-10 text-base font-bold text-ink"
+              className={`${heroSelect} text-base font-bold`}
             >
               {displayMonths.map((m) => (
                 <option key={m} value={m}>
-                  {thaiMonthLabel(m)}
-                  {getMonthStatus(m) === "current" ? " (เดือนนี้)" : ""}
+                  {monthLabel(m)}
+                  {getMonthStatus(m) === "current" ? " (this month)" : ""}
                 </option>
               ))}
             </select>
@@ -295,18 +183,18 @@ export function TimelineHeader({
               onMonthChange(displayMonths[currentIndex + 1])
             }
             disabled={currentIndex >= displayMonths.length - 1}
-            aria-label="เดือนถัดไป"
-            className="inline-flex h-11 touch-target w-11 items-center justify-center border-2 border-rule bg-white text-ink disabled:opacity-40"
+            aria-label="Next month"
+            className={roundButton}
           >
-            <PruIcon name="chevronRight" size={18} strokeWidth={4} />
+            <Icon name="chevronRight" size={18} strokeWidth={2} />
           </button>
           {onYearChange && (
             <label className="inline-flex items-center">
-              <span className="sr-only">เลือกปี</span>
+              <span className="sr-only">Year</span>
               <select
                 value={activeYear}
                 onChange={(e) => onYearChange(parseInt(e.target.value, 10))}
-                className="h-11 border-2 border-rule bg-white px-3 text-base text-ink"
+                className={heroSelect}
               >
                 {yearsList.map((y) => (
                   <option key={y} value={y}>
@@ -317,55 +205,144 @@ export function TimelineHeader({
             </label>
           )}
           {selectedMonth !== systemMonth && (
-            <button
-              type="button"
-              onClick={goToCurrent}
-              className="h-11 touch-target px-2 text-sm font-bold text-ink underline underline-offset-4 hover:text-brand-ink"
-            >
-              กลับเดือนปัจจุบัน
+            <button type="button" onClick={goToCurrent} className="touch-target h-10 px-2 text-sm font-semibold text-white underline underline-offset-4">
+              This month
             </button>
           )}
         </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={onExportAllClick} disabled={isExporting} className={`${heroButton} hidden md:inline-flex`}>
+            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon name="download" size={18} />}
+            {isExporting ? "Saving…" : "Save image"}
+          </button>
+          {onSendLineClick && (
+            <button type="button" onClick={onSendLineClick} disabled={isSendingLine} className={heroButton}>
+              {isSendingLine ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon name="send" size={18} />}
+              {isSendingLine ? "Sending…" : "Send to LINE"}
+            </button>
+          )}
+          {isAdmin && (
+            <button type="button" onClick={onAddClick} className={heroButtonSolid}>
+              <Icon name="plus" size={18} strokeWidth={2.2} />
+              Add project
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Headline numbers and partner mix */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_440px] lg:items-end">
+        <div className="flex flex-col gap-4">
+          <div className="flex items-end gap-4">
+            <span className="text-[88px] leading-[0.82] font-bold tracking-[-0.04em] sm:text-[124px]">
+              {counts?.total ?? "–"}
+            </span>
+            <span className="pb-1.5 text-2xl leading-tight font-bold sm:text-[30px]">
+              Projects
+              <span className="mt-1 flex flex-wrap items-center gap-x-2 text-[15px] font-medium">
+                {isEditingAsOf ? (
+                  <span className="export-hide inline-flex items-center gap-2">
+                    <label htmlFor="as-of-input" className="sr-only">Last updated</label>
+                    <input
+                      id="as-of-input"
+                      type="text"
+                      value={tempAsOf}
+                      autoFocus
+                      onChange={(e) => setTempAsOf(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSaveAsOf()
+                        if (e.key === "Escape") setIsEditingAsOf(false)
+                      }}
+                      placeholder="as of 31 Aug"
+                      className="h-9 w-40 rounded-lg bg-white px-2 text-sm text-ink"
+                    />
+                    <button type="button" onClick={handleSaveAsOf} className="h-9 touch-target rounded-lg bg-ink px-3 text-sm font-bold text-white">
+                      Save
+                    </button>
+                  </span>
+                ) : isAdmin ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempAsOf(asOfText)
+                      setIsEditingAsOf(true)
+                    }}
+                    title="Edit the date of this data"
+                    className="underline decoration-dotted underline-offset-4"
+                  >
+                    Last updated · {asOfText}
+                  </button>
+                ) : (
+                  <span>Last updated · {asOfText}</span>
+                )}
+                <span className="export-hide">
+                  <CloudStatusBadge isCloudConnected={isCloudConnected} isSyncing={isSyncing} />
+                </span>
+              </span>
+            </span>
+          </div>
+          {counts && (
+            <div className="flex flex-wrap gap-2.5">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white py-1.5 pr-3.5 pl-2 font-bold text-done">
+                <Icon name="completed" size={22} strokeWidth={2} />
+                {counts.completed} Completed
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-full bg-white py-1.5 pr-3.5 pl-2 font-bold text-brand-ink">
+                <Icon name="inProgress" size={22} strokeWidth={2} />
+                {counts.inProgress} In progress
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-full bg-black/20 py-1.5 pr-3.5 pl-2 font-semibold">
+                <Icon name="onHold" size={22} strokeWidth={2} />
+                {counts.onHold} On hold
+              </span>
+            </div>
+          )}
+        </div>
+        {groups.length > 0 && (
+          <div className={`${card} p-5 text-ink`}>
+            <b className="mb-3.5 block text-[15px]">Projects by partner</b>
+            <PartnerMix groups={groups} />
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-interface TimelineTrackHeaderProps {
-  timelineType: TimelineType
-}
-
-/** Column header shared by the screen table and the LINE image (same grid as TimelineRow). */
+/** Column headings shared by the page table and the LINE image */
 export function TimelineTrackHeader({
   timelineType,
-}: TimelineTrackHeaderProps) {
-  const phases =
-    timelineType === "enhancement" ? ENHANCEMENT_PHASES : PRODUCT_PHASES
-
+  compact = false,
+}: {
+  timelineType: TimelineType
+  compact?: boolean
+}) {
+  const phases = timelineType === "enhancement" ? ENHANCEMENT_PHASES : PRODUCT_PHASES
+  const dot = compact ? "h-7 w-7" : "h-8 w-8"
   return (
-    <div className="grid min-w-[1080px] grid-cols-[280px_1fr_150px] items-stretch border-b-[3px] border-ink px-6 text-[15px] leading-tight font-bold">
-      <div className="flex py-3 pr-3">
-        <div className="flex min-h-[60px] flex-1 items-center border-2 border-rule bg-surface px-4 text-ink">
-          โครงการ
-        </div>
+    <div className={`${compact ? TIMELINE_GRID_COMPACT : TIMELINE_GRID} border-b-2 border-ink`}>
+      <div className={`flex items-end ${compact ? "pb-2.5 pl-5" : "pb-3 pl-6"}`}>
+        <span className="text-[13px] font-bold">Project</span>
       </div>
-      <div className="grid grid-cols-6">
-        {phases.map((phase, i) => (
-          <div
-            key={phase.key}
-            className={`flex px-1 py-3 ${i % 2 === 1 ? "bg-shade" : ""}`}
-          >
-            <div className="flex min-h-[60px] flex-1 items-center justify-center border-2 border-gray-400 bg-white px-2 text-center whitespace-pre-line text-ink">
-              {phase.label}
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="flex bg-pru-red-soft py-3 pl-1">
-        <div className="flex min-h-[60px] flex-1 items-center justify-center gap-1.5 bg-pru-red px-2 text-center text-white">
-          <PruIcon name="target" size={18} strokeWidth={4} />
-          Target Launch
+      {phases.map((phase, i) => (
+        <div key={phase.key} className={`flex flex-col items-center gap-1.5 px-1 text-center ${compact ? "pt-3 pb-2.5" : "pt-4 pb-3"}`}>
+          <span className={`flex ${dot} items-center justify-center rounded-full bg-ink text-white`}>
+            <Icon name={PHASE_ICONS[phase.key]} size={compact ? 14 : 16} />
+          </span>
+          <span className="min-h-[33px] text-[13px] leading-tight font-bold whitespace-pre-line">
+            <span className="text-gray-400">{i + 1} · </span>
+            {PHASE_HEADINGS[phase.key]}
+          </span>
         </div>
+      ))}
+      <div className={`flex flex-col items-center gap-1.5 text-center ${compact ? "pt-3 pb-2.5" : "pt-4 pb-3"}`}>
+        <span className={`flex ${dot} items-center justify-center rounded-full bg-brand-ink text-white`}>
+          <Icon name="launch" size={compact ? 14 : 16} />
+        </span>
+        <span className="min-h-[33px] text-[13px] leading-tight font-bold whitespace-pre-line text-brand-ink">
+          {"Target\nLaunch"}
+        </span>
       </div>
     </div>
   )

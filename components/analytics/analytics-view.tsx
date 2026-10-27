@@ -21,39 +21,35 @@ import {
   checkIsProjectCompleted,
 } from "@/lib/timeline-data"
 import {
-  BarChart3,
   Users,
   Layers,
   GraduationCap,
-  Package,
-  Boxes,
   Lock,
-  Calendar,
   Clock,
-  ShieldCheck,
   CheckCircle2,
-  Tag,
-  RotateCcw,
   Search,
   UserCheck,
-  ExternalLink,
-  Info,
   X,
-  Camera,
   Loader2,
-  Download,
-  Send,
   PauseCircle,
 } from "lucide-react"
 import Link from "next/link"
 import { toPng } from "html-to-image"
 
-import { resolveBrokerColor } from "@/lib/broker-colors"
-import { useChannelColors } from "@/hooks/use-channel-colors"
+import { usePartners } from "@/hooks/use-partners"
+import { UNASSIGNED_PARTNER, partnerOf } from "@/lib/partners"
+import { Icon } from "@/components/icon"
+import {
+  PageBody,
+  PageHero,
+  card,
+  cardButton,
+  heroButton,
+  heroButtonSolid,
+} from "@/components/page-hero"
 import { updateChannelSummarySnapshot } from "@/lib/supabase"
 import { toast } from "@/lib/notify"
 import { useDialogA11y } from "@/hooks/use-dialog-a11y"
-import { Eyebrow, PruIcon } from "@/components/pru-icon"
 import { ChannelSummaryExportBoard } from "./channel-summary-export-board"
 
 interface AggregatedItem extends ProductItem {
@@ -103,8 +99,8 @@ export function AnalyticsView() {
     resetToDefault: resetTeamMembers,
   } = useTeamMembers()
 
-  // Unified Channel Colors from hook (shared with timeline and synchronized)
-  const { colorMap } = useChannelColors(monthlyStore)
+  // Partner colours shared with the Timeline
+  const { partners } = usePartners()
 
   // Timeframe Scope: Default to "ALL_YEAR" (Annual Overview)
   const [selectedPeriod, setSelectedPeriod] = useState<string>("ALL_YEAR")
@@ -466,28 +462,44 @@ export function AnalyticsView() {
     return map
   }, [activeItems])
 
-  const channelSegments: DonutChartSegment[] = useMemo(() => {
-    const entries = Object.entries(channelCounts)
-    return entries.map(([channel, count]) => {
-      const color = resolveBrokerColor(channel, colorMap)
-      return {
-        label: channel,
-        value: count,
-        color,
+  // Projects by partner: channels roll up into their partner's colour
+  const partnerSegments = useMemo(() => {
+    const map = new Map<
+      string,
+      { label: string; value: number; color: string; parts: Record<string, number>; order: number }
+    >()
+    const order = [...partners, UNASSIGNED_PARTNER].map((p) => p.id)
+    Object.entries(channelCounts).forEach(([channel, count]) => {
+      const p = partnerOf(channel, partners)
+      const row = map.get(p.id) || {
+        label: p.name,
+        value: 0,
+        color: p.color,
+        parts: {},
+        order: order.indexOf(p.id),
       }
+      row.value += count
+      row.parts[channel] = (row.parts[channel] || 0) + count
+      map.set(p.id, row)
     })
-  }, [channelCounts, colorMap])
+    return Array.from(map.values())
+      .sort((x, y) => y.value - x.value || x.order - y.order)
+      .map((r) => ({
+        label: r.label,
+        value: r.value,
+        color: r.color,
+        channels: Object.entries(r.parts)
+          .map(([c, n]) => `${c} ${n}`)
+          .join(" · "),
+      }))
+  }, [channelCounts, partners])
 
-  const totalChannelCount = channelSegments.reduce((s, c) => s + c.value, 0)
-  const activeHoveredChannel = channelSegments.find(
+  const totalPartnerCount = partnerSegments.reduce((s, c) => s + c.value, 0)
+  const activeHoveredPartner = partnerSegments.find(
     (s) => s.label === hoveredChannel
   )
-  const displayChannelVal = activeHoveredChannel?.value ?? totalChannelCount
-  const displayChannelLabel = activeHoveredChannel?.label ?? "ทุกช่องทาง"
-  const displayChannelPct =
-    totalChannelCount > 0 && activeHoveredChannel
-      ? ((activeHoveredChannel.value / totalChannelCount) * 100).toFixed(0)
-      : "100"
+  const displayPartnerVal = activeHoveredPartner?.value ?? totalPartnerCount
+  const displayPartnerLabel = activeHoveredPartner?.label ?? "All partners"
 
   // 6. Team Member Workload Breakdown (Unfiltered by member to calculate team-wide stats)
   const allTeamItemsWithStatus = useMemo(() => {
@@ -566,14 +578,14 @@ export function AnalyticsView() {
         paused: 0,
       }
       return [
-        { label: "เสร็จสมบูรณ์แล้ว", value: mStat.completed, color: "#10B981" },
+        { label: "Completed", value: mStat.completed, color: "#15803D" },
         {
-          label: "ยังไม่เสร็จ / ค้างอยู่",
+          label: "In progress",
           value: mStat.pending,
-          color: "#F59E0B",
+          color: "#ED1B2E",
         },
         ...(mStat.paused > 0
-          ? [{ label: "หยุดชั่วคราว", value: mStat.paused, color: "#94A3B8" }]
+          ? [{ label: "On hold", value: mStat.paused, color: "#A8A29E" }]
           : []),
       ]
     }
@@ -589,16 +601,6 @@ export function AnalyticsView() {
     (s) => s.label === hoveredMember
   )
   const displayMemberVal = activeHoveredMember?.value ?? totalMemberWorkload
-  const displayMemberLabel =
-    activeHoveredMember?.label ??
-    (selectedMember ? "รวมโครงการ" : "ภาระงานที่มอบหมาย")
-  const displayMemberPct =
-    totalMemberWorkload > 0 && activeHoveredMember
-      ? ((activeHoveredMember.value / totalMemberWorkload) * 100).toFixed(0)
-      : selectedMember && totalMemberWorkload > 0
-        ? `${(((memberStats[selectedMember]?.completed || 0) / totalMemberWorkload) * 100).toFixed(0)}% เสร็จแล้ว`
-        : "100"
-
   // Helper to get owner color
   const getOwnerColor = (ownerName: string | undefined) => {
     if (!ownerName) return "#64748B"
@@ -705,823 +707,446 @@ export function AnalyticsView() {
     )
   }
 
+  const completionPct =
+    rawUniqueProjectsCount > 0
+      ? Math.round((allTeamCompletedCount / rawUniqueProjectsCount) * 100)
+      : 0
+  const maxMonth = Math.max(1, ...monthlyStats.map((s) => s.totalCount))
+  const kpiCard = `${card} flex flex-col gap-3 p-5`
+
   return (
-    <div className="mx-auto w-full max-w-[1440px] space-y-8 px-4 py-6 sm:px-6 sm:py-10 lg:px-10">
-      {/* 1. Header: the headline states the conclusion */}
-      <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
-        <div className="flex flex-col gap-3">
-          <Eyebrow>
-            สรุปสถิติ · {isAnnual ? `ทั้งปี ${activeYearTh}` : selectedPeriod}
-          </Eyebrow>
-          <h1 className="m-0 text-[28px] leading-tight font-bold text-ink sm:text-[40px]">
-            ส่งมอบแล้ว{" "}
-            <span className="text-pru-red">{allTeamCompletedCount}</span> จาก{" "}
-            {rawUniqueProjectsCount} โครงการ
-          </h1>
-          <p className="m-0 text-sm text-ink-soft">
-            ยังดำเนินการอยู่ {allTeamPendingCount} โครงการ
-            {allTeamPausedCount > 0
-              ? ` · หยุดชั่วคราว ${allTeamPausedCount}`
-              : ""}
-            {isAnnual
-              ? " · นับโครงการไม่ซ้ำข้ามเดือน"
-              : ` · เฉพาะรอบเดือน ${selectedPeriod}`}
-          </p>
-        </div>
-
-        {/* Controls: Timeframe Selector & Actions */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Year Switcher for Analytics */}
-          {availableYears && availableYears.length > 0 && setSelectedYear ? (
-            <div className="flex h-11 items-center gap-2 border-2 border-rule bg-white px-3">
-              <span className="text-sm text-ink-soft">ปี</span>
-              <select
-                value={activeYear}
-                onChange={(e) => {
-                  const newYear = parseInt(e.target.value, 10)
-                  setSelectedYear(newYear)
-                  setSelectedPeriod("ALL_YEAR")
-                }}
-                className="cursor-pointer bg-transparent text-sm font-bold text-ink focus:outline-none"
-              >
-                {availableYears.map((y) => (
-                  <option key={y} value={y}>
-                    {y + 543} ({y})
-                  </option>
-                ))}
-              </select>
+    <div>
+      <PageHero>
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
+              {availableYears && availableYears.length > 0 && setSelectedYear ? (
+                <label className="inline-flex items-center">
+                  <span className="sr-only">Year</span>
+                  <select
+                    value={activeYear}
+                    onChange={(e) => {
+                      setSelectedYear(parseInt(e.target.value, 10))
+                      setSelectedPeriod("ALL_YEAR")
+                    }}
+                    className="h-10 rounded-full border-[1.5px] border-white/55 bg-transparent px-4 text-sm font-semibold text-white [&>option]:text-ink"
+                  >
+                    {availableYears.map((y) => (
+                      <option key={y} value={y}>
+                        {y} (พ.ศ. {y + 543})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              <label className="inline-flex items-center">
+                <span className="sr-only">Period</span>
+                <select
+                  value={selectedPeriod}
+                  onChange={(e) => setSelectedPeriod(e.target.value)}
+                  className="h-10 rounded-full border-[1.5px] border-white/55 bg-transparent px-4 text-sm font-semibold text-white [&>option]:text-ink"
+                >
+                  <option value="ALL_YEAR">All year {activeYear}</option>
+                  <optgroup label={`Months of ${activeYear}`}>
+                    {yearMonths.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </label>
+              {!isAnnual && (
+                <button type="button" onClick={() => setSelectedPeriod("ALL_YEAR")} className={heroButton}>
+                  <Icon name="refresh" size={16} />
+                  All year
+                </button>
+              )}
             </div>
-          ) : null}
-
-          {/* Timeframe Selector (Annual or Monthly) */}
-          <div className="flex h-11 items-center gap-2 border-2 border-rule bg-white px-3">
-            <PruIcon name="calendar" size={18} className="text-pru-red" />
-            <select
-              value={selectedPeriod}
-              onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="cursor-pointer bg-transparent text-sm font-bold text-ink focus:outline-none"
-            >
-              <option value="ALL_YEAR">
-                ภาพรวมทั้งปี {activeYearTh} (All Year {activeYear})
-              </option>
-              <optgroup label={`── เลือกรายเดือนปี ${activeYearTh} ──`}>
-                {yearMonths.map((m) => (
-                  <option key={m} value={m}>
-                    รอบเดือน: {m}
-                  </option>
-                ))}
-              </optgroup>
-            </select>
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => setIsTeamModalOpen(true)} className={heroButton}>
+                <Icon name="team" size={18} />
+                Team ({teamMembers.length})
+              </button>
+              <button type="button" onClick={handleSendToLine} disabled={isSendingLine} className={heroButton}>
+                {isSendingLine ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon name="send" size={18} />}
+                {isSendingLine ? "Sending…" : "Send to LINE"}
+              </button>
+              <button type="button" onClick={handleExportImage} disabled={isExporting} className={heroButtonSolid}>
+                {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon name="download" size={18} />}
+                {isExporting ? "Saving…" : "Save image"}
+              </button>
+            </div>
           </div>
 
-          {/* Quick Back to Annual View Button (if single month is active) */}
-          {!isAnnual && (
-            <button
-              type="button"
-              onClick={() => setSelectedPeriod("ALL_YEAR")}
-              className="export-hide inline-flex h-11 touch-target cursor-pointer items-center gap-2 border-2 border-rule bg-white px-4 text-sm font-bold text-ink transition-colors hover:border-ink disabled:opacity-50"
-              title="กลับไปดูภาพรวมทั้งปี"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              <span>ภาพรวมทั้งปี</span>
-            </button>
-          )}
-
-          {/* Manage Team Button */}
-          <button
-            type="button"
-            onClick={() => setIsTeamModalOpen(true)}
-            className="export-hide inline-flex h-11 touch-target cursor-pointer items-center gap-2 border-2 border-rule bg-white px-4 text-sm font-bold text-ink transition-colors hover:border-ink disabled:opacity-50"
-          >
-            <PruIcon name="family" size={18} />
-            <span className="hidden sm:inline">จัดการสมาชิกทีม</span> (
-            {teamMembers.length})
-          </button>
-
-          {/* Send to LINE Button */}
-          <button
-            type="button"
-            onClick={handleSendToLine}
-            disabled={isSendingLine}
-            className="export-hide inline-flex h-11 touch-target cursor-pointer items-center gap-2 border-2 border-rule bg-white px-4 text-sm font-bold text-ink transition-colors hover:border-ink disabled:opacity-50"
-            title="อัปเดตรูปภาพสรุปช่องทางหน้านี้ขึ้น Cloud เพื่อให้ LINE Bot นำไปส่ง"
-          >
-            {isSendingLine ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <PruIcon name="send" size={18} />
-            )}
-            <span>{isSendingLine ? "กำลังส่ง..." : "ส่งรูปเข้า LINE"}</span>
-          </button>
-
-          {/* Export to Image Button */}
-          <button
-            type="button"
-            onClick={handleExportImage}
-            disabled={isExporting}
-            className="export-hide inline-flex h-11 touch-target cursor-pointer items-center gap-2 border-2 border-brand-fill bg-brand-fill px-4 text-sm font-bold text-white transition-colors hover:border-brand-hover hover:bg-brand-hover disabled:opacity-50"
-            title="บันทึกหน้าสรุปสถิตินี้เป็นรูปภาพความละเอียดสูง (2K)"
-          >
-            {isExporting ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <PruIcon name="document" size={18} />
-            )}
-            <span>
-              {isExporting ? "กำลังบันทึกภาพ..." : "บันทึกเป็นรูปภาพ"}
-            </span>
-          </button>
-        </div>
-      </div>
-
-      {/* 2. Interactive Team Member Selector Bar (แบบที่ 1: Global Filter with Complete Overview) */}
-      <div className="space-y-3 border-2 border-rule bg-white p-4 sm:p-5">
-        <div className="flex flex-col justify-between gap-2.5 sm:flex-row sm:items-center">
-          <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-gray-800">
-            <Users className="h-4 w-4 text-brand-ink" />
-            <span>เลือกดูสถิติรายบุคคล หรือ ทั้งทีม:</span>
-            {selectedMember ? (
-              <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-700">
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{
-                    backgroundColor: memberColors[selectedMember] || "#ED1C24",
-                  }}
-                />
-                กำลังดูของ:{" "}
-                <span className="font-black text-brand-ink">
-                  {selectedMember}
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-end">
+            <div className="flex flex-col gap-4">
+              <div className="text-lg font-semibold">
+                Analytics · {isAnnual ? `All year ${activeYear}` : selectedPeriod}
+              </div>
+              <div className="flex items-end gap-4">
+                <span className="text-[88px] leading-[0.82] font-bold tracking-[-0.04em] sm:text-[124px]">
+                  {allTeamCompletedCount}
                 </span>
-                <span className="font-normal text-gray-500">|</span>
-                <span>รวม {memberStats[selectedMember]?.total || 0} งาน</span>
-                <span className="text-amber-700">
-                  (ค้าง {memberStats[selectedMember]?.pending || 0})
+                <span className="pb-1.5 text-2xl leading-tight font-bold sm:text-[28px]">
+                  of {rawUniqueProjectsCount} projects
+                  <br />
+                  completed
                 </span>
-                <span className="text-emerald-700">
-                  (เสร็จ {memberStats[selectedMember]?.completed || 0})
-                </span>
-                {(memberStats[selectedMember]?.paused || 0) > 0 && (
-                  <span className="text-slate-500">
-                    (หยุดชั่วคราว {memberStats[selectedMember]?.paused})
-                  </span>
-                )}
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-700">
-                <span>ภาพรวมทั้งทีม:</span>
-                <span className="font-black text-brand-ink">
-                  รวม {rawUniqueProjectsCount} โครงการ
-                </span>
-                <span className="font-normal text-gray-500">|</span>
-                <span className="font-bold text-amber-700">
-                  ค้าง {allTeamPendingCount}
-                </span>
-                <span className="font-bold text-emerald-700">
-                  เสร็จ {allTeamCompletedCount}
+              </div>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="inline-flex items-center gap-2 rounded-full bg-white py-1.5 pr-3.5 pl-2 font-bold text-brand-ink">
+                  <Icon name="inProgress" size={22} strokeWidth={2} />
+                  {allTeamPendingCount} In progress
                 </span>
                 {allTeamPausedCount > 0 && (
-                  <span className="font-bold text-slate-500">
-                    หยุดชั่วคราว {allTeamPausedCount}
+                  <span className="inline-flex items-center gap-2 rounded-full bg-black/20 py-1.5 pr-3.5 pl-2 font-semibold">
+                    <Icon name="onHold" size={22} strokeWidth={2} />
+                    {allTeamPausedCount} On hold
                   </span>
                 )}
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Quick Open Popup button */}
-            <button
-              type="button"
-              onClick={() => handleOpenDeliveryModal(selectedMember)}
-              className="export-hide inline-flex h-11 touch-target cursor-pointer items-center gap-2 border-2 border-rule bg-white px-4 text-sm font-bold text-ink transition-colors hover:border-ink disabled:opacity-50"
-              title="เปิดหน้าต่าง Popup ติดตามสถานะงานและโครงการที่ค้าง"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              <span>เปิดดูสถานะงาน (Popup)</span>
-            </button>
-
-            {selectedMember && (
-              <button
-                type="button"
-                onClick={() => setSelectedMember(null)}
-                className="ml-1 inline-flex items-center gap-1 text-xs font-bold text-gray-500 transition-colors hover:text-brand-ink"
-                title="กลับไปดูภาพรวมทั้งทีม"
-              >
-                <RotateCcw className="h-3 w-3" />
-                <span>ดูทั้งทีม</span>
-              </button>
-            )}
+                {isAnnual && <span className="text-sm">นับ project ไม่ซ้ำข้ามเดือน</span>}
+              </div>
+            </div>
+            <div>
+              <div className="mb-2 text-sm font-semibold">Completion {completionPct}%</div>
+              <div className="flex h-4 gap-[3px] overflow-hidden rounded-full">
+                <span className="bg-white" style={{ flex: allTeamCompletedCount || 0.001 }} />
+                <span className="bg-white/30" style={{ flex: allTeamPendingCount + allTeamPausedCount || 0.001 }} />
+              </div>
+              <div className="mt-2 flex justify-between text-[13px]">
+                <span>{allTeamCompletedCount} Completed</span>
+                <span>{allTeamPendingCount + allTeamPausedCount} Not yet</span>
+              </div>
+            </div>
           </div>
         </div>
+      </PageHero>
 
-        {/* Member Buttons Row */}
-        <div className="flex scrollbar-thin items-center gap-2 overflow-x-auto pt-0.5 pb-1.5">
-          {/* Button: All Team */}
+      <PageBody className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+        {/* Owner filter */}
+        <section className={`${card} flex flex-wrap items-center gap-2.5 px-5 py-4 lg:col-span-12`}>
+          <span className="mr-1.5 inline-flex items-center gap-2 text-sm font-bold">
+            <Icon name="user" size={20} />
+            View by owner
+          </span>
           <button
             type="button"
             onClick={() => setSelectedMember(null)}
-            className={`inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
-              selectedMember === null
-                ? "bg-ink text-white"
-                : "border-2 border-rule bg-white text-ink hover:bg-surface"
-            }`}
+            aria-pressed={selectedMember === null}
+            className={`touch-target inline-flex h-10 items-center gap-2 rounded-full pr-1.5 pl-3 text-sm font-semibold ${selectedMember === null ? "bg-ink text-white" : "bg-surface text-ink hover:bg-rule"}`}
           >
-            <Users className="h-3.5 w-3.5" />
-            <span>ทั้งทีม</span>
-            <span
-              className={`py-0.2 rounded-full px-1.5 text-xs font-black ${
-                selectedMember === null
-                  ? "bg-white/20 text-white"
-                  : "bg-slate-200 text-slate-700"
-              }`}
-            >
-              {rawUniqueProjectsCount} โครงการ
+            <Icon name="team" size={18} />
+            Whole team
+            <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${selectedMember === null ? "bg-white/20" : "bg-white"}`}>
+              {rawUniqueProjectsCount}
             </span>
             {allTeamPendingCount > 0 && (
-              <span
-                className={`py-0.2 rounded px-1.5 text-xs font-semibold ${
-                  selectedMember === null
-                    ? "bg-pru-red font-bold text-white"
-                    : "border border-amber-200 bg-amber-50 text-amber-800"
-                }`}
-              >
-                ค้าง {allTeamPendingCount}
+              <span className="rounded-full bg-pru-red px-2 py-0.5 text-xs font-bold text-white">
+                {allTeamPendingCount} open
               </span>
             )}
           </button>
-
-          {/* Buttons: Each Team Member */}
           {teamMembers.map((member) => {
             const isSelected = selectedMember === member
-            const color = memberColors[member] || "#ED1C24"
-            const stat = memberStats[member] || {
-              total: 0,
-              completed: 0,
-              pending: 0,
-              shared: 0,
-            }
-
+            const color = memberColors[member] || "#57534E"
+            const stat = memberStats[member] || { total: 0, pending: 0 }
             return (
               <button
                 key={member}
                 type="button"
                 onClick={() => setSelectedMember(isSelected ? null : member)}
-                className={`inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
-                  isSelected
-                    ? "text-white"
-                    : "border-2 border-rule bg-white text-ink hover:bg-surface"
-                }`}
-                style={isSelected ? { backgroundColor: color } : undefined}
+                aria-pressed={isSelected}
+                className={`touch-target inline-flex h-10 items-center gap-2 rounded-full pr-1.5 pl-1.5 text-sm font-semibold ${isSelected ? "bg-ink text-white" : "bg-surface text-ink hover:bg-rule"}`}
               >
-                <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-full border border-black/10"
-                  style={{ backgroundColor: isSelected ? "#FFFFFF" : color }}
-                />
+                <span className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold text-white" style={{ background: color }}>
+                  {member.split(" ").map((w) => w[0]).join("")}
+                </span>
                 <span className="max-w-[130px] truncate">{member}</span>
-                <span
-                  className={`py-0.2 rounded-full px-1.5 text-xs font-black ${
-                    isSelected
-                      ? "bg-black/20 text-white"
-                      : "bg-slate-100 text-slate-700"
-                  }`}
-                >
-                  {stat.total}
-                </span>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${isSelected ? "bg-white/20" : "bg-white"}`}>{stat.total}</span>
                 {stat.pending > 0 && (
-                  <span
-                    className={`py-0.2 rounded px-1.5 text-xs font-semibold ${
-                      isSelected
-                        ? "bg-black/30 text-amber-200"
-                        : "border border-amber-200 bg-amber-50 text-amber-800"
-                    }`}
+                  <span className="rounded-full bg-pru-red-soft px-2 py-0.5 text-xs font-bold text-brand-ink">{stat.pending} open</span>
+                )}
+              </button>
+            )
+          })}
+          <span className="flex-1" />
+          <button type="button" onClick={() => handleOpenDeliveryModal(selectedMember)} className={cardButton}>
+            <Icon name="external" size={16} />
+            Open project list
+          </button>
+        </section>
+
+        {/* KPI cards */}
+        <section className="flex flex-col gap-3 rounded-[20px] bg-ink p-5 text-white shadow-[var(--shadow-card)] lg:col-span-3">
+          <div className="flex items-start justify-between gap-3">
+            <span>
+              <span className="text-sm">{selectedMember ? `Projects of ${selectedMember}` : isAnnual ? "Projects this year" : `Projects in ${selectedPeriod}`}</span>
+              <span className="block text-[56px] leading-tight font-bold">{totalProjects}</span>
+            </span>
+            <span className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-white/10">
+              <Icon name="folder" size={24} />
+            </span>
+          </div>
+          <span className="text-[13px] text-gray-300">
+            {pausedProjectsCount > 0 ? `${pausedProjectsCount} on hold · ` : ""}
+            {isAnnual ? "ไม่นับซ้ำข้ามเดือน" : "New Product + Enhancement"}
+          </span>
+        </section>
+        <section className={`${kpiCard} lg:col-span-3`}>
+          <div className="flex items-start justify-between gap-3">
+            <span>
+              <span className="text-sm font-semibold text-brand-ink">New Product</span>
+              <span className="block text-[44px] leading-tight font-bold">{newProductCount}</span>
+            </span>
+            <span className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-pru-red-soft text-brand-ink">
+              <Icon name="product" size={24} />
+            </span>
+          </div>
+          <div className="h-2 rounded-full bg-surface">
+            <div className="h-2 rounded-full bg-pru-red" style={{ width: `${totalProjects > 0 ? (newProductCount / totalProjects) * 100 : 0}%` }} />
+          </div>
+          <span className="text-xs text-ink-soft">
+            {totalProjects > 0 ? Math.round((newProductCount / totalProjects) * 100) : 0}% of all projects
+          </span>
+        </section>
+        <section className={`${kpiCard} lg:col-span-3`}>
+          <div className="flex items-start justify-between gap-3">
+            <span>
+              <span className="text-sm font-semibold text-ink-soft">Enhancement</span>
+              <span className="block text-[44px] leading-tight font-bold">{enhancementCount}</span>
+            </span>
+            <span className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-surface text-ink-soft">
+              <Icon name="wrench" size={24} />
+            </span>
+          </div>
+          <div className="h-2 rounded-full bg-surface">
+            <div className="h-2 rounded-full bg-enhancement" style={{ width: `${totalProjects > 0 ? (enhancementCount / totalProjects) * 100 : 0}%` }} />
+          </div>
+          <span className="text-xs text-ink-soft">
+            {totalProjects > 0 ? Math.round((enhancementCount / totalProjects) * 100) : 0}% of all projects
+          </span>
+        </section>
+        <section className={`${kpiCard} lg:col-span-3`}>
+          <div className="flex items-start justify-between gap-3">
+            <span>
+              <span className="text-sm font-semibold text-ink-soft">With e-learning</span>
+              <span className="block text-[44px] leading-tight font-bold">{totalElearning}</span>
+            </span>
+            <span className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-surface text-ink-soft">
+              <Icon name="elearning" size={24} />
+            </span>
+          </div>
+          <span className="text-xs text-ink-soft">คอร์สอบรมออนไลน์บนระบบ</span>
+        </section>
+
+        {/* Projects per month */}
+        <section className={`${card} flex flex-col gap-4 p-6 lg:col-span-12`}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2.5 text-[17px] font-bold">
+              <span className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] bg-pru-red-soft text-brand-ink">
+                <Icon name="chart" size={18} />
+              </span>
+              Projects per month · {activeYear}
+              {selectedMember && <span className="text-brand-ink">· {selectedMember}</span>}
+            </h2>
+            <span className="flex gap-4 text-[13px]">
+              <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] bg-pru-red" />New Product</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] bg-enhancement" />Enhancement</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] bg-gray-300" />On hold</span>
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <div className="grid min-w-[640px] grid-cols-12 gap-3">
+              {monthlyStats.map((stat) => {
+                const isSelected = selectedPeriod === stat.month
+                const h = (n: number) => `${Math.round((n / maxMonth) * 170)}px`
+                return (
+                  <button
+                    key={stat.month}
+                    type="button"
+                    onClick={() => setSelectedPeriod(stat.month)}
+                    aria-pressed={isSelected}
+                    title={`${stat.month}: ${stat.totalCount} projects`}
+                    className={`flex flex-col items-center gap-1.5 rounded-xl px-1 pt-1 pb-2 ${isSelected ? "bg-pru-red-soft" : "hover:bg-surface"}`}
                   >
-                    ค้าง {stat.pending}
-                  </span>
-                )}
-              </button>
-            )
-          })}
-        </div>
-      </div>
+                    <b className={`text-[15px] ${isSelected ? "text-brand-ink" : ""}`}>{stat.totalCount}</b>
+                    <span className="flex h-[176px] w-full max-w-[46px] flex-col justify-end">
+                      <span className="flex flex-col overflow-hidden rounded-t-[10px] rounded-b-[4px]">
+                        <span className="bg-pru-red" style={{ height: h(stat.productsCount) }} />
+                        <span className="bg-enhancement" style={{ height: h(stat.enhancementsCount) }} />
+                        <span className="bg-gray-300" style={{ height: h(stat.pausedCount) }} />
+                      </span>
+                    </span>
+                    <span className={`text-xs ${isSelected ? "font-bold text-brand-ink" : "font-medium text-ink-soft"}`}>
+                      {stat.month.split(" ")[0]}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <span className="text-xs text-ink-soft">กดแท่งเพื่อดูเดือนนั้น</span>
+        </section>
 
-      {/* 3. Four Hero KPI Summary Cards (Reflects selectedMember) */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        {/* Card 1: Total Projects */}
-        <div className="relative flex items-center justify-between bg-pru-red p-5 text-white sm:p-6">
-          <div className="space-y-1 pr-12 sm:pr-14">
-            <span className="text-lg font-bold sm:text-2xl">
-              {selectedMember
-                ? `โครงการของ ${selectedMember}`
-                : isAnnual
-                  ? "โครงการสะสม (ทั้งปี)"
-                  : `โครงการทั้งหมด (${selectedPeriod})`}
+        {/* Type filter */}
+        <div className="flex w-fit gap-0.5 rounded-full bg-rule p-1 lg:col-span-12">
+          {[
+            { v: "all" as const, label: `All (${totalProjects})`, dot: "" },
+            { v: "product" as const, label: `New Product (${newProductCount})`, dot: "bg-pru-red" },
+            { v: "enhancement" as const, label: `Enhancement (${enhancementCount})`, dot: "bg-enhancement" },
+          ].map((o) => (
+            <button
+              key={o.v}
+              type="button"
+              onClick={() => setSelectedTypeFilter(o.v)}
+              aria-pressed={selectedTypeFilter === o.v}
+              className={`touch-target inline-flex h-9 items-center gap-2 rounded-full px-4 text-sm font-semibold ${selectedTypeFilter === o.v ? "bg-white text-ink shadow-[var(--shadow-card)]" : "text-ink-soft hover:text-ink"}`}
+            >
+              {o.dot && <span className={`h-2 w-2 rounded-full ${o.dot}`} />}
+              {o.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Partners */}
+        <section className={`${card} flex flex-col gap-4 p-6 lg:col-span-6`}>
+          <h2 className="flex items-center gap-2.5 text-[17px] font-bold">
+            <span className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] bg-surface text-ink">
+              <Icon name="partner" size={18} />
             </span>
-            <div className="text-[56px] leading-none font-bold sm:text-[72px]">
-              {totalProjects}
-            </div>
-            {pausedProjectsCount > 0 && (
-              <div className="text-lg font-bold">
-                หยุดชั่วคราว {pausedProjectsCount}
-              </div>
-            )}
-            <div className="sr-only">
-              {selectedMember
-                ? "นับโครงการที่ได้รับมอบหมาย"
-                : isAnnual
-                  ? "นับตามโครงการที่ไม่ซ้ำ (Unique)"
-                  : "ทั้ง New Product & Enhancement"}
-            </div>
-          </div>
-          <PruIcon
-            name="document"
-            size={48}
-            strokeWidth={3}
-            className="absolute top-5 right-4 h-9 w-9 opacity-90 sm:right-5 sm:h-12 sm:w-12"
-          />
-        </div>
-
-        {/* Card 2: New Product */}
-        <div className="flex items-center justify-between border-2 border-rule bg-white p-4 sm:p-5">
-          <div className="space-y-1">
-            <span className="text-xs font-semibold text-brand-ink">
-              {isAnnual ? "New Product (ทั้งปี)" : "New Product"}
-            </span>
-            <div className="text-2xl font-black tracking-tight text-brand-ink sm:text-3xl">
-              {newProductCount}
-            </div>
-            <div className="text-xs font-medium text-brand-ink">
-              {totalProjects > 0
-                ? ((newProductCount / totalProjects) * 100).toFixed(0)
-                : 0}
-              % ของงานทั้งหมด
-            </div>
-          </div>
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-red-100 bg-red-50 text-brand-ink">
-            <Package className="h-6 w-6" />
-          </div>
-        </div>
-
-        {/* Card 3: Enhancement */}
-        <div className="flex items-center justify-between border-2 border-rule bg-white p-4 sm:p-5">
-          <div className="space-y-1">
-            <span className="text-xs font-semibold text-enhancement">
-              {isAnnual ? "Enhancement (ทั้งปี)" : "Enhancement"}
-            </span>
-            <div className="text-2xl font-black tracking-tight text-enhancement sm:text-3xl">
-              {enhancementCount}
-            </div>
-            <div className="text-xs font-medium text-slate-700">
-              {totalProjects > 0
-                ? ((enhancementCount / totalProjects) * 100).toFixed(0)
-                : 0}
-              % ของงานทั้งหมด
-            </div>
-          </div>
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 text-enhancement">
-            <Boxes className="h-6 w-6" />
-          </div>
-        </div>
-
-        {/* Card 4: eLearning */}
-        <div className="flex items-center justify-between border-2 border-rule bg-white p-4 sm:p-5">
-          <div className="space-y-1">
-            <span className="text-xs font-semibold text-slate-700">
-              {isAnnual ? "มี eLearning (ทั้งปี)" : "มีหลักสูตร eLearning"}
-            </span>
-            <div className="text-2xl font-black tracking-tight text-ink sm:text-3xl">
-              {totalElearning}
-            </div>
-            <div className="text-xs font-medium text-slate-700">
-              คอร์สอบรมออนไลน์บนระบบ
-            </div>
-          </div>
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 text-slate-700">
-            <GraduationCap className="h-6 w-6" />
-          </div>
-        </div>
-      </div>
-
-      {/* 4. Monthly Project Volume Trend Bar (Clickable Bars to Filter Month) */}
-      <div className="space-y-4 border-2 border-rule bg-white p-4 sm:p-6">
-        <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
-          <div>
-            <h2 className="flex flex-wrap items-center gap-2 text-sm font-bold text-gray-900">
-              <BarChart3 className="h-4 w-4 text-brand-ink" />
-              <span>
-                แนวโน้มและปริมาณโครงการรายเดือน (Monthly Project Volume)
-                {selectedMember && (
-                  <span className="font-black text-brand-ink">
-                    {" "}
-                    : {selectedMember}
-                  </span>
-                )}
-              </span>
-              <span className="rounded-md border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-black text-brand-ink">
-                ปี {activeYearTh} ({activeYear})
-              </span>
-            </h2>
-            <p className="text-xs text-gray-500">
-              {selectedMember
-                ? `แสดงจำนวนโครงการของ ${selectedMember} ในแต่ละรอบเดือนของปี ${activeYearTh} (คลิกแท่งเพื่อกรองเฉพาะเดือนนั้น)`
-                : `แสดงจำนวนโครงการทั้ง 12 เดือนของปี ${activeYearTh} (คลิกที่แท่งของแต่ละเดือนเพื่อเจาะลึกดูสถิติได้ทันที)`}
-            </p>
-          </div>
-          {/* Legend */}
-          <div className="flex items-center gap-4 text-xs font-semibold">
-            <div className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 bg-pru-red" />
-              <span className="text-gray-600">New Product</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-xs bg-enhancement" />
-              <span className="text-gray-600">Enhancement</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Bar Columns Container (Strictly 12 Months of the Selected Year) */}
-        <div className="grid grid-cols-4 gap-2 pt-2 sm:grid-cols-6 lg:grid-cols-12">
-          {monthlyStats.map((stat) => {
-            const isSelected = selectedPeriod === stat.month
-            const maxVal = Math.max(...monthlyStats.map((s) => s.totalCount), 1)
-            const heightPct = Math.round((stat.totalCount / maxVal) * 100)
-
-            return (
-              <button
-                key={stat.month}
-                type="button"
-                onClick={() => setSelectedPeriod(stat.month)}
-                className={`group flex cursor-pointer flex-col items-center rounded-xl border p-2 text-center transition-all ${
-                  isSelected
-                    ? "border-[#ED1C24] bg-red-50/50 shadow-xs ring-2 ring-brand/20"
-                    : "border-gray-200 hover:border-gray-300 hover:bg-slate-50"
-                }`}
-                title={`คลิกดูสถิติเดือน ${stat.month} (ทั้งหมด ${stat.totalCount} รายการ)`}
-              >
-                {/* Total Count Pill */}
-                <span
-                  className={`rounded-md px-1.5 py-0.5 text-xs font-black ${
-                    stat.totalCount > 0
-                      ? isSelected
-                        ? "bg-brand-fill text-white"
-                        : "bg-slate-100 text-gray-800 group-hover:bg-slate-200"
-                      : "text-gray-300"
-                  }`}
-                >
-                  {stat.totalCount}
-                </span>
-
-                {/* Vertical Bar Track */}
-                <div className="my-1.5 flex h-20 w-6 flex-col justify-end overflow-hidden rounded-lg bg-slate-100 p-0.5">
-                  {stat.totalCount > 0 && (
-                    <div
-                      style={{ height: `${Math.max(heightPct, 18)}%` }}
-                      className="flex w-full flex-col justify-end overflow-hidden rounded"
-                    >
-                      {/* Product segment */}
-                      {stat.productsCount > 0 && (
-                        <div
-                          style={{
-                            height: `${(stat.productsCount / stat.totalCount) * 100}%`,
-                          }}
-                          className="w-full bg-pru-red"
-                          title={`New Product: ${stat.productsCount}`}
-                        />
-                      )}
-                      {/* Enhancement segment */}
-                      {stat.enhancementsCount > 0 && (
-                        <div
-                          style={{
-                            height: `${(stat.enhancementsCount / stat.totalCount) * 100}%`,
-                          }}
-                          className="w-full bg-enhancement"
-                          title={`Enhancement: ${stat.enhancementsCount}`}
-                        />
-                      )}
-                      {/* Paused this month */}
-                      {stat.pausedCount > 0 && (
-                        <div
-                          style={{
-                            height: `${(stat.pausedCount / stat.totalCount) * 100}%`,
-                          }}
-                          className="w-full bg-[#94A3B8]"
-                          title={`หยุดชั่วคราว: ${stat.pausedCount}`}
-                        />
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Month Label */}
-                <span
-                  className={`w-full truncate text-xs font-bold ${
-                    isSelected ? "text-brand-ink" : "text-gray-700"
-                  }`}
-                >
-                  {stat.month.split(" ")[0]}
-                </span>
-                <span className="text-xs text-gray-500">
-                  {stat.month.split(" ")[1]}
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* 5. Scope Switcher */}
-      <div className="flex w-fit items-center gap-1.5 rounded-xl bg-gray-100/90 p-1">
-        <button
-          type="button"
-          onClick={() => setSelectedTypeFilter("all")}
-          className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-            selectedTypeFilter === "all"
-              ? "bg-white text-gray-900 shadow-2xs"
-              : "text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          ทั้งหมด ({totalProjects})
-        </button>
-        <button
-          type="button"
-          onClick={() => setSelectedTypeFilter("product")}
-          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-            selectedTypeFilter === "product"
-              ? "bg-white text-brand-ink shadow-2xs"
-              : "text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          <span className="h-2 w-2 rounded-full bg-pru-red" />
-          <span>New Product ({newProductCount})</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setSelectedTypeFilter("enhancement")}
-          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-            selectedTypeFilter === "enhancement"
-              ? "bg-white text-enhancement shadow-2xs"
-              : "text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          <span className="h-2 w-2 rounded-full bg-enhancement" />
-          <span>Enhancement ({enhancementCount})</span>
-        </button>
-      </div>
-
-      {/* 6. Two Donut Charts Side-by-Side (Page Finishes Here Cleanly) */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Chart A: Channel / Partner Breakdown */}
-        <div className="space-y-4 border-2 border-rule bg-white p-4 sm:p-6">
-          <div>
-            <h2 className="flex items-center gap-2 text-sm font-bold text-gray-900">
-              <Tag className="h-4 w-4 text-slate-700" />
-              <span>
-                สัดส่วนโครงการแยกตามช่องทาง{" "}
-                {isAnnual ? "(ภาพรวมทั้งปี)" : `(${selectedPeriod})`}
-                {selectedMember && (
-                  <span className="font-bold text-slate-700">
-                    {" "}
-                    : {selectedMember}
-                  </span>
-                )}
-              </span>
-            </h2>
-            <p className="text-xs text-gray-500">
-              วิเคราะห์ความหนาแน่นของงานในแต่ละพาร์ทเนอร์
-            </p>
-          </div>
-
-          <div className="flex flex-col items-center justify-center gap-6 pt-2 sm:flex-row">
+            Projects by partner
+            <span className="text-xs font-normal text-ink-soft">{isAnnual ? "All year" : selectedPeriod}</span>
+          </h2>
+          <div className="flex flex-col items-center gap-6 sm:flex-row">
             <div className="shrink-0">
               <DonutChart
-                data={channelSegments}
-                size={210}
-                strokeWidth={26}
+                data={partnerSegments}
+                size={200}
+                strokeWidth={24}
                 animationDuration={0.8}
                 highlightOnHover={true}
                 centerContent={
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={displayChannelLabel}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      transition={{ duration: 0.15 }}
-                      className="flex flex-col items-center justify-center px-1 text-center"
-                    >
-                      <span className="max-w-[110px] truncate text-xs font-semibold text-gray-500">
-                        {displayChannelLabel}
+                  <span className="flex flex-col items-center px-1 text-center">
+                    <span className="max-w-[110px] truncate text-xs font-semibold text-ink-soft">{displayPartnerLabel}</span>
+                    <span className="text-3xl leading-tight font-bold">{displayPartnerVal}</span>
+                    {activeHoveredPartner && totalPartnerCount > 0 && (
+                      <span className="text-xs font-bold text-brand-ink">
+                        {Math.round((activeHoveredPartner.value / totalPartnerCount) * 100)}%
                       </span>
-                      <span className="text-3xl leading-tight font-black text-gray-900">
-                        {displayChannelVal}
-                      </span>
-                      {activeHoveredChannel && totalChannelCount > 0 && (
-                        <span className="text-xs font-bold text-brand-ink">
-                          {displayChannelPct}%
-                        </span>
-                      )}
-                    </motion.div>
-                  </AnimatePresence>
+                    )}
+                  </span>
                 }
               />
             </div>
-
-            <div className="max-h-[220px] w-full space-y-1.5 overflow-y-auto pr-1 sm:flex-1">
-              {channelSegments.map((segment) => {
-                const isHovered = hoveredChannel === segment.label
-                const pct =
-                  totalChannelCount > 0
-                    ? ((segment.value / totalChannelCount) * 100).toFixed(0)
-                    : "0"
+            <div className="w-full flex-1">
+              {partnerSegments.map((segment) => {
+                const pct = totalPartnerCount > 0 ? Math.round((segment.value / totalPartnerCount) * 100) : 0
                 return (
                   <div
                     key={segment.label}
                     onMouseEnter={() => setHoveredChannel(segment.label)}
                     onMouseLeave={() => setHoveredChannel(null)}
-                    className={`flex cursor-pointer items-center justify-between rounded-xl p-2 text-xs transition-all ${
-                      isHovered
-                        ? "bg-slate-100 font-bold shadow-2xs"
-                        : "hover:bg-slate-50"
-                    }`}
+                    className={`grid grid-cols-[minmax(0,1fr)_40px_44px] items-center gap-2 border-b border-surface py-2 text-sm ${hoveredChannel === segment.label ? "bg-surface" : ""}`}
                   >
-                    <div className="flex items-center gap-2.5 truncate pr-2">
-                      <span
-                        className="h-3 w-3 shrink-0 rounded-full"
-                        style={{ backgroundColor: segment.color }}
-                      />
-                      <span className="truncate font-semibold text-gray-800">
-                        {segment.label}
+                    <span className="flex min-w-0 flex-col">
+                      <span className="flex items-center gap-2">
+                        <span className="h-3 w-3 shrink-0 rounded-[4px]" style={{ background: segment.color }} />
+                        <b className="truncate">{segment.label}</b>
                       </span>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className="font-bold text-gray-900">
-                        {segment.value}
-                      </span>
-                      <span className="w-9 text-right text-xs font-medium text-gray-500">
-                        {pct}%
-                      </span>
-                    </div>
+                      <span className="truncate pl-5 text-xs text-ink-soft">{segment.channels}</span>
+                    </span>
+                    <b className="text-right">{segment.value}</b>
+                    <span className="text-right text-xs text-ink-soft">{pct}%</span>
                   </div>
                 )
               })}
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Chart B: Team Workload Breakdown with Popup trigger & Co-owner clarity */}
-        <div className="space-y-3.5 border-2 border-rule bg-white p-4 sm:p-6">
-          <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
-            <div>
-              <h2 className="flex items-center gap-2 text-sm font-bold text-gray-900">
-                <Users className="h-4 w-4 text-brand-ink" />
-                <span>
-                  {selectedMember
-                    ? `สถานะงานของ ${selectedMember} ${isAnnual ? "(ภาพรวมทั้งปี)" : `(${selectedPeriod})`}`
-                    : `การกระจายภาระงานทั้งทีม ${isAnnual ? "(ภาพรวมทั้งปี)" : `(${selectedPeriod})`}`}
-                </span>
-              </h2>
-              <p className="text-xs text-gray-500">
-                {selectedMember
-                  ? "สัดส่วนงานที่เสร็จสมบูรณ์แล้ว เทียบกับงานที่ยังค้างอยู่"
-                  : `ภาระงานที่มอบหมาย (${totalMemberWorkload} งาน จาก ${rawUniqueProjectsCount} โครงการจริง — มีงานร่วม Co-owner)`}
-              </p>
-            </div>
-
-            {/* Quick Popup Trigger from Donut Box */}
-            <button
-              type="button"
-              onClick={() => handleOpenDeliveryModal(selectedMember)}
-              className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 self-start rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-brand-ink shadow-2xs transition-colors hover:bg-red-100 sm:self-auto"
-              title="เปิดหน้าต่าง Popup ติดตามสถานะงานและรายละเอียดโครงการ"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              <span>เปิดดูงาน (Popup)</span>
+        {/* Team workload */}
+        <section className={`${card} flex flex-col gap-4 p-6 lg:col-span-6`}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="flex items-center gap-2.5 text-[17px] font-bold">
+              <span className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] bg-surface text-ink">
+                <Icon name="team" size={18} />
+              </span>
+              {selectedMember ? `Status of ${selectedMember}` : "Team workload"}
+            </h2>
+            <button type="button" onClick={() => handleOpenDeliveryModal(selectedMember)} className={cardButton}>
+              <Icon name="external" size={16} />
+              Open list
             </button>
           </div>
-
-          {/* Co-owner Workload Explanation Banner */}
-          {!selectedMember && coOwnedProjectsCount > 0 && (
-            <div className="flex items-start gap-2 rounded-xl border border-slate-200/60 bg-slate-50/70 p-2.5 text-xs text-slate-900">
-              <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-700" />
-              <div className="text-xs leading-relaxed">
-                <strong>
-                  ทำไมยอดรวมถึงเป็น {totalMemberWorkload} ภาระงาน?
-                </strong>{" "}
-                เนื่องจากมี {coOwnedProjectsCount}{" "}
-                โครงการที่มีผู้รับผิดชอบร่วมกัน 2 คน (Co-owners)
-                จึงทำให้ยอดภาระงานรายบุคคลนับรวมได้ {totalMemberWorkload} งาน
-                จากโครงการจริงทั้งหมด {rawUniqueProjectsCount} โครงการ
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-col items-center justify-center gap-6 pt-1 sm:flex-row">
-            <div
-              className="group shrink-0 cursor-pointer"
+          <div className="flex flex-col items-center gap-6 sm:flex-row">
+            <button
+              type="button"
+              className="shrink-0"
               onClick={() => handleOpenDeliveryModal(selectedMember)}
-              title="คลิกเพื่อเปิด Popup รายละเอียดงาน"
+              aria-label="Open the project list"
             >
               <DonutChart
                 data={memberSegments}
-                size={210}
-                strokeWidth={26}
+                size={200}
+                strokeWidth={24}
                 animationDuration={0.8}
                 highlightOnHover={true}
                 centerContent={
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={displayMemberLabel}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      transition={{ duration: 0.15 }}
-                      className="flex flex-col items-center justify-center px-1 text-center"
-                    >
-                      <span className="max-w-[110px] truncate text-xs font-semibold text-gray-500">
-                        {displayMemberLabel}
-                      </span>
-                      <span className="text-3xl leading-tight font-black text-gray-900">
-                        {displayMemberVal}
-                      </span>
-                      {totalMemberWorkload > 0 && !selectedMember && (
-                        <span className="text-xs font-medium text-gray-500">
-                          ({rawUniqueProjectsCount} โครงการจริง)
-                        </span>
-                      )}
-                      {selectedMember && totalMemberWorkload > 0 && (
-                        <span className="text-xs font-bold text-brand-ink">
-                          {displayMemberPct}
-                        </span>
-                      )}
-                    </motion.div>
-                  </AnimatePresence>
+                  <span className="flex flex-col items-center px-1 text-center">
+                    <span className="max-w-[110px] truncate text-xs font-semibold text-ink-soft">
+                      {activeHoveredMember?.label ?? (selectedMember ? "Projects" : "Assignments")}
+                    </span>
+                    <span className="text-3xl leading-tight font-bold">{displayMemberVal}</span>
+                    {!selectedMember && totalMemberWorkload > 0 && (
+                      <span className="text-[11px] text-ink-soft">from {rawUniqueProjectsCount} projects</span>
+                    )}
+                  </span>
                 }
               />
-            </div>
-
-            <div className="max-h-[220px] w-full space-y-1.5 overflow-y-auto pr-1 sm:flex-1">
+            </button>
+            <div className="w-full flex-1">
               {memberSegments.map((segment) => {
-                const isHovered = hoveredMember === segment.label
-                const pct =
-                  totalMemberWorkload > 0
-                    ? ((segment.value / totalMemberWorkload) * 100).toFixed(0)
-                    : "0"
+                const pct = totalMemberWorkload > 0 ? Math.round((segment.value / totalMemberWorkload) * 100) : 0
                 const isTeamMember = teamMembers.includes(segment.label)
                 const mStat = memberStats[segment.label]
-
                 return (
-                  <div
+                  <button
                     key={segment.label}
-                    onClick={() => {
-                      if (isTeamMember) {
-                        handleOpenDeliveryModal(segment.label)
-                      }
-                    }}
+                    type="button"
+                    disabled={!isTeamMember}
+                    onClick={() => isTeamMember && handleOpenDeliveryModal(segment.label)}
                     onMouseEnter={() => setHoveredMember(segment.label)}
                     onMouseLeave={() => setHoveredMember(null)}
-                    className={`flex cursor-pointer items-center justify-between rounded-xl p-2 text-xs transition-all ${
-                      isHovered
-                        ? "bg-slate-100 font-bold shadow-2xs ring-1 ring-slate-300"
-                        : "hover:bg-slate-50"
-                    }`}
-                    title={
-                      isTeamMember
-                        ? `คลิกเพื่อเปิด Popup ดูงานของ ${segment.label}`
-                        : undefined
-                    }
+                    className={`grid w-full grid-cols-[minmax(0,1fr)_40px_44px] items-center gap-2 border-b border-surface py-2 text-left text-sm ${hoveredMember === segment.label ? "bg-surface" : ""}`}
                   >
-                    <div className="flex items-center gap-2 truncate pr-2">
-                      <span
-                        className="h-3 w-3 shrink-0 rounded-full"
-                        style={{ backgroundColor: segment.color }}
-                      />
-                      <span className="truncate font-semibold text-gray-800">
-                        {segment.label}
-                      </span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: segment.color }} />
+                      <b className="truncate">{segment.label}</b>
                       {mStat && mStat.shared > 0 && !selectedMember && (
-                        <span className="py-0.2 shrink-0 rounded border border-slate-200 bg-slate-50 px-1 text-xs font-bold text-slate-700">
-                          ร่วม {mStat.shared}
+                        <span className="shrink-0 rounded-full bg-surface px-2 py-0.5 text-[11px] font-semibold text-ink-soft">
+                          co-owner {mStat.shared}
                         </span>
                       )}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className="font-bold text-gray-900">
-                        {segment.value}
-                      </span>
-                      <span className="w-9 text-right text-xs font-medium text-gray-500">
-                        {pct}%
-                      </span>
-                      {isTeamMember && (
-                        <ExternalLink className="h-3 w-3 shrink-0 text-gray-500 group-hover:text-brand-ink" />
-                      )}
-                    </div>
-                  </div>
+                    </span>
+                    <b className="text-right">{segment.value}</b>
+                    <span className="text-right text-xs text-ink-soft">{pct}%</span>
+                  </button>
                 )
               })}
             </div>
           </div>
-        </div>
-      </div>
+          {!selectedMember && coOwnedProjectsCount > 0 && (
+            <div className="flex items-start gap-2.5 rounded-xl bg-paper px-3 py-2.5 text-xs text-ink">
+              <Icon name="info" size={18} className="shrink-0" />
+              <span>
+                {totalMemberWorkload} มากกว่า {rawUniqueProjectsCount} เพราะมี {coOwnedProjectsCount} projects
+                ที่มีผู้รับผิดชอบร่วม 2 คน จึงนับให้ทั้งสองคน
+              </span>
+            </div>
+          )}
+        </section>
+      </PageBody>
 
       {/* 7. Delivery Status Modal (POPUP WINDOW - REPLACES BOTTOM SECTION) */}
       <AnimatePresence>
@@ -1870,10 +1495,7 @@ export function AnalyticsView() {
                 ) : (
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {modalDisplayedItems.map((item) => {
-                      const brokerColor = resolveBrokerColor(
-                        item.broker,
-                        colorMap
-                      )
+                      const brokerColor = partnerOf(item.broker, partners).color
                       const ownerColor = getOwnerColor(item.owner)
                       const isCoOwned = isItemCoOwned(item.owner)
                       const hasElearning = Boolean(
@@ -2039,7 +1661,7 @@ export function AnalyticsView() {
           isAnnual={isAnnual}
           products={rawProducts}
           enhancements={rawEnhancements}
-          colorMap={colorMap}
+          partners={partners}
         />
       </div>
     </div>

@@ -1,70 +1,65 @@
 ---
 name: CD Team Dashboard
-description: Prudential Thailand curriculum development team's project timeline, announcements and analytics, built on the PRU Academy house style ("clean, formal")
+description: Prudential Thailand curriculum development team's project timeline, analytics, announcements and partner settings. Style B, "Brand Hero".
 colors:
-  paper: "#FBFAF8"
-  surface: "#F2F2F2"
-  white: "#FFFFFF"
-  rule: "#E0E3E5"
-  ink: "#4E565C"
-  ink-soft: "#5F6970"
-  pru-grey: "#68737A"
-  mid-grey: "#A7A8AA"
-  light-grey: "#D0D0CE"
   pru-red: "#ED1B2E"
-  pru-red-ink: "#C8102E"
-  pru-red-soft: "#FDECEE"
-  brand-fill: "#4E565C"
-  brand-hover: "#3D4449"
-  enhancement: "#68737A"
-  status-done: "#4E565C"
-  status-active: "#ED1B2E"
-  status-paused: "#A7A8AA"
+  brand-ink: "#C8102E"
+  pru-red-soft: "#FFE9EB"
+  done: "#15803D"
+  done-soft: "#E3F5EA"
+  ink: "#1C1917"
+  ink-soft: "#57534E"
+  rule: "#E7E5E4"
+  surface: "#F5F5F4"
+  paper: "#F7F5F3"
+  enhancement: "#78716C"
 typography:
-  family: "Sarabun (400, 700), Tahoma, sans-serif"
-  display: "40px / 700 (28px on phones)"
-  body: "15px / 400"
-  label: "13px / 400-700"
+  family: "Noto Sans Thai (400, 500, 600, 700), Tahoma, sans-serif"
+  hero-number: "88px mobile / 124px desktop, 700"
+  page-title: "34–44px / 700"
+  body: "14–15px / 400"
+  label: "12–13px / 600"
 rounded:
-  all: "0"
-shadow: none
+  card: "20px"
+  button: "999px"
+  tile: "16px"
+shadow: "card: 0 1px 2px rgba(41,37,36,.05), 0 8px 24px -12px rgba(41,37,36,.12)"
 ---
 
-# CD Team Dashboard: design system
+# CD Team Dashboard: design system (style B, "Brand Hero")
 
-The site follows the PRU Academy design system: clean, formal and quiet, with red used as an accent. Tokens are defined in `app/globals.css` inside `@theme`. Tailwind's `gray`, `slate`, `red`, `amber`, `emerald`, `green` and `blue` scales are remapped to brand greys and brand reds, so older utility classes still land on brand colours.
+Chosen by the owner on 28 Oct 2026 from three options on the design canvas
+(https://claude.ai/artifact/Bhqj9Xqwn5weTtGLGk5584, page "รอบ 5"). Tokens live in `app/globals.css` inside `@theme`.
 
 ## Rules
 
-- **Square shapes.** Every radius is 0. Cards use a 2px `rule` border on white or `paper`. Nothing has a shadow or a gradient.
-- **Red is an accent.** Keep red to roughly 20–30% of a screen. It goes on the key word in a headline, on progress and the "current" state, and on one hero KPI card per row.
-- **White on red only at 24px and up.** For that reason primary buttons are filled with `ink` (`brand-fill`), not red. Secondary buttons are white with a 2px `rule` border that darkens to `ink` on hover.
-- **Signature eyebrow.** `<Eyebrow>` in `components/pru-icon.tsx` draws two red bars (72×10 and 20×10) followed by an uppercase label, and sits above each page headline.
-- **Headlines state the point.** For example "งานเดือน **ตุลาคม 2026**", "ส่งมอบแล้ว **56** จาก 67 โครงการ", "ข่าวถึงทีม **ส่งเข้า LINE** ให้อัตโนมัติ".
-- **Type.** Sarabun only, loaded from `next/font`, in weights 400 and 700.
+- **Red band on every page.** The nav and the top of each page share one Prudential red band (`bg-pru-red`, #ED1B2E). `PageHero` draws it and `PageBody` overlaps its lower edge with white cards (`components/page-hero.tsx`). The band carries the page's headline number in white.
+- **Red means Current; green means Completed.** On the timeline, a done step is a green circle with a tick, the Current step is a red circle with that step's icon, and an upcoming step is a grey ring with the step's icon. Skipped steps are a short grey bar.
+- **Partner colours** belong to partners, not channels, and are edited on the Partners page. Use them only for partner badges, group bands, chart segments and dots. Never use a partner colour for status.
+- **Cards** are white, 20px corners, the soft `--shadow-card`. Buttons are pills. Primary actions on white are ink (`cardButtonDark`); on the red band they are white (`heroButtonSolid`).
+- **Text on red:** white, at least 14px semibold. Small red text on white uses `brand-ink` (#C8102E).
+- **Words:** UI labels are English (Project, Completed, In progress, Current, Upcoming, Skipped, On hold, Partner, Channel, Owner, Target Launch); short helper text stays Thai. See PRODUCT.md.
+- **Table headings** show the step icon in an ink circle, the step number and a two-line name broken between words (`PHASE_HEADINGS` in `timeline-row.tsx`).
 
 ## Icons
 
-All icons come from `PruIcon` in `components/pru-icon.tsx`. Each is a line icon on a 48-unit viewBox with stroke 3–4, and each stroke has an opening. Do not use emoji or Unicode symbols as icons. Lucide is kept only for the `Loader2` spinner and in older dialogs.
+`Icon` in `components/icon.tsx`: 24 viewBox line icons, stroke 1.8, round caps, colour from `currentColor`. Each timeline step has its own icon (`PHASE_ICONS`): Kick-off flag, First Draft document, e-learning screen, Final Approval seal, Final e-learning laptop, Internal Training classroom, Target Launch rocket. No emoji or text glyphs as icons. Older dialogs still use `PruIcon` and Lucide.
 
-- `pin` always means the latest update, i.e. the current phase. It is used nowhere else.
-- `board` marks a channel (broker). `person` marks an owner. `target` marks the launch date.
+## Partners and channels
+
+`lib/partners.ts`. A partner has a name, one brand colour and a list of channels. A project's `broker` text is its channel, so saved data does not change. `partnerOf()` finds a channel's partner; channels nobody lists fall into "Other" (grey) and are flagged on the Partners page. Partners are stored in `timeline_store` row `partners` (read by everyone once migration `20261028_public_read_partners.sql` is applied; written by admins).
 
 ## Timeline
 
-- Progress line: solid red up to the current phase, then a short gap (the "opening"), then dashed grey for phases still to come. Done phases are red dots, the current phase is a red `pin`, and upcoming phases are grey rings.
-- The current phase is the milestone the team flags in the form (`isElearningIcon`, shown as the pin toggle). If nothing is flagged, it is the first open phase. Finished projects have no current phase.
-- Status colours: done = `ink`, in progress = red, paused = `mid-grey` with a dashed border.
-- Series colours: New Product = red, Enhancement = grey. They are used this way in analytics charts and in the LINE images.
-- Phones (below `md`) get `TimelineMobileList`: one card per project with segmented progress and a "ตอนนี้: …" line, expandable to show every phase and the admin actions. Desktop and the LINE images use the 3-column grid `[280px | phases | 140px]`.
+`TimelineHero` (band: controls, project count, status pills, partner mix), `StepTiles` (projects at each step), `TimelineTable` (headings, partner groups, rows, legend). Phones get `TimelineMobileList`. The LINE image `TimelineExportBoard` (1280px) reuses the same pieces in compact mode, and "Save image" downloads that board.
 
 ## LINE images
 
-`TimelineExportBoard` (1280px) and `ChannelSummaryExportBoard` (1200px) are rendered off-screen and captured as PNG. They share the page language: Eyebrow, a red-keyword headline, the Prudential logo, white bordered tables, the legend, and a footer line marking the image as confidential. The channel summary lists the top 9 channels and groups the rest as "อื่นๆ".
+`TimelineExportBoard` (1280px, one per type) and `ChannelSummaryExportBoard` (1200px, projects by partner) render off-screen and are captured as PNG.
 
 ## Accessibility
 
-- Focus ring is a 2px `pru-red-ink` outline via `:focus-visible`.
-- The `touch-target` utility makes controls 44px on coarse pointers.
-- Dialogs use `useDialogA11y`: focus trap, Escape to close, and focus returns to the trigger.
-- Toasts and confirm dialogs go through `lib/notify`.
+- Focus ring: 2px `brand-ink` outline via `:focus-visible`.
+- `touch-target` makes controls 44px on coarse pointers.
+- Step markers carry text labels ("Final Approval: Current") for screen readers.
+- Dialogs use `useDialogA11y`; toasts and confirms go through `lib/notify`.

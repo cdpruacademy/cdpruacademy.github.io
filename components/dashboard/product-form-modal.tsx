@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { PruIcon, type PruIconName } from "@/components/pru-icon"
 import { resolveBrokerColor } from "@/lib/broker-colors"
+import { DEFAULT_PARTNERS, Partner, partnerOf } from "@/lib/partners"
 import {
   X,
   Trash2,
@@ -85,7 +86,7 @@ interface ProductFormModalProps {
   onSave: (product: Omit<ProductItem, "id">, id?: string) => void
   onDelete?: (id: string) => void
   teamMembers?: string[]
-  availableBrokers?: Record<string, string>
+  partners?: Partner[]
 }
 
 const DEFAULT_BROKER_OPTIONS = [
@@ -120,9 +121,24 @@ export function ProductFormModal({
   onSave,
   onDelete,
   teamMembers,
-  availableBrokers,
+  partners = DEFAULT_PARTNERS,
 }: ProductFormModalProps) {
   const isEnhancement = timelineType === "enhancement"
+
+  // Every channel takes its partner's colour
+  const availableBrokers = React.useMemo(
+    () =>
+      Object.fromEntries(
+        partners.flatMap((p) => p.channels.map((c) => [c, p.color]))
+      ) as Record<string, string>,
+    [partners]
+  )
+  const partnerLabel = (channel: string) => {
+    const p = partnerOf(channel, partners)
+    return p.id === "unassigned" || p.name === channel
+      ? channel
+      : `${channel} · ${p.name}`
+  }
 
   // Build dynamic broker list from availableBrokers or fallback
   const brokerOptions = React.useMemo(() => {
@@ -130,7 +146,7 @@ export function ProductFormModal({
     if (availableBrokers && Object.keys(availableBrokers).length > 0) {
       list = Object.entries(availableBrokers).map(([key, color]) => ({
         value: key,
-        label: key,
+        label: partnerLabel(key),
         color: color,
       }))
     } else {
@@ -152,6 +168,7 @@ export function ProductFormModal({
     }
     list.push({ value: "Other", label: "อื่นๆ (ระบุเอง)", color: "#64748B" })
     return list
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availableBrokers, productToEdit?.broker])
 
   const effectiveMembers =
@@ -489,7 +506,8 @@ export function ProductFormModal({
     }
   }
 
-  const currentBrokerObj = React.useMemo(() => {
+  // Plain function: this runs after the early return above, so it cannot be a hook
+  const currentBrokerObj = (() => {
     if (broker === "Other") {
       return {
         value: "Other",
@@ -507,7 +525,7 @@ export function ProductFormModal({
       label: broker,
       color: resolveBrokerColor(broker, availableBrokers) || "#64748B",
     }
-  }, [broker, customBroker, brokerOptions, availableBrokers])
+  })()
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
@@ -611,7 +629,7 @@ export function ProductFormModal({
                 {/* Broker / Partner Select (Single dot) */}
                 <div className="space-y-1.5 md:col-span-2">
                   <Label required>
-                    ช่องทาง / พาร์ทเนอร์ (Channel / Broker)
+                    Partner / Channel
                   </Label>
                   <Select
                     value={broker}

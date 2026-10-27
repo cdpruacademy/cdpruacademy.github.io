@@ -7,8 +7,6 @@ export const metadata = {
 
 export default function AnnouncementsPage() {
   return (
-    <div className="min-h-screen py-3 bg-slate-50/50">
-      <AnnouncementView />
-    </div>
+    <AnnouncementView />
   );
 }

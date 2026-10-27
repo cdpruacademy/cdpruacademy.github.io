@@ -1,7 +1,7 @@
 // =========================================================================
 // CD-NOTIFY: SMART NLP ENGINE (ANTI-SPAM 100% + SLIPOK MINIMALIST DESIGN)
 // Google Apps Script (GAS) Backend for CD-Notify LINE Bot
-// Last Updated: October 2026
+// Last Updated: 28 October 2026 (style B Flex, grouped by Partner)
 // =========================================================================
 
 // 🔐 Secrets อยู่ใน Script Properties (Project Settings > Script properties) ห้ามใส่ในโค้ด
@@ -18,16 +18,238 @@ const MANAGER_PIN = SCRIPT_PROPS.getProperty("MANAGER_PIN") || "";
 const CRON_SECRET = SCRIPT_PROPS.getProperty("CRON_SECRET") || "";
 const DASHBOARD_WEB_URL = "https://cdpruacademy.github.io/";
 
-// Palette สีของช่องทางจำหน่าย (ตรงกับหน้า Dashboard)
-const CHANNEL_COLORS = {
-  "TTB": "#009FE3",
-  "CIMB": "#7E1518",
-  "UOB": "#0B2265",
-  "AGENCY": "#ED1C24",
-  "DIRECT": "#10B981",
-  "SCB": "#4E2E7F",
-  "OTHER": "#64748B"
+// สีและข้อความแบบ B ("Brand Hero") ให้ตรงกับหน้าเว็บ (ดู DESIGN.md)
+const UI = {
+  red: "#ED1B2E",
+  redInk: "#C8102E",
+  redSoft: "#FFE9EB",
+  done: "#15803D",
+  doneSoft: "#E3F5EA",
+  ink: "#1C1917",
+  soft: "#57534E",
+  line: "#E7E5E4",
+  surface: "#F5F5F4",
+  paper: "#F7F5F3"
 };
+
+// Partner และ Channel ข้างใต้ (เหมือน lib/partners.ts บนเว็บ) ค่าจริงอ่านจาก timeline_store id "partners"
+const DEFAULT_PARTNERS = [
+  { id: "ttb", name: "ttb", color: "#0B2E6F", channels: ["ttb", "ttb touch"] },
+  { id: "uob", name: "UOB", color: "#005CB9", channels: ["UOB", "Digital-UOB"] },
+  { id: "prudential", name: "Prudential", color: "#ED1B2E", channels: ["Agency", "DMTM", "D2C"] },
+  { id: "cimb", name: "CIMB THAI", color: "#7A1E3A", channels: ["CIMB"] },
+  { id: "thai-credit", name: "Thai Credit", color: "#F28C28", channels: ["Thai Credit"] }
+];
+const UNASSIGNED_PARTNER = { id: "unassigned", name: "Other", color: "#A8A29E", channels: [] };
+
+const STEPS = [
+  { key: "kick-off", label: "Kick-off" },
+  { key: "first-draft", label: "First Draft" },
+  { key: "first-draft-elearning", label: "First Draft e-learning" },
+  { key: "final-approval", label: "Final Approval" },
+  { key: "final-elearning", label: "Final e-learning" },
+  { key: "internal-training", label: "Internal Training" }
+];
+
+let partnersCache = null;
+function getPartners() {
+  if (partnersCache) return partnersCache;
+  partnersCache = DEFAULT_PARTNERS;
+  try {
+    const row = getTimelineStoreRow("partners");
+    if (row && row.data && Array.isArray(row.data.items) && row.data.items.length > 0) {
+      partnersCache = row.data.items;
+    }
+  } catch (e) {
+    Logger.log("getPartners Error: " + e.message);
+  }
+  return partnersCache;
+}
+
+function normName(s) {
+  return String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+// Partner ของ Channel (ชื่อในช่อง broker ของงาน) ใช้กติกาเดียวกับ partnerOf() บนเว็บ
+function partnerOf(channel, partners) {
+  if (!channel) return UNASSIGNED_PARTNER;
+  const key = normName(channel);
+  const exact = partners.filter(p => (p.channels || []).some(c => normName(c) === key))[0];
+  if (exact) return exact;
+  const loose = partners.filter(p =>
+    key.indexOf(normName(p.name)) >= 0 ||
+    (p.channels || []).some(c => key.indexOf(normName(c)) >= 0 || normName(c).indexOf(key) >= 0)
+  )[0];
+  return loose || UNASSIGNED_PARTNER;
+}
+
+// งานแยกตาม Partner เรียงตามจำนวนงาน
+function groupByPartner(items, partners) {
+  const order = partners.concat([UNASSIGNED_PARTNER]).map(p => p.id);
+  const map = {};
+  items.forEach(it => {
+    const p = partnerOf(it.broker, partners);
+    if (!map[p.id]) map[p.id] = { partner: p, items: [], channels: {} };
+    map[p.id].items.push(it);
+    const ch = String(it.broker || "Other").trim();
+    map[p.id].channels[ch] = (map[p.id].channels[ch] || 0) + 1;
+  });
+  return Object.keys(map)
+    .map(k => map[k])
+    .sort((a, b) => b.items.length - a.items.length || order.indexOf(a.partner.id) - order.indexOf(b.partner.id));
+}
+
+// งานเสร็จครบหรือยัง (เหมือน checkIsProjectCompleted บนเว็บ แต่เทียบวัน Launch ระดับเดือน)
+function isProjectCompleted(item, targetMonth) {
+  const ms = item.milestones || {};
+  if (ms["launch"] && ms["launch"].status === "completed") return true;
+  if (ms["internal-training"] && ms["internal-training"].status === "completed") return true;
+  const keys = Object.keys(ms).filter(k => ms[k]);
+  if (keys.length === 0 || (keys.length === 1 && keys[0] === "kick-off")) return false;
+  if (!keys.every(k => ms[k].status === "completed")) return false;
+  if (!item.commercialDate || String(item.commercialDate).toLowerCase().indexOf("tbc") >= 0) return false;
+  return hasLaunchedBefore(item, targetMonth) || matchesTargetMonth(item.commercialDate, targetMonth);
+}
+
+// ขั้นปัจจุบัน: ขั้นที่ทีมติ๊ก "ตอนนี้" (isElearningIcon) หรือขั้นแรกที่ยังไม่เสร็จ (-1 ถ้าเสร็จครบ)
+function currentStepIndex(item, targetMonth) {
+  if (isProjectCompleted(item, targetMonth)) return -1;
+  const ms = item.milestones || {};
+  let marked = -1;
+  STEPS.forEach((s, i) => { if (ms[s.key] && ms[s.key].isElearningIcon) marked = i; });
+  if (marked >= 0) return marked;
+  for (let i = 0; i < STEPS.length; i++) {
+    const m = ms[STEPS[i].key];
+    if (m && m.status !== "completed") return i;
+  }
+  return -1;
+}
+
+// "20 Nov 2026" -> "20 Nov"
+function shortDate(s) {
+  return String(s || "").replace(/[, ]*\b(20\d{2}|25\d{2})\b/g, "").trim();
+}
+
+// ---------- ชิ้นส่วน Flex แบบ B ----------
+
+// แถบแดงด้านบน: หัวข้อเล็ก ตัวเลขใหญ่ และบรรทัดย่อย
+function flexHero(caption, bigNumber, bigLabel, sub) {
+  const contents = [
+    { type: "text", text: caption, size: "sm", weight: "bold", color: "#FFFFFF", wrap: true },
+    {
+      type: "box",
+      layout: "baseline",
+      spacing: "md",
+      margin: "md",
+      contents: [
+        { type: "text", text: String(bigNumber), size: "5xl", weight: "bold", color: "#FFFFFF", flex: 0 },
+        { type: "text", text: bigLabel, size: "lg", weight: "bold", color: "#FFFFFF", wrap: true }
+      ]
+    }
+  ];
+  if (sub) contents.push({ type: "text", text: sub, size: "xs", color: "#FFFFFF", margin: "sm", wrap: true });
+  return { type: "box", layout: "vertical", backgroundColor: UI.red, paddingAll: "20px", paddingBottom: "24px", contents: contents };
+}
+
+// แถบแดงสำหรับหัวข้อที่เป็นชื่อ (ชื่อ project, ชื่อคน, ชื่อ Partner)
+function flexTitleHero(caption, title, sub, color) {
+  const contents = [
+    { type: "text", text: caption, size: "xs", weight: "bold", color: "#FFFFFF", wrap: true },
+    { type: "text", text: title, size: "xl", weight: "bold", color: "#FFFFFF", margin: "sm", wrap: true }
+  ];
+  if (sub) contents.push({ type: "text", text: sub, size: "xs", color: "#FFFFFF", margin: "sm", wrap: true });
+  return { type: "box", layout: "vertical", backgroundColor: color || UI.red, paddingAll: "20px", contents: contents };
+}
+
+// ป้ายสถานะแบบเม็ดยา
+function flexPill(text, color, bg) {
+  return {
+    type: "box",
+    layout: "vertical",
+    flex: 0,
+    backgroundColor: bg,
+    cornerRadius: "999px",
+    paddingTop: "4px",
+    paddingBottom: "4px",
+    paddingStart: "10px",
+    paddingEnd: "10px",
+    contents: [{ type: "text", text: text, size: "xs", weight: "bold", color: color }]
+  };
+}
+
+// สี่เหลี่ยมสีเล็ก ๆ หน้าชื่อ Partner
+function flexSwatch(color) {
+  return { type: "box", layout: "vertical", width: "12px", height: "12px", cornerRadius: "4px", backgroundColor: color, contents: [{ type: "filler" }] };
+}
+
+// แถบสัดส่วนตาม Partner
+function flexPartnerBar(groups) {
+  return {
+    type: "box",
+    layout: "horizontal",
+    height: "12px",
+    cornerRadius: "6px",
+    spacing: "xs",
+    contents: groups.map(g => ({
+      type: "box",
+      layout: "vertical",
+      flex: g.items.length,
+      backgroundColor: g.partner.color,
+      contents: [{ type: "filler" }]
+    }))
+  };
+}
+
+// แถว Partner: สี ชื่อ Channel ย่อย และจำนวน
+function flexPartnerRow(g, total) {
+  const channels = Object.keys(g.channels).map(c => c + " " + g.channels[c]).join(" · ");
+  return {
+    type: "box",
+    layout: "horizontal",
+    spacing: "md",
+    contents: [
+      { type: "box", layout: "vertical", flex: 0, paddingTop: "4px", contents: [flexSwatch(g.partner.color)] },
+      {
+        type: "box",
+        layout: "vertical",
+        flex: 4,
+        contents: [
+          { type: "text", text: g.partner.name, size: "sm", weight: "bold", color: UI.ink },
+          { type: "text", text: channels, size: "xxs", color: UI.soft, wrap: true }
+        ]
+      },
+      {
+        type: "text",
+        text: g.items.length + (total ? "  " + Math.round((g.items.length / total) * 100) + "%" : ""),
+        size: "sm",
+        weight: "bold",
+        color: UI.ink,
+        align: "end",
+        flex: 2
+      }
+    ]
+  };
+}
+
+function flexButton(label, action, primary) {
+  return primary
+    ? { type: "button", style: "primary", color: UI.red, height: "sm", action: Object.assign({ label: label }, action) }
+    : { type: "button", style: "secondary", color: UI.surface, height: "sm", action: Object.assign({ label: label }, action) };
+}
+
+function flexBubble(header, bodyContents, footerContents) {
+  const bubble = {
+    type: "bubble",
+    size: "mega",
+    header: header,
+    body: { type: "box", layout: "vertical", paddingAll: "20px", spacing: "lg", backgroundColor: "#FFFFFF", contents: bodyContents },
+    styles: { header: { backgroundColor: UI.red } }
+  };
+  if (footerContents && footerContents.length) {
+    bubble.footer = { type: "box", layout: "vertical", spacing: "sm", paddingAll: "16px", paddingTop: "0px", contents: footerContents };
+  }
+  return bubble;
+}
 
 // 0. HTTP GET Endpoint (สำหรับ Web Cron เช่น cron-job.org หรือเปิดเช็กสถานะ)
 function doGet(e) {
@@ -132,7 +354,7 @@ function handleSmartCdCommand(replyToken, rawText, groupId) {
   }
 
   // C. ขอสรุปช่องทาง: เช่น "CD chart", "CD สรุปช่องทาง", "CD กราฟ"
-  if (cleanQuery.includes("chart") || cleanQuery.includes("กราฟ") || cleanQuery.includes("ช่องทาง") || cleanQuery.includes("สรุป")) {
+  if (cleanQuery.includes("chart") || cleanQuery.includes("กราฟ") || cleanQuery.includes("ช่องทาง") || cleanQuery.includes("สรุป") || cleanQuery.includes("partner")) {
     replyChannelChart(replyToken);
     return;
   }
@@ -173,11 +395,18 @@ function handleSmartCdCommand(replyToken, rawText, groupId) {
     return;
   }
 
-  // F. ตรวจสอบช่องทางจำหน่าย (TTB, CIMB, UOB, SCB, Agency, Direct)
-  const channels = ["ttb", "cimb", "uob", "agency", "direct", "scb"];
-  const matchedChannel = channels.find(ch => cleanQuery.includes(ch));
-  if (matchedChannel) {
-    replyChannelProjects(replyToken, matchedChannel.toUpperCase(), items, dataStore.activeMonth);
+  // F. ตรวจสอบ Partner หรือ Channel จากรายการในหน้า Partners (ชื่อยาวก่อน เช่น "ttb touch" ก่อน "ttb")
+  const targets = [];
+  getPartners().forEach(p => {
+    targets.push({ label: normName(p.name), partner: p, channel: "" });
+    (p.channels || []).forEach(c => {
+      if (normName(c) !== normName(p.name)) targets.push({ label: normName(c), partner: p, channel: c });
+    });
+  });
+  targets.sort((x, y) => y.label.length - x.label.length);
+  const matchedTarget = targets.filter(t => t.label && cleanQuery.includes(t.label))[0];
+  if (matchedTarget) {
+    replyChannelProjects(replyToken, matchedTarget, items, dataStore.activeMonth);
     return;
   }
 
@@ -212,10 +441,10 @@ function handleSmartCdCommand(replyToken, rawText, groupId) {
 
   // J. ถ้าหาไม่เจอ -> แนะนำคำค้นหา
   const sampleNames = items.slice(0, 4).map(it => "• CD " + it.name).join("\n");
-  replyLineText(replyToken, "🔍 ไม่พบข้อมูลที่ตรงกับ \"" + query + "\"\n\n💡 คุณสามารถพิมพ์ค้นหาได้เช่น:\n• CD รูป (ดู Timeline)\n• CD cimb หรือ CD ttb (ดูงานแยกช่องทาง)\n• CD ตามด้วยชื่อโปรเจกต์ เช่น:\n" + sampleNames);
+  replyLineText(replyToken, "🔍 ไม่พบข้อมูลที่ตรงกับ \"" + query + "\"\n\n💡 คุณสามารถพิมพ์ค้นหาได้เช่น:\n• CD รูป (ดู Timeline)\n• CD cimb หรือ CD ttb (ดูงานแยกตาม Partner)\n• CD ตามด้วยชื่อโปรเจกต์ เช่น:\n" + sampleNames);
 }
 
-// 4. Flex Message: SlipOK Minimalist Main Menu
+// 4. Flex Message: เมนูหลัก (แบบ B: แถบแดง ตัวเลขใหญ่ สถานะ และสัดส่วนตาม Partner)
 function replySlipOkMainMenu(replyToken, groupId) {
   const dataStore = getNormalizedTimelineData();
   const leadRooms = getLeadRoomsFromSupabase();
@@ -224,282 +453,111 @@ function replySlipOkMainMenu(replyToken, groupId) {
   replyLineMessages(replyToken, [flexMessage]);
 }
 
-// Helper สร้าง Flex Card สไตล์ SlipOK Minimalist
+// การ์ดสรุปเดือนนี้ ใช้ทั้งเมนูหลักและข้อความวันจันทร์
 function buildSlipOkFlexCard(dataStore, isLead) {
   const activeMonth = dataStore.activeMonth;
-  const totalProjects = dataStore.items.length;
-  const productCount = dataStore.products.length;
-  const enhancementCount = dataStore.enhancements.length;
+  const items = dataStore.items;
+  const total = items.length;
+  const completed = items.filter(it => isProjectCompleted(it, activeMonth)).length;
+  const groups = groupByPartner(items, getPartners());
 
-  let mainChannel = "-";
-  if (dataStore.items.length > 0) {
-    const chMap = {};
-    dataStore.items.forEach(it => {
-      const b = (it.broker || "Other").toUpperCase();
-      chMap[b] = (chMap[b] || 0) + 1;
-    });
-    let maxCount = 0;
-    for (const k in chMap) {
-      if (chMap[k] > maxCount) {
-        maxCount = chMap[k];
-        const pct = Math.round((maxCount / totalProjects) * 100);
-        mainChannel = k + " (" + pct + "%)";
-      }
-    }
-  }
-
-  const buttons = [
-    {
-      type: "button",
-      style: "primary",
-      color: "#ED1C24",
-      height: "sm",
-      action: {
-        type: "message",
-        label: "ดูภาพ Timeline ทั้งหมด",
-        text: "CD รูป"
-      }
-    },
+  const body = [
     {
       type: "box",
       layout: "horizontal",
       spacing: "sm",
       contents: [
-        {
-          type: "button",
-          style: "secondary",
-          height: "sm",
-          color: "#F1F5F9",
-          flex: 1,
-          action: {
-            type: "postback",
-            label: "สรุปช่องทาง",
-            data: "action=view_chart"
-          }
-        },
-        {
-          type: "button",
-          style: "secondary",
-          height: "sm",
-          color: "#F1F5F9",
-          flex: 1,
-          action: {
-            type: "uri",
-            label: "เปิดเว็บ Dashboard",
-            uri: DASHBOARD_WEB_URL
-          }
-        }
+        flexPill(completed + " Completed", UI.done, UI.doneSoft),
+        flexPill((total - completed) + " In progress", UI.redInk, UI.redSoft),
+        { type: "filler" }
+      ]
+    },
+    {
+      type: "box",
+      layout: "horizontal",
+      contents: [
+        { type: "text", text: "New Product", size: "sm", color: UI.soft, flex: 3 },
+        { type: "text", text: String(dataStore.products.length), size: "sm", weight: "bold", color: UI.ink, align: "end", flex: 1 }
+      ]
+    },
+    {
+      type: "box",
+      layout: "horizontal",
+      margin: "sm",
+      contents: [
+        { type: "text", text: "Enhancement", size: "sm", color: UI.soft, flex: 3 },
+        { type: "text", text: String(dataStore.enhancements.length), size: "sm", weight: "bold", color: UI.ink, align: "end", flex: 1 }
       ]
     }
   ];
 
+  if (groups.length > 0) {
+    body.push({ type: "separator", color: UI.line });
+    body.push({ type: "text", text: "Projects by partner", size: "sm", weight: "bold", color: UI.ink });
+    body.push(flexPartnerBar(groups));
+    body.push({ type: "box", layout: "vertical", spacing: "md", contents: groups.slice(0, 6).map(g => flexPartnerRow(g, 0)) });
+  }
+
+  const footer = [
+    flexButton("ดูรูป Timeline", { type: "message", text: "CD รูป" }, true),
+    {
+      type: "box",
+      layout: "horizontal",
+      spacing: "sm",
+      contents: [
+        Object.assign(flexButton("By partner", { type: "postback", data: "action=view_chart" }, false), { flex: 1 }),
+        Object.assign(flexButton("เปิดเว็บ", { type: "uri", uri: DASHBOARD_WEB_URL }, false), { flex: 1 })
+      ]
+    }
+  ];
   if (isLead) {
-    buttons.push({
-      type: "button",
-      style: "link",
-      color: "#ED1C24",
-      height: "sm",
-      action: {
-        type: "message",
-        label: "ภาระงานทีม (Lead View)",
-        text: "CD workload"
-      }
-    });
+    footer.push({ type: "button", style: "link", color: UI.redInk, height: "sm", action: { type: "message", label: "Team workload (Lead)", text: "CD workload" } });
   }
 
   return {
     type: "flex",
-    altText: "CD Team Dashboard (" + activeMonth + ")",
-    contents: {
-      type: "bubble",
-      size: "mega",
-      body: {
-        type: "box",
-        layout: "vertical",
-        paddingAll: "24px",
-        backgroundColor: "#FFFFFF",
-        contents: [
-          {
-            type: "box",
-            layout: "horizontal",
-            contents: [
-              { type: "text", text: "●  ระบบติดตามงาน CD", size: "sm", weight: "bold", color: "#0F172A", flex: 3 },
-              { type: "text", text: activeMonth, size: "xs", color: "#94A3B8", align: "end", weight: "bold", flex: 2 }
-            ]
-          },
-          {
-            type: "box",
-            layout: "horizontal",
-            margin: "xl",
-            spacing: "xs",
-            contents: [
-              { type: "text", text: "" + totalProjects, size: "4xl", weight: "bold", color: "#ED1C24", flex: 0 },
-              { type: "text", text: "โปรเจกต์ที่ดำเนินงาน", size: "sm", color: "#64748B", margin: "sm", weight: "bold" }
-            ]
-          },
-          {
-            type: "text",
-            text: "ข้อมูลอัปเดตล่าสุด ณ วันที่ " + (dataStore.asOfText || "ล่าสุด"),
-            size: "xs",
-            color: "#94A3B8",
-            margin: "xs"
-          },
-          { type: "separator", margin: "xl", color: "#F1F5F9" },
-          {
-            type: "box",
-            layout: "vertical",
-            margin: "xl",
-            spacing: "md",
-            contents: [
-              {
-                type: "box",
-                layout: "horizontal",
-                contents: [
-                  { type: "text", text: "New Products", size: "xs", color: "#64748B", flex: 3 },
-                  { type: "text", text: productCount + " งาน", size: "xs", color: "#0F172A", weight: "bold", align: "end", flex: 2 }
-                ]
-              },
-              {
-                type: "box",
-                layout: "horizontal",
-                contents: [
-                  { type: "text", text: "Enhancements", size: "xs", color: "#64748B", flex: 3 },
-                  { type: "text", text: enhancementCount + " งาน", size: "xs", color: "#0F172A", weight: "bold", align: "end", flex: 2 }
-                ]
-              },
-              {
-                type: "box",
-                layout: "horizontal",
-                contents: [
-                  { type: "text", text: "ช่องทางหลัก", size: "xs", color: "#64748B", flex: 3 },
-                  { type: "text", text: mainChannel, size: "xs", color: "#ED1C24", weight: "bold", align: "end", flex: 2 }
-                ]
-              }
-            ]
-          },
-          { type: "separator", margin: "xl", color: "#F1F5F9" },
-          {
-            type: "box",
-            layout: "vertical",
-            spacing: "sm",
-            margin: "xl",
-            contents: buttons
-          }
-        ]
-      }
-    }
+    altText: "CD Team · " + activeMonth + " · " + total + " projects",
+    contents: flexBubble(
+      flexHero("CD Team Timeline · " + activeMonth, total, "Projects", "Last updated · " + (dataStore.asOfText || "ล่าสุด")),
+      body,
+      footer
+    )
   };
 }
 
-// 5. Flex Message: Channel Summary Chart
+// 5. Flex Message: สรุปตาม Partner (เดือนนี้)
 function replyChannelChart(replyToken) {
   const dataStore = getNormalizedTimelineData();
   const activeMonth = dataStore.activeMonth;
   const items = dataStore.items;
 
   if (items.length === 0) {
-    replyLineText(replyToken, "ℹ️ ยังไม่มีโปรเจกต์ในเดือน " + activeMonth + " ครับ");
+    replyLineText(replyToken, "ℹ️ ยังไม่มี project ในเดือน " + activeMonth + " ครับ");
     return;
   }
 
-  const channelMap = {};
-  items.forEach(it => {
-    const ch = (it.broker || "Other").toUpperCase();
-    channelMap[ch] = (channelMap[ch] || 0) + 1;
-  });
-
   const total = items.length;
-  const channelBoxes = [];
-  const channelCountUnique = Object.keys(channelMap).length;
-
-  for (const ch in channelMap) {
-    const count = channelMap[ch];
-    const pct = Math.max(5, Math.round((count / total) * 100));
-    const col = CHANNEL_COLORS[ch] || CHANNEL_COLORS["OTHER"];
-
-    channelBoxes.push({
-      type: "box",
-      layout: "vertical",
-      contents: [
-        {
-          type: "box",
-          layout: "horizontal",
-          contents: [
-            { type: "text", text: ch, size: "xs", weight: "bold", color: "#0F172A", flex: 3 },
-            { type: "text", text: count + " งาน (" + Math.round((count / total) * 100) + "%)", size: "xs", color: "#64748B", align: "end", flex: 2 }
-          ]
-        },
-        {
-          type: "box",
-          layout: "horizontal",
-          backgroundColor: "#F1F5F9",
-          cornerRadius: "4px",
-          height: "6px",
-          margin: "sm",
-          contents: [
-            {
-              type: "box",
-              layout: "vertical",
-              backgroundColor: col,
-              cornerRadius: "4px",
-              width: pct + "%",
-              height: "6px",
-              contents: [{ type: "filler" }]
-            }
-          ]
-        }
-      ]
-    });
-  }
+  const groups = groupByPartner(items, getPartners());
+  const rows = [];
+  groups.forEach((g, i) => {
+    if (i > 0) rows.push({ type: "separator", color: UI.line });
+    rows.push(flexPartnerRow(g, total));
+  });
 
   const flex = {
     type: "flex",
-    altText: "สรุปช่องทางจำหน่าย CD Team",
-    contents: {
-      type: "bubble",
-      size: "mega",
-      body: {
-        type: "box",
-        layout: "vertical",
-        paddingAll: "24px",
-        backgroundColor: "#FFFFFF",
-        contents: [
-          {
-            type: "box",
-            layout: "horizontal",
-            contents: [
-              { type: "text", text: "●  สัดส่วนตามช่องทาง", size: "sm", weight: "bold", color: "#0F172A", flex: 3 },
-              { type: "text", text: activeMonth, size: "xs", color: "#94A3B8", align: "end", weight: "bold", flex: 2 }
-            ]
-          },
-          {
-            type: "box",
-            layout: "horizontal",
-            margin: "xl",
-            spacing: "xs",
-            contents: [
-              { type: "text", text: "" + channelCountUnique, size: "4xl", weight: "bold", color: "#0F172A", flex: 0 },
-              { type: "text", text: "ช่องทางที่เปิดขาย", size: "sm", color: "#64748B", margin: "sm", weight: "bold" }
-            ]
-          },
-          { type: "text", text: "รวมงานทั้งหมด " + total + " รายการ", size: "xs", color: "#94A3B8", margin: "xs" },
-          { type: "separator", margin: "xl", color: "#F1F5F9" },
-          {
-            type: "box",
-            layout: "vertical",
-            margin: "xl",
-            spacing: "md",
-            contents: channelBoxes
-          }
-        ]
-      }
-    }
+    altText: "Projects by partner · " + activeMonth,
+    contents: flexBubble(
+      flexHero("Projects by partner · " + activeMonth, total, "Projects", groups.length + " partners"),
+      [flexPartnerBar(groups), { type: "box", layout: "vertical", spacing: "md", contents: rows }],
+      [flexButton("เปิดเว็บ Dashboard", { type: "uri", uri: DASHBOARD_WEB_URL }, false)]
+    )
   };
 
   replyLineMessages(replyToken, [flex]);
 }
 
-// 6. Flex Message: Project Stepper Detail
+// 6. Flex Message: สถานะ project ทีละขั้น
 function replyProjectTimeline(replyToken, projectName) {
   const dataStore = getNormalizedTimelineData();
   const items = dataStore.items;
@@ -508,317 +566,224 @@ function replyProjectTimeline(replyToken, projectName) {
   const item = matched.length > 0 ? matched[0] : (items.length > 0 ? items[0] : null);
 
   if (!item) {
-    replyLineText(replyToken, "⚠️ ไม่พบข้อมูลโปรเจกต์ \"" + projectName + "\"");
+    replyLineText(replyToken, "⚠️ ไม่พบข้อมูล project \"" + projectName + "\"");
     return;
   }
 
   const ms = item.milestones || {};
-  const stages = [
-    { label: "1. Kick-off", status: ms["kick-off"] ? ms["kick-off"].status : "pending" },
-    { label: "2. First Draft", status: ms["first-draft"] ? ms["first-draft"].status : "pending" },
-    { label: "3. Final Approval", status: ms["final-approval"] ? ms["final-approval"].status : "pending" },
-    { label: "4. Target Launch", status: ms["launch"] ? ms["launch"].status : "pending" }
-  ];
+  const current = currentStepIndex(item, dataStore.activeMonth);
+  const finished = current < 0 && isProjectCompleted(item, dataStore.activeMonth);
+  const partner = partnerOf(item.broker, getPartners());
 
-  const stageRows = stages.map(s => {
-    let badgeText = "รอดำเนินการ";
-    let badgeColor = "#94A3B8";
-    if (s.status === "completed") { badgeText = "เสร็จสิ้น"; badgeColor = "#10B981"; }
-    else if (s.status === "in_progress") { badgeText = "กำลังทำ"; badgeColor = "#ED1C24"; }
-    else if (s.status === "delayed") { badgeText = "ล่าช้า"; badgeColor = "#F59E0B"; }
+  const stepRows = STEPS.map((s, i) => {
+    const m = ms[s.key];
+    let kind;
+    if (finished || current < 0) kind = m ? "done" : "skip";
+    else if (i === current) kind = "now";
+    else if (i < current) kind = m ? "done" : "skip";
+    else kind = "todo";
+
+    const look = {
+      done: { bg: UI.done, mark: "✓", markColor: "#FFFFFF", label: UI.ink, tag: "Completed", tagColor: UI.done },
+      now: { bg: UI.red, mark: String(i + 1), markColor: "#FFFFFF", label: UI.redInk, tag: "Current", tagColor: UI.redInk },
+      todo: { bg: UI.surface, mark: String(i + 1), markColor: UI.soft, label: UI.soft, tag: "Upcoming", tagColor: UI.soft },
+      skip: { bg: UI.surface, mark: "–", markColor: UI.soft, label: UI.soft, tag: "Skipped", tagColor: UI.soft }
+    }[kind];
 
     return {
       type: "box",
       layout: "horizontal",
+      spacing: "md",
       contents: [
-        { type: "text", text: s.label, size: "xs", color: "#64748B", flex: 3 },
-        { type: "text", text: badgeText, size: "xs", color: badgeColor, weight: "bold", align: "end", flex: 2 }
+        {
+          type: "box",
+          layout: "vertical",
+          flex: 0,
+          width: "24px",
+          height: "24px",
+          cornerRadius: "12px",
+          backgroundColor: look.bg,
+          justifyContent: "center",
+          contents: [{ type: "text", text: look.mark, size: "xs", weight: "bold", color: look.markColor, align: "center" }]
+        },
+        {
+          type: "box",
+          layout: "vertical",
+          flex: 4,
+          contents: [
+            { type: "text", text: s.label, size: "sm", weight: kind === "now" ? "bold" : "regular", color: look.label, wrap: true },
+            { type: "text", text: look.tag + (m && m.date ? " · " + shortDate(m.date) : ""), size: "xxs", color: look.tagColor }
+          ]
+        }
       ]
     };
   });
 
-  const bKey = (item.broker || "OTHER").toUpperCase();
-  const bColor = CHANNEL_COLORS[bKey] || CHANNEL_COLORS["OTHER"];
+  const launch = shortDate(item.commercialDate) || "TBC";
+  const body = [
+    {
+      type: "box",
+      layout: "horizontal",
+      spacing: "sm",
+      contents: [
+        flexPill(partner.name + " · " + (item.broker || "-"), "#FFFFFF", partner.color),
+        { type: "filler" }
+      ]
+    },
+    { type: "box", layout: "vertical", spacing: "md", contents: stepRows },
+    { type: "separator", color: UI.line },
+    {
+      type: "box",
+      layout: "horizontal",
+      contents: [
+        { type: "text", text: "Target Launch", size: "sm", color: UI.soft, flex: 3 },
+        { type: "text", text: launch, size: "sm", weight: "bold", color: launch === "TBC" ? UI.soft : UI.redInk, align: "end", flex: 2 }
+      ]
+    },
+    {
+      type: "box",
+      layout: "horizontal",
+      contents: [
+        { type: "text", text: "Internal", size: "sm", color: UI.soft, flex: 3 },
+        { type: "text", text: shortDate(item.internalDate) || "TBC", size: "sm", color: UI.ink, align: "end", flex: 2 }
+      ]
+    }
+  ];
 
+  const status = finished ? "Completed" : current >= 0 ? "Current: " + STEPS[current].label : "In progress";
   const card = {
     type: "flex",
-    altText: "สถานะโปรเจกต์: " + item.name,
-    contents: {
-      type: "bubble",
-      size: "mega",
-      body: {
-        type: "box",
-        layout: "vertical",
-        paddingAll: "24px",
-        backgroundColor: "#FFFFFF",
-        contents: [
-          {
-            type: "box",
-            layout: "horizontal",
-            contents: [
-              { type: "text", text: "●  สถานะโปรเจกต์", size: "sm", weight: "bold", color: "#0F172A", flex: 3 },
-              { type: "text", text: bKey, size: "xs", color: bColor, align: "end", weight: "bold", flex: 2 }
-            ]
-          },
-          {
-            type: "text",
-            text: item.name,
-            size: "2xl",
-            weight: "bold",
-            color: "#0F172A",
-            margin: "lg",
-            wrap: true
-          },
-          {
-            type: "text",
-            text: "ผู้รับผิดชอบ: " + (item.owner || "ไม่ระบุ") + " | Target Launch: " + (item.commercialDate || item.internalDate || "-"),
-            size: "xs",
-            color: "#94A3B8",
-            margin: "xs"
-          },
-          { type: "separator", margin: "xl", color: "#F1F5F9" },
-          {
-            type: "box",
-            layout: "vertical",
-            margin: "xl",
-            spacing: "md",
-            contents: stageRows
-          }
-        ]
-      }
-    }
+    altText: "Project: " + item.name,
+    contents: flexBubble(
+      flexTitleHero("Project · " + status, item.name, "Owner · " + (item.owner || "-")),
+      body,
+      [flexButton("เปิดเว็บ Dashboard", { type: "uri", uri: DASHBOARD_WEB_URL }, false)]
+    )
   };
 
   replyLineMessages(replyToken, [card]);
 }
 
-// 7. Flex Message: Channel Projects List
-function replyChannelProjects(replyToken, channelName, allItems, activeMonth) {
-  const filtered = allItems.filter(it => it.broker && it.broker.toUpperCase() === channelName);
+// รายการ project แบบสั้น ใช้ร่วมกันในการ์ด Partner และการ์ดรายคน
+function flexProjectRows(list, activeMonth, partners) {
+  const rows = [];
+  list.forEach((it, i) => {
+    if (i > 0) rows.push({ type: "separator", color: UI.line });
+    const current = currentStepIndex(it, activeMonth);
+    const done = current < 0 && isProjectCompleted(it, activeMonth);
+    const p = partnerOf(it.broker, partners);
+    rows.push({
+      type: "box",
+      layout: "horizontal",
+      spacing: "md",
+      action: { type: "postback", label: "ดู", data: "action=view_proj&name=" + encodeURIComponent(it.name) },
+      contents: [
+        { type: "box", layout: "vertical", flex: 0, paddingTop: "4px", contents: [flexSwatch(p.color)] },
+        {
+          type: "box",
+          layout: "vertical",
+          flex: 5,
+          contents: [
+            { type: "text", text: it.name, size: "sm", weight: "bold", color: UI.ink, wrap: true },
+            {
+              type: "text",
+              text: (it.broker || "-") + " · " + (done ? "Completed" : current >= 0 ? "Current: " + STEPS[current].label : "In progress"),
+              size: "xxs",
+              color: done ? UI.done : UI.redInk,
+              wrap: true
+            }
+          ]
+        },
+        { type: "text", text: shortDate(it.commercialDate) || "TBC", size: "xs", weight: "bold", color: UI.ink, align: "end", flex: 2 }
+      ]
+    });
+  });
+  return rows;
+}
+
+// 7. Flex Message: project ของ Partner (หรือ Channel) ที่ถาม
+function replyChannelProjects(replyToken, target, allItems, activeMonth) {
+  const partners = getPartners();
+  const filtered = allItems.filter(it =>
+    target.channel
+      ? normName(it.broker) === normName(target.channel)
+      : partnerOf(it.broker, partners).id === target.partner.id
+  );
+  const label = target.channel || target.partner.name;
 
   if (filtered.length === 0) {
-    replyLineText(replyToken, "ℹ️ ยังไม่มีโปรเจกต์ของช่องทาง " + channelName + " ในเดือน " + activeMonth + " ครับ");
+    replyLineText(replyToken, "ℹ️ ยังไม่มี project ของ " + label + " ในเดือน " + activeMonth + " ครับ");
     return;
   }
 
-  const rows = filtered.map(it => {
-    return {
-      type: "box",
-      layout: "horizontal",
-      contents: [
-        { type: "text", text: it.name, size: "xs", color: "#0F172A", weight: "bold", flex: 3 },
-        { type: "text", text: it.owner || "ไม่ระบุ", size: "xs", color: "#64748B", align: "end", flex: 2 }
-      ]
-    };
-  });
-
-  const bColor = CHANNEL_COLORS[channelName] || CHANNEL_COLORS["OTHER"];
-
   const card = {
     type: "flex",
-    altText: "โปรเจกต์ช่องทาง: " + channelName,
-    contents: {
-      type: "bubble",
-      size: "mega",
-      body: {
-        type: "box",
-        layout: "vertical",
-        paddingAll: "24px",
-        backgroundColor: "#FFFFFF",
-        contents: [
-          {
-            type: "box",
-            layout: "horizontal",
-            contents: [
-              { type: "text", text: "●  ช่องทางจำหน่าย", size: "sm", weight: "bold", color: "#0F172A", flex: 3 },
-              { type: "text", text: activeMonth, size: "xs", color: "#94A3B8", align: "end", weight: "bold", flex: 2 }
-            ]
-          },
-          {
-            type: "text",
-            text: channelName,
-            size: "3xl",
-            weight: "bold",
-            color: bColor,
-            margin: "lg"
-          },
-          {
-            type: "text",
-            text: "รวมโปรเจกต์ของช่องทางนี้ " + filtered.length + " รายการ",
-            size: "xs",
-            color: "#94A3B8",
-            margin: "xs"
-          },
-          { type: "separator", margin: "xl", color: "#F1F5F9" },
-          {
-            type: "box",
-            layout: "vertical",
-            margin: "xl",
-            spacing: "md",
-            contents: rows
-          }
-        ]
-      }
-    }
+    altText: "Projects · " + label,
+    contents: flexBubble(
+      flexTitleHero(
+        (target.channel ? "Channel · " + target.partner.name : "Partner") + " · " + activeMonth,
+        label,
+        filtered.length + " projects · กดชื่อเพื่อดูทีละขั้น",
+        target.partner.color
+      ),
+      [{ type: "box", layout: "vertical", spacing: "md", contents: flexProjectRows(filtered.slice(0, 12), activeMonth, partners) }],
+      []
+    )
   };
+  card.contents.styles = { header: { backgroundColor: target.partner.color } };
 
   replyLineMessages(replyToken, [card]);
 }
 
-// 8. Flex Message: Owner Projects List
+// 8. Flex Message: project ของแต่ละคน
 function replyOwnerProjects(replyToken, ownerName, ownerItems, activeMonth) {
-  const rows = ownerItems.map(it => {
-    return {
-      type: "box",
-      layout: "horizontal",
-      contents: [
-        { type: "text", text: it.name + " (" + (it.broker || "-") + ")", size: "xs", color: "#0F172A", weight: "bold", flex: 3 },
-        { type: "text", text: it.commercialDate || it.internalDate || "-", size: "xs", color: "#ED1C24", weight: "bold", align: "end", flex: 2 }
-      ]
-    };
-  });
-
   const card = {
     type: "flex",
-    altText: "สรุปงานของ: " + ownerName,
-    contents: {
-      type: "bubble",
-      size: "mega",
-      body: {
-        type: "box",
-        layout: "vertical",
-        paddingAll: "24px",
-        backgroundColor: "#FFFFFF",
-        contents: [
-          {
-            type: "box",
-            layout: "horizontal",
-            contents: [
-              { type: "text", text: "●  ผู้รับผิดชอบโครงการ", size: "sm", weight: "bold", color: "#0F172A", flex: 3 },
-              { type: "text", text: activeMonth, size: "xs", color: "#94A3B8", align: "end", weight: "bold", flex: 2 }
-            ]
-          },
-          {
-            type: "text",
-            text: ownerName,
-            size: "3xl",
-            weight: "bold",
-            color: "#0F172A",
-            margin: "lg"
-          },
-          {
-            type: "text",
-            text: "รวมงานที่ดูแลในเดือนนี้ " + ownerItems.length + " โปรเจกต์",
-            size: "xs",
-            color: "#94A3B8",
-            margin: "xs"
-          },
-          { type: "separator", margin: "xl", color: "#F1F5F9" },
-          {
-            type: "box",
-            layout: "vertical",
-            margin: "xl",
-            spacing: "md",
-            contents: rows
-          }
-        ]
-      }
-    }
+    altText: "Projects of " + ownerName,
+    contents: flexBubble(
+      flexTitleHero("Owner · " + activeMonth, ownerName, ownerItems.length + " projects · กดชื่อเพื่อดูทีละขั้น"),
+      [{ type: "box", layout: "vertical", spacing: "md", contents: flexProjectRows(ownerItems.slice(0, 12), activeMonth, getPartners()) }],
+      []
+    )
   };
 
   replyLineMessages(replyToken, [card]);
 }
 
-// 9. Flex Message: Multiple Matches Choice
+// 9. Flex Message: เจอหลายรายการ ให้เลือก
 function replyMultipleMatches(replyToken, query, matchedItems) {
-  const buttons = matchedItems.slice(0, 4).map(it => {
-    return {
-      type: "button",
-      style: "secondary",
-      height: "sm",
-      color: "#F1F5F9",
-      action: {
-        type: "postback",
-        label: it.name.length > 20 ? it.name.substring(0, 18) + ".." : it.name,
-        data: "action=view_proj&name=" + encodeURIComponent(it.name)
-      }
-    };
-  });
+  const buttons = matchedItems.slice(0, 4).map(it =>
+    flexButton(it.name.length > 20 ? it.name.substring(0, 18) + ".." : it.name, { type: "postback", data: "action=view_proj&name=" + encodeURIComponent(it.name) }, false)
+  );
 
   const card = {
     type: "flex",
     altText: "พบ " + matchedItems.length + " รายการที่เกี่ยวข้อง",
-    contents: {
-      type: "bubble",
-      size: "mega",
-      body: {
-        type: "box",
-        layout: "vertical",
-        paddingAll: "24px",
-        backgroundColor: "#FFFFFF",
-        contents: [
-          { type: "text", text: "●  ผลการค้นหา: \"" + query + "\"", size: "sm", weight: "bold", color: "#0F172A" },
-          { type: "text", text: "พบข้อมูลที่เกี่ยวข้อง " + matchedItems.length + " รายการ กดเลือกดูรายละเอียดได้เลยครับ", size: "xs", color: "#64748B", margin: "sm", wrap: true },
-          { type: "separator", margin: "lg", color: "#F1F5F9" },
-          {
-            type: "box",
-            layout: "vertical",
-            spacing: "sm",
-            margin: "lg",
-            contents: buttons
-          }
-        ]
-      }
-    }
+    contents: flexBubble(
+      flexTitleHero("Search", "\"" + query + "\"", "พบ " + matchedItems.length + " รายการ กดเลือกดูรายละเอียดได้เลยครับ"),
+      buttons,
+      []
+    )
   };
 
   replyLineMessages(replyToken, [card]);
 }
 
-// 10. Flex Message: Quick Search Menu
+// 10. Flex Message: เมนูค้นหา project
 function replyQuickSearchMenu(replyToken) {
   const dataStore = getNormalizedTimelineData();
-  const items = dataStore.items;
-
-  const buttons = items.slice(0, 4).map(it => {
-    return {
-      type: "button",
-      style: "secondary",
-      height: "sm",
-      color: "#F1F5F9",
-      action: {
-        type: "postback",
-        label: it.name.length > 20 ? it.name.substring(0, 18) + ".." : it.name,
-        data: "action=view_proj&name=" + encodeURIComponent(it.name)
-      }
-    };
-  });
+  const buttons = dataStore.items.slice(0, 4).map(it =>
+    flexButton(it.name.length > 20 ? it.name.substring(0, 18) + ".." : it.name, { type: "postback", data: "action=view_proj&name=" + encodeURIComponent(it.name) }, false)
+  );
 
   const card = {
     type: "flex",
-    altText: "ค้นหาโปรเจกต์ CD",
-    contents: {
-      type: "bubble",
-      size: "mega",
-      body: {
-        type: "box",
-        layout: "vertical",
-        paddingAll: "24px",
-        backgroundColor: "#FFFFFF",
-        contents: [
-          { type: "text", text: "●  ค้นหาโปรเจกต์ CD", size: "sm", weight: "bold", color: "#0F172A" },
-          { type: "text", text: "กดเลือกดูโปรเจกต์ด้านล่าง หรือพิมพ์ เช่น [ CD ตามด้วยชื่อโปรเจกต์ ] ได้ทันทีครับ", size: "xs", color: "#64748B", margin: "sm", wrap: true },
-          { type: "separator", margin: "lg", color: "#F1F5F9" },
-          {
-            type: "box",
-            layout: "vertical",
-            spacing: "sm",
-            margin: "lg",
-            contents: buttons.length > 0 ? buttons : [{ type: "text", text: "ยังไม่มีรายการโปรเจกต์", size: "xs", color: "#64748B" }]
-          }
-        ]
-      }
-    }
+    altText: "ค้นหา project CD",
+    contents: flexBubble(
+      flexTitleHero("Search", "ค้นหา project", "กดเลือกด้านล่าง หรือพิมพ์ CD ตามด้วยชื่อ project ได้ทันทีครับ"),
+      buttons.length > 0 ? buttons : [{ type: "text", text: "ยังไม่มีรายการ project", size: "sm", color: UI.soft }],
+      []
+    )
   };
 
   replyLineMessages(replyToken, [card]);
@@ -1225,15 +1190,16 @@ function buildAnnouncementFlex(item) {
   const content = String(item.content || "").slice(0, 1500);
   const bubble = {
     type: "bubble",
+    header: flexTitleHero("Announcement · ประกาศจากทีม CD", title, ""),
+    styles: { header: { backgroundColor: UI.red } },
     body: {
       type: "box",
       layout: "vertical",
       spacing: "md",
+      paddingAll: "20px",
       contents: [
-        { type: "text", text: "📢 ประกาศจากทีม CD", size: "xs", color: "#ED1C24", weight: "bold" },
-        { type: "text", text: title, size: "md", weight: "bold", wrap: true, color: "#1E293B" },
-        { type: "text", text: content || " ", size: "sm", wrap: true, color: "#475569" },
-        { type: "text", text: "โดย " + (item.author || "ทีม CD"), size: "xxs", color: "#94A3B8" }
+        { type: "text", text: content || " ", size: "sm", wrap: true, color: UI.ink },
+        { type: "text", text: "โดย " + (item.author || "ทีม CD"), size: "xxs", color: UI.soft }
       ]
     },
     footer: {
@@ -1244,6 +1210,7 @@ function buildAnnouncementFlex(item) {
           type: "button",
           style: "link",
           height: "sm",
+          color: UI.redInk,
           action: { type: "uri", label: "ดูประกาศทั้งหมด", uri: DASHBOARD_WEB_URL + "announcements" }
         }
       ]
