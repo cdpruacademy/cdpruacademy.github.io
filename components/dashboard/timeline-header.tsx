@@ -343,18 +343,29 @@ export function TimelineTrackHeader({
     timelineType === "enhancement" ? ENHANCEMENT_PHASES : PRODUCT_PHASES
 
   return (
-    <div className="grid min-w-[1080px] grid-cols-[280px_1fr_140px] items-end gap-6 border-b-[3px] border-ink px-6 pt-4 pb-3 text-[13px] font-bold text-ink-soft">
-      <div>โครงการ</div>
-      <div className="grid grid-cols-6 text-center leading-tight">
-        {phases.map((phase) => (
-          <div key={phase.key} className="px-1 whitespace-pre-line">
-            {phase.label}
+    <div className="grid min-w-[1080px] grid-cols-[280px_1fr_150px] items-stretch border-b-[3px] border-ink px-6 text-[15px] leading-tight font-bold">
+      <div className="flex py-3 pr-3">
+        <div className="flex min-h-[60px] flex-1 items-center border-2 border-rule bg-surface px-4 text-ink">
+          โครงการ
+        </div>
+      </div>
+      <div className="grid grid-cols-6">
+        {phases.map((phase, i) => (
+          <div
+            key={phase.key}
+            className={`flex px-1 py-3 ${i % 2 === 1 ? "bg-shade" : ""}`}
+          >
+            <div className="flex min-h-[60px] flex-1 items-center justify-center border-2 border-gray-400 bg-white px-2 text-center whitespace-pre-line text-ink">
+              {phase.label}
+            </div>
           </div>
         ))}
       </div>
-      <div className="inline-flex items-center justify-end gap-1.5 text-right">
-        <PruIcon name="target" size={16} />
-        Target Launch
+      <div className="flex bg-pru-red-soft py-3 pl-1">
+        <div className="flex min-h-[60px] flex-1 items-center justify-center gap-1.5 bg-pru-red px-2 text-center text-white">
+          <PruIcon name="target" size={18} strokeWidth={4} />
+          Target Launch
+        </div>
       </div>
     </div>
   )

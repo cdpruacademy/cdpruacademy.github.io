@@ -28,8 +28,8 @@ export const formatShortDate = (dateStr?: string): string =>
   dateStr ? dateStr.replace(/[, ]*\b(20\d{2}|25\d{2})\b/g, "").trim() : ""
 
 /**
- * Where a project stands: the phase the team marked with the update marker (the old monitor
- * icon flag), else the first open phase. A finished project has no current phase.
+ * Where a project stands: the phase the team marked as "ตอนนี้" (the isElearningIcon flag),
+ * else the first open phase. A finished project has no current phase.
  */
 export function getProgress(product: ProductItem, timelineType: TimelineType) {
   const phases =
@@ -56,10 +56,6 @@ export function getProgress(product: ProductItem, timelineType: TimelineType) {
   }
 }
 
-const center = (i: number) => ((i + 0.5) / 6) * 100
-// Width of the brand's "opening" in the line around the update marker, in % of the track
-const OPENING = 3.2
-
 export function TimelineRow({
   product,
   timelineType = "product",
@@ -71,26 +67,13 @@ export function TimelineRow({
 }: TimelineRowProps) {
   const rowRef = useRef<HTMLDivElement>(null)
   const [isExportingThis, setIsExportingThis] = useState(false)
-  const { phases, used, current, first, last } = getProgress(
+  const { phases, used, current, isFinished, first, last } = getProgress(
     product,
     timelineType
   )
-
+  // The red line runs up to the current phase (or the last one when nothing is open)
   const doneEnd = current >= 0 ? current : last
-  const doneLine =
-    used.length > 1 && doneEnd > first
-      ? {
-          left: `${center(first)}%`,
-          width: `${center(doneEnd) - center(first) - (current >= 0 ? OPENING : 0)}%`,
-        }
-      : null
-  const todoLine =
-    current >= 0 && last > current
-      ? {
-          left: `${center(current) + OPENING}%`,
-          width: `${center(last) - center(current) - OPENING}%`,
-        }
-      : null
+  const hasLine = used.length > 1
 
   const handleExportRow = async () => {
     if (!rowRef.current) return
@@ -125,7 +108,7 @@ export function TimelineRow({
       ref={rowRef}
       // Focusable by tap/click so touch screens can reveal the row actions (no hover there)
       tabIndex={-1}
-      className={`group relative grid grid-cols-[280px_1fr_140px] items-center gap-6 border-b-2 border-rule bg-white px-6 py-4 outline-none ${
+      className={`group relative grid grid-cols-[280px_1fr_150px] items-stretch border-b-2 border-rule bg-white px-6 outline-none ${
         product.isPaused ? "opacity-60" : ""
       }`}
     >
@@ -187,7 +170,7 @@ export function TimelineRow({
       </div>
 
       {/* Project */}
-      <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex min-w-0 flex-col gap-1.5 py-5 pr-6">
         <div
           className="line-clamp-2 text-base leading-snug font-bold text-ink"
           title={product.name}
@@ -203,85 +186,122 @@ export function TimelineRow({
             <PruIcon name="person" size={14} strokeWidth={4} />
             <span className="truncate">{product.owner}</span>
           </span>
-          {product.isPaused && (
-            <span className="inline-flex items-center gap-1 font-bold text-ink">
-              <PruIcon name="pause" size={14} strokeWidth={4} />
-              หยุดชั่วคราว
-            </span>
-          )}
         </div>
+        {product.isPaused ? (
+          <span className="inline-flex items-center gap-1.5 self-start border-2 border-dashed border-gray-400 px-2 py-0.5 text-[13px] font-bold text-ink">
+            <PruIcon name="pause" size={14} strokeWidth={4} />
+            หยุดชั่วคราว
+          </span>
+        ) : isFinished ? (
+          <span className="inline-flex items-center gap-1.5 self-start bg-ink px-2.5 py-0.5 text-[13px] font-bold text-white">
+            <PruIcon name="check" size={14} strokeWidth={5} />
+            ส่งมอบครบทุกขั้น
+          </span>
+        ) : current >= 0 ? (
+          <span className="inline-flex max-w-full items-center gap-1.5 self-start bg-pru-red-soft px-2.5 py-0.5 text-[13px] font-bold text-brand-ink">
+            <PruIcon
+              name="pin"
+              size={14}
+              strokeWidth={4}
+              className="shrink-0"
+            />
+            <span className="truncate">
+              ตอนนี้: {phases[current].label.replace(/\n/g, " ")}
+            </span>
+          </span>
+        ) : null}
       </div>
 
-      {/* Progress: red line up to an opening, the update marker, then dashed grey */}
-      <div className="relative h-14">
-        {doneLine && (
-          <div
-            className="absolute top-[15px] h-1 rounded-full bg-pru-red"
-            style={doneLine}
-          />
-        )}
-        {todoLine && (
-          <div
-            className="absolute top-[16px] h-0 border-t-2 border-dashed border-gray-400"
-            style={todoLine}
-          />
-        )}
-        <div className="absolute inset-0 grid grid-cols-6">
-          {phases.map((phase, i) => {
-            const milestone = product.milestones[phase.key]
-            if (!milestone) return <div key={phase.key} />
-            const isCurrent = i === current
-            const isDone =
-              !isCurrent &&
-              (current < 0 || i < current || milestone.status === "completed")
-            return (
-              <div
-                key={phase.key}
-                className="flex flex-col items-center gap-1.5"
-              >
-                <div className="flex h-[34px] items-center justify-center">
-                  {isCurrent ? (
-                    <span className="flex bg-white px-1" title="อัปเดตล่าสุด">
+      {/* Progress: one column per phase, red line through finished phases, dashed after "ตอนนี้" */}
+      <div className="grid grid-cols-6">
+        {phases.map((phase, i) => {
+          const milestone = product.milestones[phase.key]
+          const shaded = i % 2 === 1
+          const segLeft = hasLine && i - 1 >= first && i <= last
+          const segRight = hasLine && i >= first && i + 1 <= last
+          const isCurrent = Boolean(milestone) && i === current
+          const isDone =
+            Boolean(milestone) &&
+            !isCurrent &&
+            (current < 0 || i < current || milestone?.status === "completed")
+          return (
+            <div
+              key={phase.key}
+              className={`flex flex-col items-center py-5 ${shaded ? "bg-shade" : ""}`}
+            >
+              <div className="relative flex h-11 w-full items-center justify-center">
+                {segLeft &&
+                  (i <= doneEnd ? (
+                    <span className="absolute top-5 left-0 h-1 w-1/2 bg-pru-red" />
+                  ) : (
+                    <span className="absolute top-[21px] left-0 w-1/2 border-t-2 border-dashed border-gray-400" />
+                  ))}
+                {segRight &&
+                  (i + 1 <= doneEnd ? (
+                    <span className="absolute top-5 right-0 h-1 w-1/2 bg-pru-red" />
+                  ) : (
+                    <span className="absolute top-[21px] right-0 w-1/2 border-t-2 border-dashed border-gray-400" />
+                  ))}
+                {milestone &&
+                  (isCurrent ? (
+                    <span className="relative flex h-11 w-11 items-center justify-center rounded-full border-[3px] border-pru-red bg-white ring-[5px] ring-pru-red-soft">
                       <PruIcon
                         name="pin"
-                        size={30}
+                        size={24}
                         className="text-pru-red"
-                        label="อัปเดตล่าสุด"
+                        label="ตอนนี้"
                       />
                     </span>
                   ) : isDone ? (
-                    <span className="box-content h-3 w-3 rounded-full border-[3px] border-white bg-pru-red" />
+                    <span
+                      className={`relative flex h-8 w-8 items-center justify-center rounded-full bg-pru-red ring-4 ${shaded ? "ring-shade" : "ring-white"}`}
+                    >
+                      <PruIcon
+                        name="check"
+                        size={18}
+                        strokeWidth={5}
+                        className="text-white"
+                        label="เสร็จแล้ว"
+                      />
+                    </span>
                   ) : (
-                    <span className="h-3 w-3 rounded-full border-2 border-gray-400 bg-white" />
-                  )}
-                </div>
-                {milestone.date && (
-                  <span
-                    className={`text-xs whitespace-nowrap ${isCurrent ? "font-bold text-ink" : "text-ink-soft"}`}
-                  >
-                    {formatShortDate(milestone.date)}
-                  </span>
-                )}
-                {phase.key === "internal-training" && product.csDate && (
-                  <span className="text-xs whitespace-nowrap text-ink-soft">
-                    {formatShortDate(product.csDate)}
-                  </span>
-                )}
+                    <span className="relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-gray-400 bg-white text-[13px] font-bold text-ink-soft">
+                      {i + 1}
+                      <span className="sr-only"> ยังไม่ถึง</span>
+                    </span>
+                  ))}
               </div>
-            )
-          })}
-        </div>
+              {milestone?.date && (
+                <span
+                  className={`mt-2 whitespace-nowrap ${isCurrent ? "text-sm font-bold text-brand-ink" : "text-xs text-ink-soft"}`}
+                >
+                  {formatShortDate(milestone.date)}
+                </span>
+              )}
+              {isCurrent && (
+                <span className="mt-1 bg-pru-red-soft px-2 text-xs font-bold text-brand-ink">
+                  ตอนนี้
+                </span>
+              )}
+              {phase.key === "internal-training" && product.csDate && (
+                <span className="text-xs whitespace-nowrap text-ink-soft">
+                  CS {formatShortDate(product.csDate)}
+                </span>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       {/* Target launch */}
-      <div className="text-right">
+      <div className="flex flex-col justify-center gap-0.5 bg-pru-red-soft px-4 py-5 text-right">
         {product.customRightLabel ? (
-          <div className="text-sm leading-snug font-bold text-ink">
+          <div className="text-sm leading-snug font-bold text-brand-ink">
             {formatShortDate(product.customRightLabel)}
           </div>
         ) : (
           <>
-            <div className="text-lg leading-tight font-bold text-ink">
+            <div className="text-xl leading-tight font-bold text-brand-ink">
               {formatShortDate(product.commercialDate) || "TBC"}
             </div>
             <div className="text-xs text-ink-soft">
@@ -299,23 +319,35 @@ export function TimelineLegend({ large = false }: { large?: boolean }) {
   const text = large ? "text-[15px]" : "text-[13px]"
   return (
     <div
-      className={`flex flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3 ${text} text-ink-soft`}
+      className={`flex flex-wrap items-center gap-x-8 gap-y-2 px-6 py-3 ${text} text-ink-soft`}
     >
       <span className="inline-flex items-center gap-2">
-        <span className="h-1 w-7 rounded-full bg-pru-red" /> ผ่านแล้ว
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-pru-red">
+          <PruIcon
+            name="check"
+            size={14}
+            strokeWidth={5}
+            className="text-white"
+          />
+        </span>
+        เสร็จแล้ว
       </span>
       <span className="inline-flex items-center gap-2">
-        <PruIcon
-          name="pin"
-          size={large ? 22 : 18}
-          strokeWidth={4}
-          className="text-pru-red"
-        />{" "}
-        อัปเดตล่าสุด (ขั้นปัจจุบัน)
+        <span className="flex h-7 w-7 items-center justify-center rounded-full border-[3px] border-pru-red bg-white">
+          <PruIcon
+            name="pin"
+            size={16}
+            strokeWidth={4}
+            className="text-pru-red"
+          />
+        </span>
+        ตอนนี้ (อัปเดตล่าสุด)
       </span>
       <span className="inline-flex items-center gap-2">
-        <span className="w-7 border-t-2 border-dashed border-gray-400" />{" "}
-        ยังไม่ถึง
+        <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-gray-400 bg-white text-[11px] font-bold">
+          4
+        </span>
+        ยังไม่ถึง (เลขตามลำดับขั้น)
       </span>
     </div>
   )

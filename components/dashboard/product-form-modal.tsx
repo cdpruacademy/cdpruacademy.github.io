@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { PruIcon } from "@/components/pru-icon"
+import { PruIcon, type PruIconName } from "@/components/pru-icon"
 import { resolveBrokerColor } from "@/lib/broker-colors"
 import {
   X,
@@ -45,6 +45,36 @@ import { motion, AnimatePresence } from "motion/react"
 import { DatePicker } from "@/components/ui/date-picker"
 import { cn } from "@/lib/utils"
 import { useDialogA11y } from "@/hooks/use-dialog-a11y"
+
+type PhaseState = "todo" | "current" | "done"
+
+const PHASE_STATES: {
+  key: PhaseState
+  label: string
+  icon: PruIconName
+  selectedClass: string
+}[] = [
+  {
+    key: "todo",
+    label: "ยังไม่ถึง",
+    icon: "clock",
+    selectedClass:
+      "bg-surface text-ink outline-2 -outline-offset-2 outline-ink",
+  },
+  {
+    key: "current",
+    label: "ตอนนี้",
+    icon: "pin",
+    selectedClass:
+      "bg-pru-red-soft text-brand-ink outline-2 -outline-offset-2 outline-pru-red",
+  },
+  {
+    key: "done",
+    label: "เสร็จแล้ว",
+    icon: "check",
+    selectedClass: "bg-ink text-white",
+  },
+]
 
 interface ProductFormModalProps {
   isOpen: boolean
@@ -357,24 +387,34 @@ export function ProductFormModal({
     setIsSubmitting(false)
   }, [productToEdit, isOpen, isEnhancement, brokerOptions])
 
-  const handleToggleCurrentPhase = (phaseKey: PhaseKey) => {
+  // One choice per phase. "ตอนนี้" is the isElearningIcon flag (one phase at most);
+  // choosing it marks earlier phases in use as completed and later ones as pending.
+  const setPhaseState = (phaseKey: PhaseKey, state: PhaseState) => {
     setMilestonesState((prev) => {
-      const isCurrentlyActive = !!prev[phaseKey]?.isElearningIcon
       const next = { ...prev }
-      // Turn off icon on all phases
-      ;(Object.keys(next) as PhaseKey[]).forEach((k) => {
-        next[k] = {
-          ...next[k],
-          isElearningIcon: false,
+      const target = PHASES.findIndex((p) => p.key === phaseKey)
+      PHASES.forEach((p, i) => {
+        const ms = next[p.key]
+        if (!ms) return
+        if (p.key === phaseKey) {
+          next[p.key] = {
+            ...ms,
+            status: state === "done" ? "completed" : "pending",
+            isElearningIcon: state === "current",
+          }
+        } else if (state === "current") {
+          next[p.key] = {
+            ...ms,
+            isElearningIcon: false,
+            // Earlier phases are finished, later ones not started yet
+            status: !ms.enabled
+              ? ms.status
+              : i < target
+                ? "completed"
+                : "pending",
+          }
         }
       })
-      // Toggle on only for this phase if it was not already active
-      if (!isCurrentlyActive) {
-        next[phaseKey] = {
-          ...next[phaseKey],
-          isElearningIcon: true,
-        }
-      }
       return next
     })
   }
@@ -748,11 +788,12 @@ export function ProductFormModal({
             <div className="space-y-4">
               <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-center">
                 <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-gray-700 uppercase">
-                  <Clock className="h-3.5 w-3.5 text-green-600" />
+                  <Clock className="h-3.5 w-3.5 text-pru-red" />
                   <span>3. กำหนดขั้นตอนความคืบหน้า (Phase Milestones)</span>
                 </div>
                 <span className="text-xs text-gray-500">
-                  คลิกไอคอนหน้าจอเพื่อระบุ Phase ปัจจุบัน (เลือกได้ 1 จุด)
+                  เลือก “ตอนนี้” ได้ทีละ 1 ขั้น · ขั้นก่อนหน้าจะเป็น “เสร็จแล้ว”
+                  ให้อัตโนมัติ
                 </span>
               </div>
 
@@ -813,72 +854,44 @@ export function ProductFormModal({
                               />
                             </div>
 
-                            {/* Status toggle button */}
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setMilestonesState((prev) => ({
-                                  ...prev,
-                                  [phase.key]: {
-                                    ...prev[phase.key],
-                                    status:
-                                      prev[phase.key].status === "completed"
-                                        ? "pending"
-                                        : "completed",
-                                  },
-                                }))
-                              }
-                              className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-all ${
-                                ms.status === "completed"
-                                  ? "border-green-200 bg-green-50 text-green-700"
-                                  : "border-gray-300 bg-gray-100 text-gray-600"
-                              }`}
+                            {/* Status: one of ยังไม่ถึง / ตอนนี้ / เสร็จแล้ว */}
+                            <div
+                              role="radiogroup"
+                              aria-label={`สถานะของ ${phase.label.replace("\n", " ")}`}
+                              className="flex gap-0.5 border-2 border-rule bg-rule"
                             >
-                              {ms.status === "completed" ? (
-                                <>
-                                  <CheckCircle2 className="h-3 w-3 text-green-600" />
-                                  <span>Completed</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Clock className="h-3 w-3 text-gray-500" />
-                                  <span>Pending</span>
-                                </>
-                              )}
-                            </button>
-
-                            {/* Current Active Phase Monitor Icon Toggle (Single-select) */}
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleToggleCurrentPhase(phase.key)
-                              }
-                              title={
-                                ms.isElearningIcon
-                                  ? "ตำแหน่งปัจจุบันของงาน (คลิกเพื่อยกเลิก)"
-                                  : "คลิกเพื่อระบุว่างานอยู่ที่ขั้นนี้ (แสดงหมุดอัปเดตล่าสุด)"
-                              }
-                              aria-pressed={Boolean(ms.isElearningIcon)}
-                              aria-label="อัปเดตล่าสุดอยู่ที่ขั้นนี้"
-                              className={`flex items-center justify-center rounded-lg border p-1.5 transition-all ${
-                                ms.isElearningIcon
-                                  ? isEnhancement
-                                    ? "border-blue-300 bg-blue-50 shadow-xs ring-2 ring-blue-500/20"
-                                    : "border-red-300 bg-red-50 shadow-xs ring-2 ring-red-500/20"
-                                  : "border-gray-200 bg-gray-50 opacity-60 hover:border-gray-300 hover:bg-gray-100 hover:opacity-100"
-                              }`}
-                            >
-                              <PruIcon
-                                name="pin"
-                                size={20}
-                                strokeWidth={4}
-                                className={
-                                  ms.isElearningIcon
-                                    ? "text-pru-red"
-                                    : "text-gray-400"
-                                }
-                              />
-                            </button>
+                              {PHASE_STATES.map((option) => {
+                                const current: PhaseState = ms.isElearningIcon
+                                  ? "current"
+                                  : ms.status === "completed"
+                                    ? "done"
+                                    : "todo"
+                                const selected = current === option.key
+                                return (
+                                  <button
+                                    key={option.key}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={selected}
+                                    onClick={() =>
+                                      setPhaseState(phase.key, option.key)
+                                    }
+                                    className={`inline-flex h-10 touch-target items-center gap-1.5 px-3 text-xs font-bold whitespace-nowrap ${
+                                      selected
+                                        ? option.selectedClass
+                                        : "bg-white text-ink-soft hover:text-ink"
+                                    }`}
+                                  >
+                                    <PruIcon
+                                      name={option.icon}
+                                      size={14}
+                                      strokeWidth={4}
+                                    />
+                                    {option.label}
+                                  </button>
+                                )
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>

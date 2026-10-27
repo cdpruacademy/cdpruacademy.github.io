@@ -175,18 +175,33 @@ export function TimelineMobileList({
                         className="flex items-center gap-3 text-sm"
                       >
                         {st === "current" ? (
-                          <PruIcon
-                            name="pin"
-                            size={18}
-                            strokeWidth={4}
-                            className="-mx-0.5 shrink-0 text-pru-red"
-                            label="อัปเดตล่าสุด"
-                          />
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-[3px] border-pru-red bg-white">
+                            <PruIcon
+                              name="pin"
+                              size={15}
+                              strokeWidth={4}
+                              className="text-pru-red"
+                            />
+                          </span>
+                        ) : st === "done" ? (
+                          <span
+                            aria-hidden="true"
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-pru-red"
+                          >
+                            <PruIcon
+                              name="check"
+                              size={15}
+                              strokeWidth={5}
+                              className="text-white"
+                            />
+                          </span>
                         ) : (
                           <span
                             aria-hidden="true"
-                            className={`h-3.5 w-3.5 shrink-0 rounded-full ${st === "done" ? "bg-pru-red" : "border-2 border-gray-400 bg-white"}`}
-                          />
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-gray-400 bg-white text-xs font-bold text-ink-soft"
+                          >
+                            {i + 1}
+                          </span>
                         )}
                         <span
                           className={`flex-1 ${st === "current" ? "font-bold text-ink" : st === "todo" ? "text-ink-soft" : "text-ink"}`}

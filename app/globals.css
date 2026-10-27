@@ -9,6 +9,7 @@
 @theme {
   --color-paper: #fbfaf8;
   --color-surface: #f2f2f2;
+  --color-shade: #f6f6f4; /* every other phase column in the timeline */
   --color-rule: #e0e3e5;
   --color-pru-red: #ed1b2e;      /* emphasis: progress line, key numbers, large headings, the active tab bar */
   --color-pru-red-soft: #fdecee; /* highlight row / error note behind ink text */
