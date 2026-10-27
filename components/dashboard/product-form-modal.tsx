@@ -1,14 +1,14 @@
-"use client";
+"use client"
 
-import * as React from "react";
-import { useState, useEffect } from "react";
+import * as React from "react"
+import { useState, useEffect } from "react"
 import {
   ProductItem,
   PHASES,
   PhaseKey,
   MilestoneStatus,
   TimelineType,
-} from "@/lib/timeline-data";
+} from "@/lib/timeline-data"
 import {
   Card,
   CardHeader,
@@ -16,21 +16,21 @@ import {
   CardDescription,
   CardContent,
   CardFooter,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { ElearningMonitorIcon } from "./elearning-icon";
-import { resolveBrokerColor } from "@/lib/broker-colors";
+} from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
+import { PruIcon } from "@/components/pru-icon"
+import { resolveBrokerColor } from "@/lib/broker-colors"
 import {
   X,
   Trash2,
@@ -40,21 +40,22 @@ import {
   User,
   Clock,
   Sparkles,
-} from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
-import { DatePicker } from "@/components/ui/date-picker";
-import { cn } from "@/lib/utils";
+} from "lucide-react"
+import { motion, AnimatePresence } from "motion/react"
+import { DatePicker } from "@/components/ui/date-picker"
+import { cn } from "@/lib/utils"
+import { useDialogA11y } from "@/hooks/use-dialog-a11y"
 
 interface ProductFormModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  timelineType?: TimelineType;
-  selectedMonth?: string;
-  productToEdit?: ProductItem | null;
-  onSave: (product: Omit<ProductItem, "id">, id?: string) => void;
-  onDelete?: (id: string) => void;
-  teamMembers?: string[];
-  availableBrokers?: Record<string, string>;
+  isOpen: boolean
+  onClose: () => void
+  timelineType?: TimelineType
+  selectedMonth?: string
+  productToEdit?: ProductItem | null
+  onSave: (product: Omit<ProductItem, "id">, id?: string) => void
+  onDelete?: (id: string) => void
+  teamMembers?: string[]
+  availableBrokers?: Record<string, string>
 }
 
 const DEFAULT_BROKER_OPTIONS = [
@@ -64,21 +65,21 @@ const DEFAULT_BROKER_OPTIONS = [
   { value: "Agency", label: "Agency (Prudential)", color: "#ED1C24" },
   { value: "Audit", label: "Audit", color: "#1E293B" },
   { value: "New Broker", label: "New Broker", color: "#334155" },
-];
+]
 
 const DEFAULT_MEMBERS = [
   "Jirapat O.",
   "Sakkarin S.",
   "Nitikan B.",
   "Surakit P.",
-];
+]
 
 const THAI_NAME_MAP: Record<string, string> = {
   "Jirapat O.": "จิรภัทร",
   "Sakkarin S.": "ศักรินทร์",
   "Nitikan B.": "นิติกานต์",
   "Surakit P.": "สุรกิจ",
-};
+}
 
 export function ProductFormModal({
   isOpen,
@@ -91,291 +92,336 @@ export function ProductFormModal({
   teamMembers,
   availableBrokers,
 }: ProductFormModalProps) {
-  const isEnhancement = timelineType === "enhancement";
+  const isEnhancement = timelineType === "enhancement"
 
   // Build dynamic broker list from availableBrokers or fallback
   const brokerOptions = React.useMemo(() => {
-    let list: { value: string; label: string; color: string }[] = [];
+    let list: { value: string; label: string; color: string }[] = []
     if (availableBrokers && Object.keys(availableBrokers).length > 0) {
       list = Object.entries(availableBrokers).map(([key, color]) => ({
         value: key,
         label: key,
         color: color,
-      }));
+      }))
     } else {
-      list = [...DEFAULT_BROKER_OPTIONS];
+      list = [...DEFAULT_BROKER_OPTIONS]
     }
     // If productToEdit has a broker that's not in the list and not "Other", add it
     if (
       productToEdit?.broker &&
       productToEdit.broker !== "Other" &&
-      !list.some((b) => b.value.toLowerCase() === productToEdit.broker.toLowerCase())
+      !list.some(
+        (b) => b.value.toLowerCase() === productToEdit.broker.toLowerCase()
+      )
     ) {
       list.push({
         value: productToEdit.broker,
         label: productToEdit.broker,
         color: resolveBrokerColor(productToEdit.broker, availableBrokers),
-      });
+      })
     }
-    list.push({ value: "Other", label: "อื่นๆ (ระบุเอง)", color: "#64748B" });
-    return list;
-  }, [availableBrokers, productToEdit?.broker]);
+    list.push({ value: "Other", label: "อื่นๆ (ระบุเอง)", color: "#64748B" })
+    return list
+  }, [availableBrokers, productToEdit?.broker])
 
-  const effectiveMembers = teamMembers && teamMembers.length > 0 ? teamMembers : DEFAULT_MEMBERS;
+  const effectiveMembers =
+    teamMembers && teamMembers.length > 0 ? teamMembers : DEFAULT_MEMBERS
   const teamOwnersList = effectiveMembers.map((m) => ({
     id: m,
     label: THAI_NAME_MAP[m] ? `${m} (${THAI_NAME_MAP[m]})` : m,
-  }));
+  }))
 
   const [broker, setBroker] = useState<string>(() => {
     if (productToEdit?.broker) {
-      const bTrim = productToEdit.broker.trim();
+      const bTrim = productToEdit.broker.trim()
       const known = brokerOptions.find(
         (b) => b.value.toLowerCase().trim() === bTrim.toLowerCase()
-      );
-      if (known && known.value !== "Other") return known.value;
-      if (bTrim && bTrim !== "Other") return bTrim;
+      )
+      if (known && known.value !== "Other") return known.value
+      if (bTrim && bTrim !== "Other") return bTrim
     }
     try {
-      const last = localStorage.getItem("pru_last_used_broker");
+      const last = localStorage.getItem("pru_last_used_broker")
       if (last) {
         const found = brokerOptions.find(
           (b) => b.value.toLowerCase().trim() === last.toLowerCase().trim()
-        );
-        if (found && found.value !== "Other") return found.value;
+        )
+        if (found && found.value !== "Other") return found.value
       }
     } catch (_) {}
-    return isEnhancement ? "ttb" : "New Broker";
-  });
+    return isEnhancement ? "ttb" : "New Broker"
+  })
 
   const [customBroker, setCustomBroker] = useState<string>(() => {
     if (productToEdit?.broker) {
-      const bTrim = productToEdit.broker.trim();
+      const bTrim = productToEdit.broker.trim()
       const known = brokerOptions.find(
         (b) => b.value.toLowerCase().trim() === bTrim.toLowerCase()
-      );
-      if (known && known.value !== "Other") return "";
-      return bTrim === "Other" ? "" : bTrim;
+      )
+      if (known && known.value !== "Other") return ""
+      return bTrim === "Other" ? "" : bTrim
     }
-    return "";
-  });
+    return ""
+  })
 
-  const [name, setName] = useState<string>(() => productToEdit?.name || "");
-  const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
-  const [customOwner, setCustomOwner] = useState<string>("");
-  const [internalDate, setInternalDate] = useState<string>(() => productToEdit?.internalDate || "TBC");
-  const [commercialDate, setCommercialDate] = useState<string>(() => productToEdit?.commercialDate || "TBC");
-  const [csDate, setCsDate] = useState<string>(() => productToEdit?.csDate || "");
-  const [customRightLabel, setCustomRightLabel] = useState<string>(() => productToEdit?.customRightLabel || "");
+  const [name, setName] = useState<string>(() => productToEdit?.name || "")
+  const [selectedOwners, setSelectedOwners] = useState<string[]>([])
+  const [customOwner, setCustomOwner] = useState<string>("")
+  const [internalDate, setInternalDate] = useState<string>(
+    () => productToEdit?.internalDate || "TBC"
+  )
+  const [commercialDate, setCommercialDate] = useState<string>(
+    () => productToEdit?.commercialDate || "TBC"
+  )
+  const [csDate, setCsDate] = useState<string>(
+    () => productToEdit?.csDate || ""
+  )
+  const [customRightLabel, setCustomRightLabel] = useState<string>(
+    () => productToEdit?.customRightLabel || ""
+  )
 
   interface MilestoneFormState {
-    enabled: boolean;
-    date: string;
-    status: MilestoneStatus;
-    isElearningIcon: boolean;
+    enabled: boolean
+    date: string
+    status: MilestoneStatus
+    isElearningIcon: boolean
   }
 
   const createInitialMilestones = (): Record<PhaseKey, MilestoneFormState> => ({
-    "kick-off": { enabled: true, date: "", status: "completed", isElearningIcon: false },
-    "first-draft": { enabled: false, date: "", status: "pending", isElearningIcon: false },
-    "first-draft-elearning": { enabled: false, date: "", status: "pending", isElearningIcon: false },
-    "final-approval": { enabled: false, date: "", status: "pending", isElearningIcon: false },
-    "final-elearning": { enabled: false, date: "", status: "pending", isElearningIcon: false },
-    "internal-training": { enabled: false, date: "", status: "pending", isElearningIcon: false },
-    launch: { enabled: false, date: "", status: "pending", isElearningIcon: false },
-  });
+    "kick-off": {
+      enabled: true,
+      date: "",
+      status: "completed",
+      isElearningIcon: false,
+    },
+    "first-draft": {
+      enabled: false,
+      date: "",
+      status: "pending",
+      isElearningIcon: false,
+    },
+    "first-draft-elearning": {
+      enabled: false,
+      date: "",
+      status: "pending",
+      isElearningIcon: false,
+    },
+    "final-approval": {
+      enabled: false,
+      date: "",
+      status: "pending",
+      isElearningIcon: false,
+    },
+    "final-elearning": {
+      enabled: false,
+      date: "",
+      status: "pending",
+      isElearningIcon: false,
+    },
+    "internal-training": {
+      enabled: false,
+      date: "",
+      status: "pending",
+      isElearningIcon: false,
+    },
+    launch: {
+      enabled: false,
+      date: "",
+      status: "pending",
+      isElearningIcon: false,
+    },
+  })
 
-  const [milestonesState, setMilestonesState] = useState<Record<PhaseKey, MilestoneFormState>>(
-    createInitialMilestones()
-  );
+  const [milestonesState, setMilestonesState] = useState<
+    Record<PhaseKey, MilestoneFormState>
+  >(createInitialMilestones())
 
-  const [errors, setErrors] = useState<{ name?: string; owner?: string }>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<{ name?: string; owner?: string }>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (productToEdit) {
-      const bTrim = (productToEdit.broker || "").trim();
+      const bTrim = (productToEdit.broker || "").trim()
       const knownBroker = brokerOptions.find(
         (b) => b.value.toLowerCase().trim() === bTrim.toLowerCase()
-      );
+      )
       if (knownBroker && knownBroker.value !== "Other") {
-        setBroker(knownBroker.value);
-        setCustomBroker("");
+        setBroker(knownBroker.value)
+        setCustomBroker("")
       } else if (bTrim) {
         if (bTrim === "Other") {
-          setBroker("Other");
-          setCustomBroker("");
+          setBroker("Other")
+          setCustomBroker("")
         } else {
           const match = brokerOptions.find(
             (b) => b.value.toLowerCase().trim() === bTrim.toLowerCase()
-          );
+          )
           if (match && match.value !== "Other") {
-            setBroker(match.value);
-            setCustomBroker("");
+            setBroker(match.value)
+            setCustomBroker("")
           } else {
-            setBroker("Other");
-            setCustomBroker(bTrim);
+            setBroker("Other")
+            setCustomBroker(bTrim)
           }
         }
       } else {
-        setBroker(isEnhancement ? "ttb" : "New Broker");
-        setCustomBroker("");
+        setBroker(isEnhancement ? "ttb" : "New Broker")
+        setCustomBroker("")
       }
-      setName(productToEdit.name);
+      setName(productToEdit.name)
 
       // Parse owners (e.g. "Nitikan B. / Surakit P." or "Surakit P.")
-      const rawOwner = productToEdit.owner || "";
-      const splitOwners = rawOwner.split(/[\/,]+/).map((s) => s.trim()).filter(Boolean);
-      const matchedKnown: string[] = [];
-      const leftoverCustom: string[] = [];
+      const rawOwner = productToEdit.owner || ""
+      const splitOwners = rawOwner
+        .split(/[\/,]+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+      const matchedKnown: string[] = []
+      const leftoverCustom: string[] = []
 
       splitOwners.forEach((own) => {
         const found = teamOwnersList.find(
-          (t) => t.id.toLowerCase() === own.toLowerCase() || t.id.toLowerCase().includes(own.toLowerCase())
-        );
+          (t) =>
+            t.id.toLowerCase() === own.toLowerCase() ||
+            t.id.toLowerCase().includes(own.toLowerCase())
+        )
         if (found) {
-          if (!matchedKnown.includes(found.id)) matchedKnown.push(found.id);
+          if (!matchedKnown.includes(found.id)) matchedKnown.push(found.id)
         } else {
-          leftoverCustom.push(own);
+          leftoverCustom.push(own)
         }
-      });
+      })
 
-      setSelectedOwners(matchedKnown);
-      setCustomOwner(leftoverCustom.join(", "));
+      setSelectedOwners(matchedKnown)
+      setCustomOwner(leftoverCustom.join(", "))
 
-      setInternalDate(productToEdit.internalDate || "TBC");
-      setCommercialDate(productToEdit.commercialDate || "TBC");
-      setCsDate(productToEdit.csDate || "");
-      setCustomRightLabel(productToEdit.customRightLabel || "");
+      setInternalDate(productToEdit.internalDate || "TBC")
+      setCommercialDate(productToEdit.commercialDate || "TBC")
+      setCsDate(productToEdit.csDate || "")
+      setCustomRightLabel(productToEdit.customRightLabel || "")
 
       // Find which phase has the active monitor icon (ensure only 1 active)
-      let activePhaseKey: PhaseKey | null = null;
-      const reversedPhases = [...PHASES].reverse();
+      let activePhaseKey: PhaseKey | null = null
+      const reversedPhases = [...PHASES].reverse()
       for (const p of reversedPhases) {
         if (productToEdit.milestones[p.key]?.isElearningIcon) {
-          activePhaseKey = p.key;
-          break;
+          activePhaseKey = p.key
+          break
         }
       }
 
-      const nextMState: Record<PhaseKey, MilestoneFormState> = createInitialMilestones();
+      const nextMState: Record<PhaseKey, MilestoneFormState> =
+        createInitialMilestones()
       PHASES.forEach((p) => {
-        const existing = productToEdit.milestones[p.key];
+        const existing = productToEdit.milestones[p.key]
         if (existing) {
           nextMState[p.key] = {
             enabled: true,
             date: existing.date || "",
             status: existing.status || "completed",
             isElearningIcon: activePhaseKey === p.key,
-          };
+          }
         } else {
           nextMState[p.key] = {
             enabled: false,
             date: "",
             status: "pending",
             isElearningIcon: false,
-          };
+          }
         }
-      });
-      setMilestonesState(nextMState);
+      })
+      setMilestonesState(nextMState)
     } else {
-      let defaultB = isEnhancement ? "ttb" : "New Broker";
+      let defaultB = isEnhancement ? "ttb" : "New Broker"
       try {
-        const last = localStorage.getItem("pru_last_used_broker");
+        const last = localStorage.getItem("pru_last_used_broker")
         if (last) {
           const match = brokerOptions.find(
             (b) => b.value.toLowerCase().trim() === last.toLowerCase().trim()
-          );
-          if (match && match.value !== "Other") defaultB = match.value;
+          )
+          if (match && match.value !== "Other") defaultB = match.value
         }
       } catch (_) {}
-      setBroker(defaultB);
-      setCustomBroker("");
-      setName("");
-      setSelectedOwners([]);
-      setCustomOwner("");
-      setInternalDate("TBC");
-      setCommercialDate("TBC");
-      setCsDate("");
-      setCustomRightLabel("");
-      setMilestonesState(createInitialMilestones());
+      setBroker(defaultB)
+      setCustomBroker("")
+      setName("")
+      setSelectedOwners([])
+      setCustomOwner("")
+      setInternalDate("TBC")
+      setCommercialDate("TBC")
+      setCsDate("")
+      setCustomRightLabel("")
+      setMilestonesState(createInitialMilestones())
     }
-    setErrors({});
-    setIsSubmitting(false);
-  }, [productToEdit, isOpen, isEnhancement, brokerOptions]);
+    setErrors({})
+    setIsSubmitting(false)
+  }, [productToEdit, isOpen, isEnhancement, brokerOptions])
 
   const handleToggleCurrentPhase = (phaseKey: PhaseKey) => {
     setMilestonesState((prev) => {
-      const isCurrentlyActive = !!prev[phaseKey]?.isElearningIcon;
-      const next = { ...prev };
+      const isCurrentlyActive = !!prev[phaseKey]?.isElearningIcon
+      const next = { ...prev }
       // Turn off icon on all phases
-      (Object.keys(next) as PhaseKey[]).forEach((k) => {
+      ;(Object.keys(next) as PhaseKey[]).forEach((k) => {
         next[k] = {
           ...next[k],
           isElearningIcon: false,
-        };
-      });
+        }
+      })
       // Toggle on only for this phase if it was not already active
       if (!isCurrentlyActive) {
         next[phaseKey] = {
           ...next[phaseKey],
           isElearningIcon: true,
-        };
+        }
       }
-      return next;
-    });
-  };
+      return next
+    })
+  }
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) {
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
+  const dialogRef = useDialogA11y(isOpen, onClose)
 
-  if (!isOpen) return null;
+  if (!isOpen) return null
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const newErrors: { name?: string; owner?: string } = {};
-    if (!name.trim()) newErrors.name = "กรุณาระบุชื่องาน";
+    e.preventDefault()
+    const newErrors: { name?: string; owner?: string } = {}
+    if (!name.trim()) newErrors.name = "กรุณาระบุชื่องาน"
 
-    const allOwners: string[] = [...selectedOwners];
+    const allOwners: string[] = [...selectedOwners]
     if (customOwner.trim()) {
-      allOwners.push(customOwner.trim());
+      allOwners.push(customOwner.trim())
     }
-    const finalOwner = allOwners.join(" / ");
+    const finalOwner = allOwners.join(" / ")
 
-    if (!finalOwner) newErrors.owner = "กรุณาเลือกผู้รับผิดชอบอย่างน้อย 1 ท่าน";
+    if (!finalOwner) newErrors.owner = "กรุณาเลือกผู้รับผิดชอบอย่างน้อย 1 ท่าน"
 
     if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
+      setErrors(newErrors)
+      return
     }
 
-    setIsSubmitting(true);
+    setIsSubmitting(true)
     try {
-      const finalBroker = broker === "Other" ? (customBroker.trim() || "Other") : broker;
+      const finalBroker =
+        broker === "Other" ? customBroker.trim() || "Other" : broker
       try {
         if (finalBroker && finalBroker !== "Other") {
-          localStorage.setItem("pru_last_used_broker", finalBroker);
+          localStorage.setItem("pru_last_used_broker", finalBroker)
         }
       } catch (_) {}
 
-      const builtMilestones: Record<string, any> = {};
+      const builtMilestones: Record<string, any> = {}
       PHASES.forEach((p) => {
-        const state = milestonesState[p.key];
+        const state = milestonesState[p.key]
         if (state.enabled) {
           builtMilestones[p.key] = {
             date: state.date.trim() || undefined,
             status: state.status,
             isElearningIcon: state.isElearningIcon || undefined,
-          };
+          }
         }
-      });
+      })
 
       const payload: Omit<ProductItem, "id"> = {
         broker: finalBroker,
@@ -387,21 +433,21 @@ export function ProductFormModal({
         customRightLabel: customRightLabel.trim() || undefined,
         milestones: builtMilestones,
         month: selectedMonth,
-      };
+      }
 
-      onSave(payload, productToEdit?.id);
-      onClose();
+      onSave(payload, productToEdit?.id)
+      onClose()
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
+  }
 
   const handleDelete = () => {
     if (productToEdit && onDelete) {
-      onDelete(productToEdit.id);
-      onClose();
+      onDelete(productToEdit.id)
+      onClose()
     }
-  };
+  }
 
   const currentBrokerObj = React.useMemo(() => {
     if (broker === "Other") {
@@ -409,59 +455,72 @@ export function ProductFormModal({
         value: "Other",
         label: customBroker ? `${customBroker}` : "อื่นๆ (ระบุเอง)",
         color: resolveBrokerColor(customBroker, availableBrokers) || "#64748B",
-      };
+      }
     }
     const found = brokerOptions.find(
-      (b) => b.value.toLowerCase().trim() === (broker || "").toLowerCase().trim()
-    );
-    if (found) return found;
+      (b) =>
+        b.value.toLowerCase().trim() === (broker || "").toLowerCase().trim()
+    )
+    if (found) return found
     return {
       value: broker,
       label: broker,
       color: resolveBrokerColor(broker, availableBrokers) || "#64748B",
-    };
-  }, [broker, customBroker, brokerOptions, availableBrokers]);
+    }
+  }, [broker, customBroker, brokerOptions, availableBrokers])
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
       {/* Soft translucent backdrop for desktop (no blur so timeline remains readable) */}
       <div
         onClick={onClose}
-        className="fixed inset-0 bg-slate-950/20 sm:bg-slate-950/25 transition-opacity duration-200"
+        className="fixed inset-0 bg-slate-950/20 transition-opacity duration-200 sm:bg-slate-950/25"
         aria-hidden="true"
       />
 
       {/* Right-docked slide-over container */}
       <div className="fixed inset-y-0 right-0 flex max-w-full pl-0 sm:pl-10">
         <motion.div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="product-form-title"
           initial={{ x: "100%" }}
           animate={{ x: 0 }}
           exit={{ x: "100%" }}
           transition={{ type: "spring", damping: 28, stiffness: 280 }}
-          className="w-screen max-w-full sm:max-w-xl lg:max-w-[620px] h-full bg-white shadow-2xl flex flex-col border-l border-gray-200"
+          className="flex h-full w-screen max-w-full flex-col border-l border-gray-200 bg-white shadow-2xl sm:max-w-xl lg:max-w-[620px]"
         >
           {/* Sticky Header */}
-          <div className="shrink-0 px-4 py-3.5 sm:px-6 sm:py-4 border-b border-gray-100 bg-white/95 backdrop-blur-xs flex items-center justify-between z-10">
+          <div className="z-10 flex shrink-0 items-center justify-between border-b border-gray-100 bg-white/95 px-4 py-3.5 backdrop-blur-xs sm:px-6 sm:py-4">
             <div className="flex items-center gap-3">
               <div
-                style={{ backgroundColor: isEnhancement ? "#0066CC" : "#ED1C24" }}
-                className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-white shadow-xs shrink-0"
+                style={{
+                  backgroundColor: isEnhancement ? "#0066CC" : "#ED1C24",
+                }}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-xs sm:h-10 sm:w-10"
               >
-                <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
+                <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
               <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-base sm:text-lg font-bold text-gray-900 leading-tight">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2
+                    id="product-form-title"
+                    className="text-base leading-tight font-bold text-gray-900 sm:text-lg"
+                  >
                     {productToEdit ? "แก้ไขข้อมูลรายการ" : "เพิ่มรายการใหม่"}
                   </h2>
-                  <Badge variant={isEnhancement ? "secondary" : "default"} className="text-xs">
+                  <Badge
+                    variant={isEnhancement ? "secondary" : "default"}
+                    className="text-xs"
+                  >
                     {isEnhancement ? "Enhancement" : "New Product"}
                   </Badge>
                   <Badge variant="outline" className="text-xs text-gray-600">
                     {selectedMonth}
                   </Badge>
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">
+                <p className="mt-0.5 text-xs text-gray-500">
                   กรอกข้อมูลกำหนดการและ Milestone เพื่อแสดงผลบน Dashboard
                 </p>
               </div>
@@ -470,25 +529,29 @@ export function ProductFormModal({
             <button
               type="button"
               onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
               aria-label="Close panel"
             >
-              <X className="w-5 h-5" />
+              <X className="h-5 w-5" />
             </button>
           </div>
 
           {/* Form Content (Scrollable Body) */}
-          <form id="product-panel-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+          <form
+            id="product-panel-form"
+            onSubmit={handleSubmit}
+            className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-6"
+          >
             {/* Section 1: Basic Information */}
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-xs font-bold text-gray-700 tracking-wider uppercase">
-                <Layers className="w-3.5 h-3.5 text-[#ED1C24]" />
+              <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-gray-700 uppercase">
+                <Layers className="h-3.5 w-3.5 text-brand-ink" />
                 <span>1. ข้อมูลพื้นฐาน (Basic Information)</span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {/* Product Name -> ชื่องาน (Task Name) */}
-                <div className="md:col-span-2 space-y-1.5">
+                <div className="space-y-1.5 md:col-span-2">
                   <Label required>ชื่องาน (Task Name)</Label>
                   <Input
                     placeholder="เช่น PRUWealth Max, Rider Cancer Plus"
@@ -499,21 +562,25 @@ export function ProductFormModal({
                     onClear={() => setName("")}
                   />
                   {errors.name && (
-                    <p className="text-xs text-[#ED1C24] font-medium">{errors.name}</p>
+                    <p className="text-xs font-medium text-brand-ink">
+                      {errors.name}
+                    </p>
                   )}
                 </div>
 
                 {/* Broker / Partner Select (Single dot) */}
-                <div className="md:col-span-2 space-y-1.5">
-                  <Label required>ช่องทาง / พาร์ทเนอร์ (Channel / Broker)</Label>
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label required>
+                    ช่องทาง / พาร์ทเนอร์ (Channel / Broker)
+                  </Label>
                   <Select
                     value={broker}
                     onValueChange={(val) => {
-                      setBroker(val);
+                      setBroker(val)
                       if (val !== "Other") {
-                        setCustomBroker("");
+                        setCustomBroker("")
                         try {
-                          localStorage.setItem("pru_last_used_broker", val);
+                          localStorage.setItem("pru_last_used_broker", val)
                         } catch (_) {}
                       }
                     }}
@@ -523,10 +590,12 @@ export function ProductFormModal({
                         {broker ? (
                           <div className="flex items-center gap-2">
                             <span
-                              className="w-2.5 h-2.5 rounded-full shrink-0"
-                              style={{ backgroundColor: currentBrokerObj.color }}
+                              className="h-2.5 w-2.5 shrink-0 rounded-full"
+                              style={{
+                                backgroundColor: currentBrokerObj.color,
+                              }}
                             />
-                            <span className="font-medium text-gray-800 truncate">
+                            <span className="truncate font-medium text-gray-800">
                               {currentBrokerObj.label || broker}
                             </span>
                           </div>
@@ -535,10 +604,14 @@ export function ProductFormModal({
                     </SelectTrigger>
                     <SelectContent>
                       {brokerOptions.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value} textValue={opt.label}>
+                        <SelectItem
+                          key={opt.value}
+                          value={opt.value}
+                          textValue={opt.label}
+                        >
                           <div className="flex items-center gap-2">
                             <span
-                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              className="h-2.5 w-2.5 shrink-0 rounded-full"
                               style={{ backgroundColor: opt.color }}
                             />
                             <span>{opt.label}</span>
@@ -560,19 +633,19 @@ export function ProductFormModal({
                 </div>
 
                 {/* Owner Checklist (Multi-select) */}
-                <div className="md:col-span-2 space-y-2">
+                <div className="space-y-2 md:col-span-2">
                   <Label required>ผู้รับผิดชอบ (Responsible Persons)</Label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-gray-50/80 rounded-xl border border-gray-200">
+                  <div className="grid grid-cols-1 gap-2 rounded-xl border border-gray-200 bg-gray-50/80 p-3 sm:grid-cols-2">
                     {teamOwnersList.map((t) => {
-                      const isChecked = selectedOwners.includes(t.id);
+                      const isChecked = selectedOwners.includes(t.id)
                       return (
                         <label
                           key={t.id}
                           className={cn(
-                            "flex items-center gap-2 p-2 rounded-lg border cursor-pointer select-none transition-all text-xs font-medium",
+                            "flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-xs font-medium transition-all select-none",
                             isChecked
-                              ? "bg-red-50/80 border-red-200 text-[#ED1C24] font-semibold"
-                              : "bg-white border-gray-200 text-gray-700 hover:bg-gray-100/70"
+                              ? "border-red-200 bg-red-50/80 font-semibold text-brand-ink"
+                              : "border-gray-200 bg-white text-gray-700 hover:bg-gray-100/70"
                           )}
                         >
                           <input
@@ -580,23 +653,25 @@ export function ProductFormModal({
                             checked={isChecked}
                             onChange={(e) => {
                               if (e.target.checked) {
-                                setSelectedOwners([...selectedOwners, t.id]);
+                                setSelectedOwners([...selectedOwners, t.id])
                               } else {
-                                setSelectedOwners(selectedOwners.filter((id) => id !== t.id));
+                                setSelectedOwners(
+                                  selectedOwners.filter((id) => id !== t.id)
+                                )
                               }
                             }}
-                            className="w-4 h-4 text-[#ED1C24] rounded border-gray-300 focus:ring-[#ED1C24]"
+                            className="h-4 w-4 rounded border-gray-300 text-brand-ink focus:ring-brand"
                           />
                           <span>{t.label}</span>
                         </label>
-                      );
+                      )
                     })}
                   </div>
 
                   {/* Custom Owner add-on */}
                   <div className="pt-1">
                     <Input
-                      leftIcon={<User className="w-3.5 h-3.5 text-gray-400" />}
+                      leftIcon={<User className="h-3.5 w-3.5 text-gray-500" />}
                       placeholder="หรือระบุชื่อผู้รับผิดชอบเพิ่มเติม (เช่น บุคคลภายนอก)..."
                       value={customOwner}
                       onChange={(e) => setCustomOwner(e.target.value)}
@@ -605,7 +680,9 @@ export function ProductFormModal({
                   </div>
 
                   {errors.owner && (
-                    <p className="text-xs text-[#ED1C24] font-medium">{errors.owner}</p>
+                    <p className="text-xs font-medium text-brand-ink">
+                      {errors.owner}
+                    </p>
                   )}
                 </div>
               </div>
@@ -615,12 +692,12 @@ export function ProductFormModal({
 
             {/* Section 2: Launch & Target Dates */}
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-xs font-bold text-gray-700 tracking-wider uppercase">
-                <Calendar className="w-3.5 h-3.5 text-blue-500" />
+              <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-gray-700 uppercase">
+                <Calendar className="h-3.5 w-3.5 text-blue-600" />
                 <span>2. กำหนดการเปิดตัว (Target Launch Dates)</span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label>Internal Training Date</Label>
                   <DatePicker
@@ -669,9 +746,9 @@ export function ProductFormModal({
 
             {/* Section 3: Milestones & Progress */}
             <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                <div className="flex items-center gap-2 text-xs font-bold text-gray-700 tracking-wider uppercase">
-                  <Clock className="w-3.5 h-3.5 text-green-600" />
+              <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-center">
+                <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-gray-700 uppercase">
+                  <Clock className="h-3.5 w-3.5 text-green-600" />
                   <span>3. กำหนดขั้นตอนความคืบหน้า (Phase Milestones)</span>
                 </div>
                 <span className="text-xs text-gray-500">
@@ -681,21 +758,21 @@ export function ProductFormModal({
 
               <div className="space-y-2.5">
                 {PHASES.map((phase) => {
-                  const ms = milestonesState[phase.key];
-                  if (!ms) return null;
+                  const ms = milestonesState[phase.key]
+                  if (!ms) return null
 
                   return (
                     <div
                       key={phase.key}
-                      className={`p-3 rounded-xl border transition-all ${
+                      className={`rounded-xl border p-3 transition-all ${
                         ms.enabled
-                          ? "bg-gray-50/80 border-gray-200"
-                          : "bg-white border-dashed border-gray-200 opacity-60"
+                          ? "border-gray-200 bg-gray-50/80"
+                          : "border-dashed border-gray-200 bg-white opacity-60"
                       }`}
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         {/* Checkbox toggle */}
-                        <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                        <label className="flex cursor-pointer items-center gap-2.5 select-none">
                           <input
                             type="checkbox"
                             checked={ms.enabled}
@@ -708,7 +785,7 @@ export function ProductFormModal({
                                 },
                               }))
                             }
-                            className="w-4 h-4 text-[#ED1C24] rounded border-gray-300 focus:ring-[#ED1C24]"
+                            className="h-4 w-4 rounded border-gray-300 text-brand-ink focus:ring-brand"
                           />
                           <span className="text-xs font-bold text-gray-800">
                             {phase.label.replace("\n", " ")}
@@ -751,20 +828,20 @@ export function ProductFormModal({
                                   },
                                 }))
                               }
-                              className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
+                              className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-all ${
                                 ms.status === "completed"
-                                  ? "bg-green-50 text-green-700 border-green-200"
-                                  : "bg-gray-100 text-gray-600 border-gray-300"
+                                  ? "border-green-200 bg-green-50 text-green-700"
+                                  : "border-gray-300 bg-gray-100 text-gray-600"
                               }`}
                             >
                               {ms.status === "completed" ? (
                                 <>
-                                  <CheckCircle2 className="w-3 h-3 text-green-600" />
+                                  <CheckCircle2 className="h-3 w-3 text-green-600" />
                                   <span>Completed</span>
                                 </>
                               ) : (
                                 <>
-                                  <Clock className="w-3 h-3 text-gray-500" />
+                                  <Clock className="h-3 w-3 text-gray-500" />
                                   <span>Pending</span>
                                 </>
                               )}
@@ -773,37 +850,47 @@ export function ProductFormModal({
                             {/* Current Active Phase Monitor Icon Toggle (Single-select) */}
                             <button
                               type="button"
-                              onClick={() => handleToggleCurrentPhase(phase.key)}
+                              onClick={() =>
+                                handleToggleCurrentPhase(phase.key)
+                              }
                               title={
                                 ms.isElearningIcon
                                   ? "ตำแหน่งปัจจุบันของงาน (คลิกเพื่อยกเลิก)"
-                                  : "คลิกเพื่อระบุว่างานกำลังอยู่ใน Phase นี้ (แสดงไอคอนหน้าจอ)"
+                                  : "คลิกเพื่อระบุว่างานอยู่ที่ขั้นนี้ (แสดงหมุดอัปเดตล่าสุด)"
                               }
-                              className={`p-1.5 rounded-lg border transition-all flex items-center justify-center ${
+                              aria-pressed={Boolean(ms.isElearningIcon)}
+                              aria-label="อัปเดตล่าสุดอยู่ที่ขั้นนี้"
+                              className={`flex items-center justify-center rounded-lg border p-1.5 transition-all ${
                                 ms.isElearningIcon
                                   ? isEnhancement
-                                    ? "bg-blue-50 border-blue-300 ring-2 ring-blue-500/20 shadow-xs"
-                                    : "bg-red-50 border-red-300 ring-2 ring-red-500/20 shadow-xs"
-                                  : "bg-gray-50 border-gray-200 hover:border-gray-300 hover:bg-gray-100 opacity-60 hover:opacity-100"
+                                    ? "border-blue-300 bg-blue-50 shadow-xs ring-2 ring-blue-500/20"
+                                    : "border-red-300 bg-red-50 shadow-xs ring-2 ring-red-500/20"
+                                  : "border-gray-200 bg-gray-50 opacity-60 hover:border-gray-300 hover:bg-gray-100 hover:opacity-100"
                               }`}
                             >
-                              <ElearningMonitorIcon
-                                color={ms.isElearningIcon ? (isEnhancement ? "blue" : "red") : "gray"}
-                                className="w-4 h-4"
+                              <PruIcon
+                                name="pin"
+                                size={20}
+                                strokeWidth={4}
+                                className={
+                                  ms.isElearningIcon
+                                    ? "text-pru-red"
+                                    : "text-gray-400"
+                                }
                               />
                             </button>
                           </div>
                         )}
                       </div>
                     </div>
-                  );
+                  )
                 })}
               </div>
             </div>
           </form>
 
           {/* Sticky Footer Actions */}
-          <div className="shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-t border-gray-200 bg-gray-50/90 backdrop-blur-xs flex items-center justify-between gap-3 z-10 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <div className="z-10 flex shrink-0 items-center justify-between gap-3 border-t border-gray-200 bg-gray-50/90 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xs sm:px-6 sm:py-4">
             <div>
               {productToEdit && onDelete && (
                 <Button
@@ -811,9 +898,9 @@ export function ProductFormModal({
                   variant="ghost"
                   size="sm"
                   onClick={handleDelete}
-                  className="text-[#ED1C24] hover:text-[#D4181F] hover:bg-red-50 text-xs gap-1.5 h-9"
+                  className="h-9 gap-1.5 text-xs text-brand-ink hover:bg-red-50 hover:text-brand-hover"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <Trash2 className="h-3.5 w-3.5" />
                   <span>ลบถาวร</span>
                 </Button>
               )}
@@ -825,7 +912,7 @@ export function ProductFormModal({
                 variant="outline"
                 size="sm"
                 onClick={onClose}
-                className="text-xs sm:text-sm h-9 px-3 sm:px-4"
+                className="h-9 px-3 text-xs sm:px-4 sm:text-sm"
               >
                 ยกเลิก
               </Button>
@@ -834,9 +921,9 @@ export function ProductFormModal({
                 onClick={handleSubmit}
                 loading={isSubmitting}
                 size="sm"
-                className="bg-[#ED1C24] hover:bg-[#D4181F] text-white text-xs sm:text-sm font-semibold gap-1.5 h-9 px-4 sm:px-5 shadow-xs"
+                className="h-9 gap-1.5 bg-brand-fill px-4 text-xs font-semibold text-white shadow-xs hover:bg-brand-hover sm:px-5 sm:text-sm"
               >
-                <CheckCircle2 className="w-4 h-4" />
+                <CheckCircle2 className="h-4 w-4" />
                 <span>{productToEdit ? "บันทึกการแก้ไข" : "เพิ่มรายการ"}</span>
               </Button>
             </div>
@@ -844,5 +931,5 @@ export function ProductFormModal({
         </motion.div>
       </div>
     </div>
-  );
+  )
 }

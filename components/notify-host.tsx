@@ -15,7 +15,7 @@ const EMPTY: ToastItem[] = [];
 
 const TOAST_STYLE = {
   success: { icon: CheckCircle2, iconClass: "text-emerald-600" },
-  error: { icon: XCircle, iconClass: "text-[#ED1C24]" },
+  error: { icon: XCircle, iconClass: "text-brand-ink" },
   info: { icon: Info, iconClass: "text-sky-600" },
 } as const;
 
@@ -56,7 +56,7 @@ export function NotifyHost() {
                 type="button"
                 onClick={() => dismissToast(t.id)}
                 aria-label="ปิดข้อความ"
-                className="p-1 text-gray-400 hover:text-gray-700 rounded-md shrink-0"
+                className="touch-target p-1 text-gray-500 hover:text-gray-700 rounded-md shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -78,7 +78,7 @@ export function NotifyHost() {
             <div className="flex items-start gap-3">
               <div
                 className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                  isDanger ? "bg-red-50 text-[#ED1C24]" : "bg-slate-100 text-slate-600"
+                  isDanger ? "bg-red-50 text-brand-ink" : "bg-slate-100 text-slate-600"
                 }`}
               >
                 <AlertTriangle className="w-5 h-5" />
@@ -94,7 +94,7 @@ export function NotifyHost() {
               <button
                 type="button"
                 onClick={() => request.resolve(false)}
-                className="px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                className="touch-target px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
               >
                 ยกเลิก
               </button>
@@ -102,8 +102,8 @@ export function NotifyHost() {
                 type="button"
                 autoFocus
                 onClick={() => request.resolve(true)}
-                className={`px-4 py-2 text-sm font-bold text-white rounded-lg shadow-sm transition-colors ${
-                  isDanger ? "bg-[#ED1C24] hover:bg-[#D4181F]" : "bg-slate-800 hover:bg-slate-900"
+                className={`touch-target px-4 py-2 text-sm font-bold text-white rounded-lg shadow-sm transition-colors ${
+                  isDanger ? "bg-brand-fill hover:bg-brand-hover" : "bg-slate-800 hover:bg-slate-900"
                 }`}
               >
                 {request.confirmLabel || "ยืนยัน"}

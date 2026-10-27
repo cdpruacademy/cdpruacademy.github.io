@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useState } from "react";
 import { Lock, X, CheckCircle2, AlertCircle } from "lucide-react";
+import { useDialogA11y } from "@/hooks/use-dialog-a11y";
 
 interface AdminLoginModalProps {
   isOpen: boolean;
@@ -20,6 +21,8 @@ export function AdminLoginModal({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const dialogRef = useDialogA11y(isOpen, onClose);
 
   if (!isOpen) return null;
 
@@ -48,19 +51,25 @@ export function AdminLoginModal({
         className="fixed inset-0 bg-black/40 backdrop-blur-xs animate-in fade-in"
         onClick={onClose}
       />
-      <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl z-10 p-6 animate-in zoom-in-95 duration-200">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-login-title"
+        className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl z-10 p-6 animate-in zoom-in-95 duration-200"
+      >
         <div className="flex items-center justify-between pb-3 border-b border-gray-100">
           <div className="flex items-center gap-2 text-gray-900 font-bold text-base">
-            <div className="w-8 h-8 rounded-lg bg-red-50 text-[#ED1C24] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-red-50 text-brand-ink flex items-center justify-center">
               <Lock className="w-4 h-4" />
             </div>
-            <span>เข้าสู่โหมดแก้ไข (Admin)</span>
+            <h2 id="admin-login-title" className="text-base font-bold">เข้าสู่โหมดแก้ไข (Admin)</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="ปิด"
-            className="p-1 text-gray-400 hover:text-gray-700 rounded-lg"
+            className="touch-target p-1 text-gray-500 hover:text-gray-700 rounded-lg"
           >
             <X className="w-5 h-5" />
           </button>
@@ -83,13 +92,13 @@ export function AdminLoginModal({
                   setPassword(e.target.value);
                   setError(null);
                 }}
-                className={`w-full text-sm border rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-[#ED1C24] ${
+                className={`w-full text-sm border rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand ${
                   error ? "border-[#ED1C24] bg-red-50/30" : "border-gray-300"
                 }`}
               />
             </div>
             {error && (
-              <div role="alert" className="flex items-center gap-1.5 text-xs text-[#ED1C24]">
+              <div role="alert" className="flex items-center gap-1.5 text-xs text-brand-ink">
                 <AlertCircle className="w-3.5 h-3.5" />
                 <span>{error}</span>
               </div>
@@ -105,14 +114,14 @@ export function AdminLoginModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              className="touch-target px-4 py-2 text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
             >
               ยกเลิก
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-[#ED1C24] hover:bg-[#D4181F] disabled:opacity-60 disabled:cursor-wait rounded-lg shadow-sm transition-colors"
+              className="touch-target inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-brand-fill hover:bg-brand-hover disabled:opacity-60 disabled:cursor-wait rounded-lg shadow-sm transition-colors"
             >
               <CheckCircle2 className="w-4 h-4" />
               <span>{isSubmitting ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}</span>

@@ -4,9 +4,79 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* CD Team design tokens, built on the PRU Academy design system (see DESIGN.md).
+   Paper ground, grey ink, Prudential red as the one emphasis colour, square corners, no shadows. */
+@theme {
+  --color-paper: #fbfaf8;
+  --color-surface: #f2f2f2;
+  --color-rule: #e0e3e5;
+  --color-pru-red: #ed1b2e;      /* emphasis: progress line, key numbers, large headings, the active tab bar */
+  --color-pru-red-soft: #fdecee; /* highlight row / error note behind ink text */
+  --color-brand: #ed1b2e;
+  --color-brand-fill: #4e565c;   /* primary buttons: white on red fails at button sizes, so actions are ink */
+  --color-brand-hover: #3d4449;
+  --color-brand-ink: #c8102e;    /* small red text on white or red-soft (5.4:1+) */
+  --color-ink: #4e565c;
+  --color-ink-soft: #5f6970;
+  --color-ink-muted: #5f6970;
+  --color-success-ink: #4e565c;
+  --color-enhancement: #68737a;  /* Enhancement series and fills (white text 4.9:1) */
+  --color-enhancement-hover: #4e565c;
+  --color-enhancement-ink: #4e565c;
+  /* Status language: done = ink, in progress = red, paused = grey */
+  --color-status-done: #4e565c;
+  --color-status-done-ink: #4e565c;
+  --color-status-done-tint: #f2f2f2;
+  --color-status-active: #ed1b2e;
+  --color-status-active-ink: #c8102e;
+  --color-status-active-tint: #fdecee;
+  --color-status-paused: #a7a8aa;
+  --color-status-paused-ink: #5f6970;
+  --color-status-paused-tint: #f2f2f2;
+  --color-line: #06C755;         /* LINE brand green, LINE button only */
+  --color-line-ink: #047A36;
+
+  /* Tailwind's neutral and accent scales mapped onto the brand palette, so every screen
+     speaks the same colours without per-class rewrites */
+  --color-gray-50: #f7f7f6;  --color-slate-50: #f7f7f6;
+  --color-gray-100: #f2f2f2; --color-slate-100: #f2f2f2;
+  --color-gray-200: #e0e3e5; --color-slate-200: #e0e3e5;
+  --color-gray-300: #d0d0ce; --color-slate-300: #d0d0ce;
+  --color-gray-400: #a7a8aa; --color-slate-400: #a7a8aa;
+  --color-gray-500: #5f6970; --color-slate-500: #5f6970;
+  --color-gray-600: #566066; --color-slate-600: #566066;
+  --color-gray-700: #4e565c; --color-slate-700: #4e565c;
+  --color-gray-800: #41484d; --color-slate-800: #41484d;
+  --color-gray-900: #33393d; --color-slate-900: #33393d;
+  --color-gray-950: #24282b; --color-slate-950: #24282b;
+  --color-red-50: #fdecee;  --color-amber-50: #fdecee;
+  --color-red-100: #fbd5d9; --color-amber-100: #fbd5d9;
+  --color-red-200: #fbc6cb; --color-amber-200: #fbc6cb;
+  --color-red-300: #f68d97; --color-amber-300: #f68d97;
+  --color-red-400: #f25462; --color-amber-400: #f25462;
+  --color-red-500: #ed1b2e; --color-amber-500: #ed1b2e;
+  --color-red-600: #d01427; --color-amber-600: #d01427;
+  --color-red-700: #b0101f; --color-amber-700: #b0101f;
+  --color-red-800: #8f0d19; --color-amber-800: #8f0d19;
+  --color-red-900: #6e0a13; --color-amber-900: #6e0a13;
+  --color-emerald-50: #f2f2f2; --color-green-50: #f2f2f2;
+  --color-emerald-100: #e0e3e5; --color-green-100: #e0e3e5;
+  --color-emerald-200: #d0d0ce; --color-green-200: #d0d0ce;
+  --color-emerald-500: #4e565c; --color-green-500: #4e565c;
+  --color-emerald-600: #4e565c; --color-green-600: #4e565c;
+  --color-emerald-700: #4e565c; --color-green-700: #4e565c;
+  --color-emerald-800: #41484d; --color-green-800: #41484d;
+  --color-blue-50: #f2f2f2; --color-blue-100: #e0e3e5; --color-blue-200: #d0d0ce;
+  --color-blue-600: #4e565c; --color-blue-700: #4e565c; --color-blue-900: #33393d;
+
+  /* Square corners and no shadows, per the brand book (rounded-full dots stay round) */
+  --shadow-2xs: none; --shadow-xs: none; --shadow-sm: none; --shadow-md: none;
+  --shadow-lg: none; --shadow-xl: none; --shadow-2xl: none;
+}
+
 @theme inline {
     --font-heading: var(--font-sans);
-    --font-sans: var(--font-geist), var(--font-thai), ui-sans-serif, system-ui, sans-serif;
+    --font-sans: var(--font-sarabun), Tahoma, ui-sans-serif, system-ui, sans-serif;
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -71,7 +141,7 @@
     --chart-3: oklch(0.439 0 0);
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
-    --radius: 0.625rem;
+    --radius: 0rem;
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
     --sidebar-primary: oklch(0.205 0 0);
@@ -126,6 +196,27 @@
   html {
     @apply font-sans;
     }
+  /* One visible keyboard focus ring for every control (3:1+ against white and tints) */
+  :focus-visible {
+    outline: 2px solid var(--color-brand-ink);
+    outline-offset: 2px;
+  }
+  ::placeholder {
+    color: var(--color-ink-muted);
+    opacity: 1;
+  }
+  ::selection {
+    background: #fecaca;
+    color: var(--color-ink);
+  }
+}
+
+/* Comfortable tap size on touch screens without changing the dense desktop layout */
+@utility touch-target {
+  @media (pointer: coarse) {
+    min-height: 44px;
+    min-width: 44px;
+  }
 }
 
 @keyframes grid {

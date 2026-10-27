@@ -1,7 +1,7 @@
-"use client";
+"use client"
 
-import * as React from "react";
-import { useState } from "react";
+import * as React from "react"
+import { useState } from "react"
 import {
   Users,
   Plus,
@@ -12,19 +12,20 @@ import {
   RotateCcw,
   AlertCircle,
   Palette,
-} from "lucide-react";
-import { confirmAction } from "@/lib/notify";
+} from "lucide-react"
+import { confirmAction } from "@/lib/notify"
+import { useDialogA11y } from "@/hooks/use-dialog-a11y"
 
 interface TeamManagementModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  teamMembers: string[];
-  memberColors?: Record<string, string>;
-  onAddMember: (name: string, color?: string) => boolean;
-  onUpdateMember: (oldName: string, newName: string) => boolean;
-  onUpdateMemberColor?: (name: string, color: string) => void;
-  onDeleteMember: (name: string) => boolean;
-  onResetToDefault: () => void;
+  isOpen: boolean
+  onClose: () => void
+  teamMembers: string[]
+  memberColors?: Record<string, string>
+  onAddMember: (name: string, color?: string) => boolean
+  onUpdateMember: (oldName: string, newName: string) => boolean
+  onUpdateMemberColor?: (name: string, color: string) => void
+  onDeleteMember: (name: string) => boolean
+  onResetToDefault: () => void
 }
 
 export function TeamManagementModal({
@@ -38,79 +39,91 @@ export function TeamManagementModal({
   onDeleteMember,
   onResetToDefault,
 }: TeamManagementModalProps) {
-  const [newMemberName, setNewMemberName] = useState("");
-  const [newMemberColor, setNewMemberColor] = useState("#ED1C24");
-  const [editingName, setEditingName] = useState<string | null>(null);
-  const [tempEditName, setTempEditName] = useState("");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [newMemberName, setNewMemberName] = useState("")
+  const [newMemberColor, setNewMemberColor] = useState("#ED1C24")
+  const [editingName, setEditingName] = useState<string | null>(null)
+  const [tempEditName, setTempEditName] = useState("")
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  if (!isOpen) return null;
+  const dialogRef = useDialogA11y(isOpen, onClose)
+
+  if (!isOpen) return null
 
   const handleAdd = (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
+    e.preventDefault()
+    setErrorMessage(null)
     if (!newMemberName.trim()) {
-      setErrorMessage("กรุณาระบุชื่อผู้รับผิดชอบ");
-      return;
+      setErrorMessage("กรุณาระบุชื่อผู้รับผิดชอบ")
+      return
     }
-    const success = onAddMember(newMemberName.trim(), newMemberColor);
+    const success = onAddMember(newMemberName.trim(), newMemberColor)
     if (success) {
-      setNewMemberName("");
+      setNewMemberName("")
     } else {
-      setErrorMessage("มีรายชื่อนี้อยู่ในระบบแล้ว หรือชื่อไม่ถูกต้อง");
+      setErrorMessage("มีรายชื่อนี้อยู่ในระบบแล้ว หรือชื่อไม่ถูกต้อง")
     }
-  };
+  }
 
   const handleStartEdit = (name: string) => {
-    setEditingName(name);
-    setTempEditName(name);
-    setErrorMessage(null);
-  };
+    setEditingName(name)
+    setTempEditName(name)
+    setErrorMessage(null)
+  }
 
   const handleSaveEdit = (oldName: string) => {
-    setErrorMessage(null);
+    setErrorMessage(null)
     if (!tempEditName.trim()) {
-      setErrorMessage("ชื่อต้องไม่เว้นว่าง");
-      return;
+      setErrorMessage("ชื่อต้องไม่เว้นว่าง")
+      return
     }
-    const success = onUpdateMember(oldName, tempEditName.trim());
+    const success = onUpdateMember(oldName, tempEditName.trim())
     if (success) {
-      setEditingName(null);
+      setEditingName(null)
     } else {
-      setErrorMessage("มีรายชื่อนี้อยู่ในระบบแล้ว หรือไม่สามารถแก้ไขได้");
+      setErrorMessage("มีรายชื่อนี้อยู่ในระบบแล้ว หรือไม่สามารถแก้ไขได้")
     }
-  };
+  }
 
   const handleDelete = (name: string) => {
     if (teamMembers.length <= 1) {
-      setErrorMessage("ต้องมีผู้รับผิดชอบในระบบอย่างน้อย 1 ท่าน");
-      return;
+      setErrorMessage("ต้องมีผู้รับผิดชอบในระบบอย่างน้อย 1 ท่าน")
+      return
     }
     confirmAction({
       title: `ลบ ${name} ออกจากทีม?`,
-      message: "งานเดิมที่มีชื่อนี้ยังอยู่ครบ แค่จะไม่มีชื่อนี้ให้เลือกเป็นผู้รับผิดชอบ",
+      message:
+        "งานเดิมที่มีชื่อนี้ยังอยู่ครบ แค่จะไม่มีชื่อนี้ให้เลือกเป็นผู้รับผิดชอบ",
       confirmLabel: "ลบออกจากทีม",
       tone: "danger",
     }).then((ok) => {
-      if (!ok) return;
-      onDeleteMember(name);
-      setErrorMessage(null);
-    });
-  };
+      if (!ok) return
+      onDeleteMember(name)
+      setErrorMessage(null)
+    })
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-gray-100 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex animate-in items-center justify-center bg-black/60 p-4 backdrop-blur-xs duration-200 fade-in">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="team-management-title"
+        className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl"
+      >
         {/* Header */}
-        <div className="px-6 py-4 bg-slate-50 border-b border-gray-200 flex items-center justify-between">
+        <div className="flex items-center justify-between border-b border-gray-200 bg-slate-50 px-6 py-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-red-50 text-[#ED1C24] flex items-center justify-center">
-              <Users className="w-4 h-4" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-brand-ink">
+              <Users className="h-4 w-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-gray-900">
+              <h2
+                id="team-management-title"
+                className="text-sm font-bold text-gray-900"
+              >
                 จัดการรายชื่อ & สีประจำตัว (Team Members)
-              </h3>
+              </h2>
               <p className="text-xs text-gray-500">
                 เพิ่ม แก้ไขชื่อ และกำหนดสีประจำตัวของคนในทีม
               </p>
@@ -119,18 +132,18 @@ export function TeamManagementModal({
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+            className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-600"
           >
-            <X className="w-4 h-4" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-4">
+        <div className="space-y-4 p-6">
           {/* Error notice */}
           {errorMessage && (
-            <div className="flex items-center gap-2 p-2.5 bg-red-50 border border-red-200 text-[#ED1C24] text-xs rounded-xl">
-              <AlertCircle className="w-4 h-4 shrink-0" />
+            <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs text-brand-ink">
+              <AlertCircle className="h-4 w-4 shrink-0" />
               <span>{errorMessage}</span>
             </div>
           )}
@@ -141,87 +154,87 @@ export function TeamManagementModal({
               type="text"
               value={newMemberName}
               onChange={(e) => {
-                setNewMemberName(e.target.value);
-                if (errorMessage) setErrorMessage(null);
+                setNewMemberName(e.target.value)
+                if (errorMessage) setErrorMessage(null)
               }}
               placeholder="เช่น Somchai K. หรือ สมชาย"
-              className="flex-1 text-xs border border-gray-300 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#ED1C24]/20 focus:border-[#ED1C24]"
+              className="flex-1 rounded-xl border border-gray-300 px-3 py-2.5 text-xs focus:border-[#ED1C24] focus:ring-2 focus:ring-brand/20 focus:outline-none"
             />
             <div
-              className="relative w-8 h-8 rounded-full overflow-hidden shrink-0 border border-black/15 shadow-2xs cursor-pointer flex items-center justify-center hover:scale-105 transition-transform"
+              className="relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-black/15 shadow-2xs transition-transform hover:scale-105"
               title="เลือกสีประจำตัว"
             >
               <span
-                className="w-full h-full rounded-full pointer-events-none"
+                className="pointer-events-none h-full w-full rounded-full"
                 style={{ backgroundColor: newMemberColor }}
               />
               <input
                 type="color"
                 value={newMemberColor}
                 onChange={(e) => setNewMemberColor(e.target.value)}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
               />
             </div>
             <button
               type="submit"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-[#ED1C24] hover:bg-[#D4181F] text-white text-xs font-bold rounded-xl shadow-xs transition-colors shrink-0"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-brand-fill px-3.5 py-2.5 text-xs font-bold text-white shadow-xs transition-colors hover:bg-brand-hover"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="h-3.5 w-3.5" />
               <span>เพิ่มคน</span>
             </button>
           </form>
 
           {/* Members List */}
-          <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-1">
+          <div className="max-h-[260px] space-y-1.5 overflow-y-auto pr-1">
+            <div className="px-1 text-xs font-semibold tracking-wider text-gray-500 uppercase">
               รายชื่อและสีประจำตัว ({teamMembers.length} คน)
             </div>
 
             {teamMembers.map((member) => {
-              const color = memberColors[member] || "#ED1C24";
+              const color = memberColors[member] || "#ED1C24"
               return (
                 <div
                   key={member}
-                  className="flex items-center justify-between p-2.5 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200/70 transition-colors"
+                  className="flex items-center justify-between rounded-xl border border-slate-200/70 bg-slate-50 p-2.5 transition-colors hover:bg-slate-100/80"
                 >
                   {editingName === member ? (
                     /* Inline Edit Mode */
-                    <div className="flex items-center gap-2 flex-1 mr-2">
+                    <div className="mr-2 flex flex-1 items-center gap-2">
                       <input
                         type="text"
                         value={tempEditName}
                         onChange={(e) => setTempEditName(e.target.value)}
-                        className="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-[#ED1C24]"
+                        className="w-full rounded-lg border border-gray-300 px-2.5 py-1 text-xs focus:ring-2 focus:ring-brand focus:outline-none"
                         autoFocus
                       />
                       <button
                         type="button"
                         onClick={() => handleSaveEdit(member)}
-                        className="p-1.5 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors"
+                        className="rounded-md bg-green-600 p-1.5 text-white transition-colors hover:bg-green-700"
                         title="บันทึก"
                       >
-                        <Check className="w-3.5 h-3.5" />
+                        <Check className="h-3.5 w-3.5" />
                       </button>
                       <button
                         type="button"
                         onClick={() => setEditingName(null)}
-                        className="p-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md transition-colors"
+                        className="rounded-md bg-gray-200 p-1.5 text-gray-700 transition-colors hover:bg-gray-300"
                         title="ยกเลิก"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <X className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   ) : (
                     /* Normal View Mode */
                     <>
-                      <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="flex min-w-0 items-center gap-2.5">
                         {/* Interactive Color Swatch for each member */}
                         <div
-                          className="relative w-6 h-6 rounded-full overflow-hidden shrink-0 border border-black/15 shadow-2xs cursor-pointer flex items-center justify-center hover:scale-110 transition-transform"
+                          className="relative flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-black/15 shadow-2xs transition-transform hover:scale-110"
                           title="คลิกเพื่อเปลี่ยนสีประจำตัว"
                         >
                           <span
-                            className="w-full h-full rounded-full pointer-events-none"
+                            className="pointer-events-none h-full w-full rounded-full"
                             style={{ backgroundColor: color }}
                           />
                           <input
@@ -229,45 +242,45 @@ export function TeamManagementModal({
                             value={color}
                             onChange={(e) => {
                               if (onUpdateMemberColor) {
-                                onUpdateMemberColor(member, e.target.value);
+                                onUpdateMemberColor(member, e.target.value)
                               }
                             }}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                           />
                         </div>
-                        <span className="text-xs font-semibold text-gray-800 truncate">
+                        <span className="truncate text-xs font-semibold text-gray-800">
                           {member}
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex shrink-0 items-center gap-1">
                         <button
                           type="button"
                           onClick={() => handleStartEdit(member)}
-                          className="p-1 text-gray-400 hover:text-blue-600 rounded-md hover:bg-white transition-colors"
+                          className="rounded-md p-1 text-gray-500 transition-colors hover:bg-white hover:text-blue-600"
                           title="แก้ไขชื่อ"
                         >
-                          <Edit2 className="w-3.5 h-3.5" />
+                          <Edit2 className="h-3.5 w-3.5" />
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDelete(member)}
                           disabled={teamMembers.length <= 1}
-                          className="p-1 text-gray-400 hover:text-[#ED1C24] rounded-md hover:bg-white transition-colors disabled:opacity-30 disabled:hover:text-gray-400"
+                          className="rounded-md p-1 text-gray-500 transition-colors hover:bg-white hover:text-brand-ink disabled:opacity-30 disabled:hover:text-gray-500"
                           title="ลบออกจากระบบ"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     </>
                   )}
                 </div>
-              );
+              )
             })}
           </div>
 
           {/* Reset to initial button */}
-          <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+          <div className="flex items-center justify-between border-t border-gray-100 pt-2">
             <button
               type="button"
               onClick={() => {
@@ -277,21 +290,21 @@ export function TeamManagementModal({
                   confirmLabel: "รีเซ็ต",
                   tone: "danger",
                 }).then((ok) => {
-                  if (!ok) return;
-                  onResetToDefault();
-                  setErrorMessage(null);
-                });
+                  if (!ok) return
+                  onResetToDefault()
+                  setErrorMessage(null)
+                })
               }}
-              className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs text-gray-500 transition-colors hover:text-gray-700"
             >
-              <RotateCcw className="w-3 h-3" />
+              <RotateCcw className="h-3 w-3" />
               <span>รีเซ็ตเป็นค่าเริ่มต้น</span>
             </button>
 
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-1.5 bg-gray-800 hover:bg-gray-900 text-white text-xs font-semibold rounded-xl transition-colors"
+              className="rounded-xl bg-gray-800 px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-gray-900"
             >
               เสร็จสิ้น
             </button>
@@ -299,5 +312,5 @@ export function TeamManagementModal({
         </div>
       </div>
     </div>
-  );
+  )
 }

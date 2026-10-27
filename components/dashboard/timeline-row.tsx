@@ -1,23 +1,64 @@
-"use client";
+"use client"
 
-import * as React from "react";
-import { useRef, useState } from "react";
-import { ProductItem, PHASES, TimelineType } from "@/lib/timeline-data";
-import { ElearningMonitorIcon } from "./elearning-icon";
-import { Edit2, Download, Trash2, PauseCircle, PlayCircle } from "lucide-react";
-import { toPng } from "html-to-image";
-import { resolveBrokerColor } from "@/lib/broker-colors";
+import * as React from "react"
+import { useRef, useState } from "react"
+import {
+  ProductItem,
+  PRODUCT_PHASES,
+  ENHANCEMENT_PHASES,
+  TimelineType,
+  checkIsProjectCompleted,
+} from "@/lib/timeline-data"
+import { toPng } from "html-to-image"
+import { PruIcon } from "@/components/pru-icon"
 
 interface TimelineRowProps {
-  product: ProductItem;
-  timelineType?: TimelineType;
-  isAdmin?: boolean;
-  onEdit: (product: ProductItem) => void;
-  onDelete: (product: ProductItem) => void;
-  onPause: (product: ProductItem) => void;
-  onResume: (product: ProductItem) => void;
-  customColorMap?: Record<string, string>;
+  product: ProductItem
+  timelineType?: TimelineType
+  isAdmin?: boolean
+  onEdit: (product: ProductItem) => void
+  onDelete: (product: ProductItem) => void
+  onPause: (product: ProductItem) => void
+  onResume: (product: ProductItem) => void
+  customColorMap?: Record<string, string>
 }
+
+// "19 May 2026" -> "19 May"; "TBC" stays
+export const formatShortDate = (dateStr?: string): string =>
+  dateStr ? dateStr.replace(/[, ]*\b(20\d{2}|25\d{2})\b/g, "").trim() : ""
+
+/**
+ * Where a project stands: the phase the team marked with the update marker (the old monitor
+ * icon flag), else the first open phase. A finished project has no current phase.
+ */
+export function getProgress(product: ProductItem, timelineType: TimelineType) {
+  const phases =
+    timelineType === "enhancement" ? ENHANCEMENT_PHASES : PRODUCT_PHASES
+  const used = phases
+    .map((p, i) => (product.milestones[p.key] ? i : -1))
+    .filter((i) => i >= 0)
+  const isFinished = checkIsProjectCompleted(product)
+  const marked = phases
+    .map((p) => Boolean(product.milestones[p.key]?.isElearningIcon))
+    .lastIndexOf(true)
+  const firstOpen =
+    used.find(
+      (i) => product.milestones[phases[i].key]?.status !== "completed"
+    ) ?? -1
+  const current = isFinished ? -1 : marked >= 0 ? marked : firstOpen
+  return {
+    phases,
+    used,
+    current,
+    isFinished,
+    first: used[0] ?? 0,
+    last: used[used.length - 1] ?? 0,
+  }
+}
+
+const center = (i: number) => ((i + 0.5) / 6) * 100
+// Width of the brand's "opening" in the line around the update marker, in % of the track
+const OPENING = 3.2
 
 export function TimelineRow({
   product,
@@ -27,264 +68,255 @@ export function TimelineRow({
   onDelete,
   onPause,
   onResume,
-  customColorMap = {},
 }: TimelineRowProps) {
-  const rowRef = useRef<HTMLDivElement>(null);
-  const [isExportingThis, setIsExportingThis] = useState(false);
+  const rowRef = useRef<HTMLDivElement>(null)
+  const [isExportingThis, setIsExportingThis] = useState(false)
+  const { phases, used, current, first, last } = getProgress(
+    product,
+    timelineType
+  )
 
-  const isEnhancement = timelineType === "enhancement";
+  const doneEnd = current >= 0 ? current : last
+  const doneLine =
+    used.length > 1 && doneEnd > first
+      ? {
+          left: `${center(first)}%`,
+          width: `${center(doneEnd) - center(first) - (current >= 0 ? OPENING : 0)}%`,
+        }
+      : null
+  const todoLine =
+    current >= 0 && last > current
+      ? {
+          left: `${center(current) + OPENING}%`,
+          width: `${center(last) - center(current) - OPENING}%`,
+        }
+      : null
 
-  // Format date string to remove 4-digit year (e.g. "19 May 2026" -> "19 May", "TBC" -> "TBC")
-  const formatShortDate = (dateStr?: string): string => {
-    if (!dateStr) return "";
-    // Remove 4-digit years like 2024, 2025, 2026, 2567, 2568, 2569 (with optional preceding space or comma)
-    return dateStr
-      .replace(/[, ]*\b(20\d{2}|25\d{2})\b/g, "")
-      .trim();
-  };
-
-  const brokerColor = resolveBrokerColor(product.broker, customColorMap);
-
-  // Find min and max active phase indices to draw progress lines
-  const phaseIndicesWithMilestones: { index: number; isCompleted: boolean }[] = [];
-  PHASES.forEach((phase, idx) => {
-    const m = product.milestones[phase.key];
-    if (m) {
-      phaseIndicesWithMilestones.push({
-        index: idx,
-        isCompleted: m.status === "completed",
-      });
-    }
-  });
-
-  const firstIndex = phaseIndicesWithMilestones.length > 0 ? phaseIndicesWithMilestones[0].index : 0;
-  const completedIndices = phaseIndicesWithMilestones.filter((p) => p.isCompleted);
-  const lastCompletedIndex =
-    completedIndices.length > 0
-      ? completedIndices[completedIndices.length - 1].index
-      : firstIndex;
-  const lastOverallIndex =
-    phaseIndicesWithMilestones.length > 0
-      ? phaseIndicesWithMilestones[phaseIndicesWithMilestones.length - 1].index
-      : 5;
-
-  // Single row export to PNG
   const handleExportRow = async () => {
-    if (!rowRef.current) return;
+    if (!rowRef.current) return
     try {
-      setIsExportingThis(true);
-      await new Promise((resolve) => setTimeout(resolve, 60));
-
+      setIsExportingThis(true)
+      await new Promise((resolve) => setTimeout(resolve, 60))
       const dataUrl = await toPng(rowRef.current, {
         cacheBust: true,
         backgroundColor: "#FFFFFF",
-        filter: (node) => {
-          if (node instanceof HTMLElement && node.classList.contains("export-hide")) {
-            return false;
-          }
-          return true;
-        },
-      });
-
-      const link = document.createElement("a");
-      const safeName = product.name.replace(/[^a-zA-Z0-9ก-๙]/g, "_").slice(0, 30);
-      link.download = `timeline-${safeName}.png`;
-      link.href = dataUrl;
-      link.click();
+        filter: (node) =>
+          !(
+            node instanceof HTMLElement &&
+            node.classList.contains("export-hide")
+          ),
+      })
+      const link = document.createElement("a")
+      link.download = `timeline-${product.name.replace(/[^a-zA-Z0-9ก-๙]/g, "_").slice(0, 30)}.png`
+      link.href = dataUrl
+      link.click()
     } catch (err) {
-      console.error("Failed to export row image", err);
+      console.error("Failed to export row image", err)
     } finally {
-      setIsExportingThis(false);
+      setIsExportingThis(false)
     }
-  };
+  }
+
+  const actionButton =
+    "touch-target w-9 h-9 inline-flex items-center justify-center text-ink-soft hover:text-ink hover:bg-surface"
 
   return (
     <div
       ref={rowRef}
-      className={`group relative grid grid-cols-[220px_1fr_130px] items-center gap-2 py-3 px-1 rounded-xl hover:bg-slate-50/70 transition-colors border-b border-gray-100 last:border-b-0 ${
-        product.isPaused ? "opacity-60 grayscale" : ""
+      // Focusable by tap/click so touch screens can reveal the row actions (no hover there)
+      tabIndex={-1}
+      className={`group relative grid grid-cols-[280px_1fr_140px] items-center gap-6 border-b-2 border-rule bg-white px-6 py-4 outline-none ${
+        product.isPaused ? "opacity-60" : ""
       }`}
     >
-      {/* Floating Action Buttons on Hover */}
-      <div className="export-hide absolute right-2 top-1 z-30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-white/95 backdrop-blur-xs px-2 py-1 rounded-lg shadow-sm border border-gray-200">
+      <div className="export-hide pointer-events-none absolute top-2 right-3 z-30 flex items-center gap-0.5 border-2 border-rule bg-white opacity-0 transition-opacity group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
         {isAdmin && (
           <button
             type="button"
             onClick={() => onEdit(product)}
-            className="p-1 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-            title="แก้ไขข้อมูล (Admin)"
+            className={actionButton}
+            title="แก้ไข"
+            aria-label="แก้ไขข้อมูล"
           >
-            <Edit2 className="w-3.5 h-3.5" />
+            <PruIcon name="document" size={18} />
           </button>
         )}
         <button
           type="button"
           onClick={handleExportRow}
           disabled={isExportingThis}
-          className="p-1 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
-          title="Export แถวนี้เป็นรูป PNG"
+          className={actionButton}
+          title="บันทึกแถวนี้เป็นรูป"
+          aria-label="บันทึกแถวนี้เป็นรูป"
         >
-          <Download className="w-3.5 h-3.5" />
+          <PruIcon name="send" size={18} />
         </button>
         {isAdmin &&
           (product.isPaused ? (
             <button
               type="button"
               onClick={() => onResume(product)}
-              className="p-1 text-gray-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors"
+              className={actionButton}
               title="ทำต่อ"
               aria-label="ทำต่อ"
             >
-              <PlayCircle className="w-3.5 h-3.5" />
+              <PruIcon name="clock" size={18} />
             </button>
           ) : (
             <button
               type="button"
               onClick={() => onPause(product)}
-              className="p-1 text-gray-600 hover:text-amber-700 hover:bg-amber-50 rounded transition-colors"
+              className={actionButton}
               title="หยุด project นี้ชั่วคราว"
               aria-label="หยุด project นี้ชั่วคราว"
             >
-              <PauseCircle className="w-3.5 h-3.5" />
+              <PruIcon name="pause" size={18} />
             </button>
           ))}
         {isAdmin && (
           <button
             type="button"
             onClick={() => onDelete(product)}
-            className="p-1 text-gray-600 hover:text-[#ED1C24] hover:bg-red-50 rounded transition-colors"
+            className={`${actionButton} hover:text-brand-ink`}
             title="ลบถาวร"
             aria-label="ลบถาวร"
           >
-            <Trash2 className="w-3.5 h-3.5" />
+            <PruIcon name="warning" size={18} />
           </button>
         )}
       </div>
 
-      {/* 1. Left Product Info Card */}
-      <div
-        style={{ borderLeftColor: brokerColor }}
-        className="rounded-xl p-2.5 h-[68px] flex flex-col justify-between shadow-2xs border-l-4 bg-[#EEF2F5]"
-      >
-        <div className="flex items-center justify-between text-xs gap-1">
-          <div className="flex items-center gap-1 overflow-hidden">
-            <span
-              style={{ color: brokerColor }}
-              className="font-bold tracking-tight text-[11px] shrink-0"
-            >
-              [{product.broker}]
-            </span>
-            {product.isPaused && (
-              <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-slate-600 bg-white border border-slate-300 px-1 rounded shrink-0">
-                <PauseCircle className="w-2.5 h-2.5" />
-                หยุดชั่วคราว
-              </span>
-            )}
-          </div>
-          <span className="text-[11px] font-medium text-[#64748B] truncate" title={product.owner}>
-            {product.owner}
-          </span>
-        </div>
+      {/* Project */}
+      <div className="flex min-w-0 flex-col gap-1">
         <div
-          className="text-[12px] font-bold text-[#1E293B] leading-tight line-clamp-2"
+          className="line-clamp-2 text-base leading-snug font-bold text-ink"
           title={product.name}
         >
           {product.name}
         </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[13px] text-ink-soft">
+          <span className="inline-flex items-center gap-1">
+            <PruIcon name="board" size={14} strokeWidth={4} />
+            {product.broker}
+          </span>
+          <span className="inline-flex min-w-0 items-center gap-1">
+            <PruIcon name="person" size={14} strokeWidth={4} />
+            <span className="truncate">{product.owner}</span>
+          </span>
+          {product.isPaused && (
+            <span className="inline-flex items-center gap-1 font-bold text-ink">
+              <PruIcon name="pause" size={14} strokeWidth={4} />
+              หยุดชั่วคราว
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* 2. Middle Timeline Track (6 columns) */}
-      <div className="relative grid grid-cols-6 gap-2 items-center min-h-[68px] px-2">
-        {/* Mathematically Centered Connecting Lines: center(i) = ((i + 0.5) / 6) * 100% */}
-        <div className="absolute inset-x-0 px-2 top-[22px] pointer-events-none -z-0">
-          <div className="relative w-full h-[3px]">
-            {/* Completed Green Line connecting exactly from center of first dot to center of last completed dot */}
-            {lastCompletedIndex > firstIndex && (
-              <div
-                className="absolute top-0 h-[3px] bg-[#86EFAC] rounded-full"
-                style={{
-                  left: `${((firstIndex + 0.5) / 6) * 100}%`,
-                  width: `${((lastCompletedIndex - firstIndex) / 6) * 100}%`,
-                }}
-              />
-            )}
-
-            {/* Pending Dotted Grey Line connecting exactly to pending milestones */}
-            {lastOverallIndex > lastCompletedIndex && (
-              <div
-                className="absolute top-0 h-[3px] border-t-2 border-dotted border-gray-300"
-                style={{
-                  left: `${((lastCompletedIndex + 0.5) / 6) * 100}%`,
-                  width: `${((lastOverallIndex - lastCompletedIndex) / 6) * 100}%`,
-                }}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* 6 Phase Columns & Milestone Nodes */}
-        {PHASES.map((phase) => {
-          const milestone = product.milestones[phase.key];
-
-          if (!milestone) {
+      {/* Progress: red line up to an opening, the update marker, then dashed grey */}
+      <div className="relative h-14">
+        {doneLine && (
+          <div
+            className="absolute top-[15px] h-1 rounded-full bg-pru-red"
+            style={doneLine}
+          />
+        )}
+        {todoLine && (
+          <div
+            className="absolute top-[16px] h-0 border-t-2 border-dashed border-gray-400"
+            style={todoLine}
+          />
+        )}
+        <div className="absolute inset-0 grid grid-cols-6">
+          {phases.map((phase, i) => {
+            const milestone = product.milestones[phase.key]
+            if (!milestone) return <div key={phase.key} />
+            const isCurrent = i === current
+            const isDone =
+              !isCurrent &&
+              (current < 0 || i < current || milestone.status === "completed")
             return (
-              <div key={phase.key} className="flex flex-col items-center justify-center h-full" />
-            );
-          }
-
-          const isCompleted = milestone.status === "completed";
-
-          return (
-            <div
-              key={phase.key}
-              className="flex flex-col items-center justify-start h-full pt-2 z-10"
-            >
-              {/* Node Icon/Circle */}
-              <div className="relative flex items-center justify-center min-h-[28px]">
-                {milestone.isElearningIcon ? (
-                  <ElearningMonitorIcon color={isEnhancement ? "blue" : "red"} />
-                ) : isCompleted ? (
-                  <div className="w-3.5 h-3.5 rounded-full bg-[#86EFAC] border-2 border-white shadow-xs" />
-                ) : (
-                  <div className="w-3 h-3 rounded-full bg-[#CBD5E1] border-2 border-white" />
+              <div
+                key={phase.key}
+                className="flex flex-col items-center gap-1.5"
+              >
+                <div className="flex h-[34px] items-center justify-center">
+                  {isCurrent ? (
+                    <span className="flex bg-white px-1" title="อัปเดตล่าสุด">
+                      <PruIcon
+                        name="pin"
+                        size={30}
+                        className="text-pru-red"
+                        label="อัปเดตล่าสุด"
+                      />
+                    </span>
+                  ) : isDone ? (
+                    <span className="box-content h-3 w-3 rounded-full border-[3px] border-white bg-pru-red" />
+                  ) : (
+                    <span className="h-3 w-3 rounded-full border-2 border-gray-400 bg-white" />
+                  )}
+                </div>
+                {milestone.date && (
+                  <span
+                    className={`text-xs whitespace-nowrap ${isCurrent ? "font-bold text-ink" : "text-ink-soft"}`}
+                  >
+                    {formatShortDate(milestone.date)}
+                  </span>
+                )}
+                {phase.key === "internal-training" && product.csDate && (
+                  <span className="text-xs whitespace-nowrap text-ink-soft">
+                    {formatShortDate(product.csDate)}
+                  </span>
                 )}
               </div>
-
-              {/* Date text label */}
-              {milestone.date && (
-                <div className="text-[11px] font-medium text-[#475569] mt-1 whitespace-nowrap text-center">
-                  {formatShortDate(milestone.date)}
-                </div>
-              )}
-
-              {/* CS Date if applicable */}
-              {phase.key === "internal-training" && product.csDate && (
-                <div className="text-[11px] font-medium text-[#475569] mt-0.5 whitespace-nowrap">
-                  {formatShortDate(product.csDate)}
-                </div>
-              )}
-            </div>
-          );
-        })}
+            )
+          })}
+        </div>
       </div>
 
-      {/* 3. Right Launch Dates / Custom Status Panel */}
-      <div className="flex flex-col justify-center text-right pr-2">
+      {/* Target launch */}
+      <div className="text-right">
         {product.customRightLabel ? (
-          <div className="text-[11px] font-bold text-[#475569] leading-tight">
+          <div className="text-sm leading-snug font-bold text-ink">
             {formatShortDate(product.customRightLabel)}
           </div>
         ) : (
           <>
-            <div className="text-[11px] font-medium text-[#475569] leading-tight">
-              Internal : {formatShortDate(product.internalDate) || "TBC"}
+            <div className="text-lg leading-tight font-bold text-ink">
+              {formatShortDate(product.commercialDate) || "TBC"}
             </div>
-            <div className="text-[11px] font-bold text-[#16A34A] leading-tight mt-1">
-              Commercial : {formatShortDate(product.commercialDate) || "TBC"}
+            <div className="text-xs text-ink-soft">
+              Internal {formatShortDate(product.internalDate) || "TBC"}
             </div>
           </>
         )}
       </div>
     </div>
-  );
+  )
+}
+
+/** Legend under the table and in the LINE image. */
+export function TimelineLegend({ large = false }: { large?: boolean }) {
+  const text = large ? "text-[15px]" : "text-[13px]"
+  return (
+    <div
+      className={`flex flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3 ${text} text-ink-soft`}
+    >
+      <span className="inline-flex items-center gap-2">
+        <span className="h-1 w-7 rounded-full bg-pru-red" /> ผ่านแล้ว
+      </span>
+      <span className="inline-flex items-center gap-2">
+        <PruIcon
+          name="pin"
+          size={large ? 22 : 18}
+          strokeWidth={4}
+          className="text-pru-red"
+        />{" "}
+        อัปเดตล่าสุด (ขั้นปัจจุบัน)
+      </span>
+      <span className="inline-flex items-center gap-2">
+        <span className="w-7 border-t-2 border-dashed border-gray-400" />{" "}
+        ยังไม่ถึง
+      </span>
+    </div>
+  )
 }

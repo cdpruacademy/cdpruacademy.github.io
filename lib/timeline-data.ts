@@ -24,40 +24,40 @@ export const PRODUCT_PHASES: PhaseDefinition[] = [
   {
     key: "kick-off",
     label: "Kick-off",
-    badgeBg: "bg-[#5A646E]",
-    badgeTextColor: "text-white",
+    badgeBg: "bg-slate-100",
+    badgeTextColor: "text-ink-soft",
   },
   {
     key: "first-draft",
     label: "First Draft",
-    badgeBg: "bg-[#DDE9EF]",
-    badgeTextColor: "text-[#2D2D2D]",
+    badgeBg: "bg-slate-100",
+    badgeTextColor: "text-ink-soft",
   },
   {
     key: "first-draft-elearning",
     label: "First Draft\ne-learning",
-    badgeBg: "bg-[#DDE2E5]",
-    badgeTextColor: "text-[#2D2D2D]",
+    badgeBg: "bg-slate-100",
+    badgeTextColor: "text-ink-soft",
   },
   {
     key: "final-approval",
     label: "Final Approval",
-    badgeBg: "bg-[#D2E7ED]",
-    badgeTextColor: "text-[#ED1C24]",
+    badgeBg: "bg-slate-100",
+    badgeTextColor: "text-ink-soft",
     hasAccentText: true,
   },
   {
     key: "final-elearning",
     label: "Final e-learning",
-    badgeBg: "bg-[#DDE2E5]",
-    badgeTextColor: "text-[#ED1C24]",
+    badgeBg: "bg-slate-100",
+    badgeTextColor: "text-ink-soft",
     hasAccentText: true,
   },
   {
     key: "internal-training",
     label: "Internal\nTraining Date",
-    badgeBg: "bg-[#51C455]",
-    badgeTextColor: "text-white",
+    badgeBg: "bg-slate-100",
+    badgeTextColor: "text-ink-soft",
   },
 ];
 
@@ -69,40 +69,40 @@ export const ENHANCEMENT_PHASES: PhaseDefinition[] = [
   {
     key: "kick-off",
     label: "Kick-off",
-    badgeBg: "bg-[#5A646E]",
-    badgeTextColor: "text-white",
+    badgeBg: "bg-slate-100",
+    badgeTextColor: "text-ink-soft",
   },
   {
     key: "first-draft",
     label: "First Draft",
-    badgeBg: "bg-[#DDE9EF]",
-    badgeTextColor: "text-[#2D2D2D]",
+    badgeBg: "bg-slate-100",
+    badgeTextColor: "text-ink-soft",
   },
   {
     key: "first-draft-elearning",
     label: "First Draft\ne-learning",
-    badgeBg: "bg-[#DDE2E5]",
-    badgeTextColor: "text-[#2D2D2D]",
+    badgeBg: "bg-slate-100",
+    badgeTextColor: "text-ink-soft",
   },
   {
     key: "final-approval",
     label: "Final Approval",
-    badgeBg: "bg-[#D2E7ED]",
-    badgeTextColor: "text-[#0066CC]",
+    badgeBg: "bg-slate-100",
+    badgeTextColor: "text-ink-soft",
     hasAccentText: true,
   },
   {
     key: "final-elearning",
     label: "Final e-learning",
-    badgeBg: "bg-[#DDE2E5]",
-    badgeTextColor: "text-[#0066CC]",
+    badgeBg: "bg-slate-100",
+    badgeTextColor: "text-ink-soft",
     hasAccentText: true,
   },
   {
     key: "internal-training",
     label: "Internal\nTraining Date",
-    badgeBg: "bg-[#51C455]",
-    badgeTextColor: "text-white",
+    badgeBg: "bg-slate-100",
+    badgeTextColor: "text-ink-soft",
   },
 ];
 
@@ -502,6 +502,72 @@ export function getPausedItemsForMonth(
   });
   return result.sort((a, b) => compareMonthKeys(b.pausedSince || "", a.pausedSince || ""));
 }
+
+// Shared by analytics and the phone timeline so both call a project "finished" the same way
+export const isDateInPastOrCurrent = (dateStr?: string, referenceMonth?: string): boolean => {
+  if (!dateStr || dateStr.toLowerCase().includes("tbc")) return false;
+  const clean = dateStr.toLowerCase().trim();
+
+  let monthIdx = -1;
+  for (let i = 0; i < MONTH_NAMES.length; i++) {
+    const mAbbr = MONTH_NAMES[i].toLowerCase().slice(0, 3);
+    if (clean.includes(mAbbr)) {
+      monthIdx = i;
+      break;
+    }
+  }
+  if (monthIdx === -1) return false;
+
+  const yMatch = clean.match(/\b(20\d{2}|25\d{2})\b/);
+  const currentYear = new Date().getFullYear();
+  const year = yMatch
+    ? (parseInt(yMatch[0], 10) > 2400 ? parseInt(yMatch[0], 10) - 543 : parseInt(yMatch[0], 10))
+    : currentYear;
+
+  const dMatch = clean.match(/\b(\d{1,2})\b/);
+  const day = dMatch ? parseInt(dMatch[0], 10) : 15;
+
+  const targetDate = new Date(year, monthIdx, day);
+
+  if (referenceMonth && referenceMonth !== "ALL_YEAR") {
+    const parsedRef = parseMonthYear(referenceMonth);
+    if (parsedRef) {
+      const refDate = new Date(parsedRef.year, parsedRef.monthIndex, 31, 23, 59, 59);
+      return targetDate.getTime() <= refDate.getTime();
+    }
+  }
+
+  return targetDate.getTime() <= Date.now();
+};
+
+// Helper to determine if a project has reached/completed target launch
+export const checkIsProjectCompleted = (item: ProductItem, referenceMonth?: string): boolean => {
+  // 1. Explicit Target Launch milestone completed
+  if (item.milestones?.launch?.status === "completed") {
+    return true;
+  }
+
+  // 2. Internal training milestone completed (the final phase before/at launch)
+  if (item.milestones?.["internal-training"]?.status === "completed") {
+    return true;
+  }
+
+  // 3. Check if all configured milestones are completed and it's not merely just kick-off
+  const entries = Object.entries(item.milestones || {});
+  const hasAtLeastOne = entries.length > 0;
+  const allExistingCompleted =
+    hasAtLeastOne && entries.every(([, m]) => !m || m.status === "completed");
+  const onlyKickoff = entries.length === 1 && entries[0][0] === "kick-off";
+
+  // 4. If all defined development phases are completed and commercial launch date has arrived/passed
+  if (allExistingCompleted && !onlyKickoff && item.commercialDate && !item.commercialDate.toLowerCase().includes("tbc")) {
+    if (isDateInPastOrCurrent(item.commercialDate, referenceMonth)) {
+      return true;
+    }
+  }
+
+  return false;
+};
 
 /** Strip display-only fields before an item is saved. */
 export function toStoredItem(item: ProductItem): ProductItem {

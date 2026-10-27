@@ -24,7 +24,6 @@ import {
   getMonthsForYear,
   getAvailableYears,
 } from "@/lib/timeline-data";
-import { exportTimelineToExcel, exportTimelineToJSON } from "@/lib/excel-service";
 import { toast, confirmAction } from "@/lib/notify";
 import {
   getStoredSupabaseConfig,
@@ -673,31 +672,6 @@ export function useProducts() {
     [monthlyStore, selectedMonth, timelineType]
   );
 
-  const resetToDefault = useCallback(async () => {
-    const confirmed = await confirmAction({
-      title: `ล้างข้อมูลทั้งหมดของ ${selectedMonth}?`,
-      message: "งานทุกรายการที่บันทึกในเดือนนี้จะถูกลบ",
-      confirmLabel: "ล้างข้อมูล",
-      tone: "danger",
-    });
-    if (!confirmed) return;
-
-    setMonthlyStore((prev) => {
-      const defaultAsOf = DEFAULT_AS_OF_BY_MONTH[selectedMonth] || `as of 15 ${selectedMonth.split(" ")[0]}`;
-      const emptyMonthData = {
-        products: [],
-        enhancements: [],
-        asOfText: defaultAsOf,
-      };
-
-      const updated: MonthlyStore = {
-        ...prev,
-        [selectedMonth]: emptyMonthData,
-      };
-      syncStore(updated);
-      return updated;
-    });
-  }, [selectedMonth, syncStore]);
 
   // Clone from previous month (useful for admins starting a new month)
   const copyFromPreviousMonth = useCallback(async () => {
@@ -793,31 +767,6 @@ export function useProducts() {
   );
 
   // Bulk import
-  const importItems = useCallback(
-    (imported: ProductItem[]) => {
-      setMonthlyStore((prev) => {
-        const monthObj = prev[selectedMonth] || {
-          products: [],
-          enhancements: [],
-          asOfText: DEFAULT_AS_OF_BY_MONTH[selectedMonth] || "as of 15th",
-        };
-
-        const updatedMonth =
-          timelineType === "product"
-            ? { ...monthObj, products: imported }
-            : { ...monthObj, enhancements: imported };
-
-        const updated: MonthlyStore = {
-          ...prev,
-          [selectedMonth]: updatedMonth,
-        };
-        syncStore(updated);
-        return updated;
-      });
-    },
-    [timelineType, selectedMonth, syncStore]
-  );
-
   // Direct load from cloud callback
   const handleCloudDataLoaded = useCallback(
     (store: MonthlyStore, months: string[], activeMonth?: string) => {
@@ -843,15 +792,7 @@ export function useProducts() {
   );
 
   // Excel & JSON export
-  const exportExcel = useCallback(() => {
-    const title = timelineType === "product" ? "Product Timeline" : "Enhancement Timeline";
-    exportTimelineToExcel(currentItems, title, selectedMonth, asOfText);
-  }, [timelineType, currentItems, selectedMonth, asOfText]);
 
-  const exportJSON = useCallback(() => {
-    const title = timelineType === "product" ? "product_timeline" : "enhancement_timeline";
-    exportTimelineToJSON(currentItems, title, selectedMonth);
-  }, [timelineType, currentItems, selectedMonth]);
 
   return {
     timelineType,
@@ -878,10 +819,6 @@ export function useProducts() {
     resumeProduct,
     deleteProductPermanently,
     pausedItems,
-    resetToDefault,
-    importItems,
-    exportExcel,
-    exportJSON,
     monthlyStore,
     isCloudConnected,
     setIsCloudConnected,
