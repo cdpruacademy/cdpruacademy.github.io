@@ -674,7 +674,7 @@ export function ProductFormModal({
                   <Clock className="w-3.5 h-3.5 text-green-600" />
                   <span>3. กำหนดขั้นตอนความคืบหน้า (Phase Milestones)</span>
                 </div>
-                <span className="text-[11px] text-gray-500">
+                <span className="text-xs text-gray-500">
                   คลิกไอคอนหน้าจอเพื่อระบุ Phase ปัจจุบัน (เลือกได้ 1 จุด)
                 </span>
               </div>
@@ -751,7 +751,7 @@ export function ProductFormModal({
                                   },
                                 }))
                               }
-                              className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold rounded-lg border transition-all ${
+                              className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
                                 ms.status === "completed"
                                   ? "bg-green-50 text-green-700 border-green-200"
                                   : "bg-gray-100 text-gray-600 border-gray-300"

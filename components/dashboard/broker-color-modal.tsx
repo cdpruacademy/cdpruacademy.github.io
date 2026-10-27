@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useState } from "react";
 import { Palette, X, RotateCcw, Plus, Trash2, AlertTriangle, AlertCircle } from "lucide-react";
+import { confirmAction } from "@/lib/notify";
 
 interface BrokerColorModalProps {
   isOpen: boolean;
@@ -69,9 +70,14 @@ export function BrokerColorModal({
         usageCount,
       });
     } else {
-      if (confirm(`คุณต้องการลบ Channel [${brokerToDelete}] ใช่หรือไม่?`)) {
-        onDeleteChannel(brokerToDelete);
-      }
+      confirmAction({
+        title: `ลบช่องทาง ${brokerToDelete}?`,
+        message: "ยังไม่มีงานใช้ช่องทางนี้ ลบแล้วเพิ่มกลับได้ภายหลัง",
+        confirmLabel: "ลบช่องทาง",
+        tone: "danger",
+      }).then((ok) => {
+        if (ok) onDeleteChannel(brokerToDelete);
+      });
     }
   };
 
@@ -99,7 +105,7 @@ export function BrokerColorModal({
               <h3 className="text-sm font-bold text-gray-900">
                 จัดการ Channel & สีประจำช่องทาง
               </h3>
-              <p className="text-[11px] text-gray-500">
+              <p className="text-xs text-gray-500">
                 คลิกที่วงกลมสีเพื่อเปลี่ยนสี หรือเพิ่ม/ลบ Channel
               </p>
             </div>
@@ -161,7 +167,7 @@ export function BrokerColorModal({
 
           {/* Channels List */}
           <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
-            <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-1">
+            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-1">
               ช่องทางและสี ({brokers.length} ช่องทาง)
             </div>
 
@@ -246,7 +252,7 @@ export function BrokerColorModal({
             <div className="text-xs text-gray-600 leading-relaxed">
               Channel <strong className="text-gray-900">[{deleteWarning.broker}]</strong> มีโปรเจกต์ในระบบกำลังใช้งานอยู่จำนวน{" "}
               <strong className="text-[#ED1C24]">{deleteWarning.usageCount} รายการ</strong>
-              <div className="mt-2 p-2 bg-amber-50 rounded-lg text-amber-800 text-[11px]">
+              <div className="mt-2 p-2 bg-amber-50 rounded-lg text-amber-800 text-xs">
                 🛡️ <strong>ระบบจะลบเฉพาะ Channel นี้ออกจากเมนูตัวเลือก</strong> โดยจะไม่ลบหรือเปลี่ยนแปลงข้อมูลโปรเจกต์ในตารางเดิมครับ
               </div>
             </div>

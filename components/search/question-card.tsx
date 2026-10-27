@@ -65,13 +65,13 @@ export function QuestionCard({ item, searchQuery = "", onTagClick }: QuestionCar
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-1.5">
               <span
-                className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${getCategoryColor(
+                className={`text-xs font-bold px-2 py-0.5 rounded-full border ${getCategoryColor(
                   item.category
                 )}`}
               >
                 {item.category}
               </span>
-              <span className="text-[11px] text-gray-400">อัปเดต: {item.updatedAt}</span>
+              <span className="text-xs text-gray-400">อัปเดต: {item.updatedAt}</span>
             </div>
             <h3 className="text-sm sm:text-base font-bold text-gray-900 leading-snug">
               {highlightText(item.question, searchQuery)}
@@ -107,7 +107,7 @@ export function QuestionCard({ item, searchQuery = "", onTagClick }: QuestionCar
                     e.stopPropagation();
                     onTagClick?.(tag);
                   }}
-                  className="text-[11px] font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 px-2 py-0.5 rounded-md transition-colors"
+                  className="text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 px-2 py-0.5 rounded-md transition-colors"
                 >
                   #{tag}
                 </button>
@@ -116,7 +116,7 @@ export function QuestionCard({ item, searchQuery = "", onTagClick }: QuestionCar
           )}
 
           {/* Metadata footer */}
-          <div className="flex flex-wrap items-center justify-between text-[11px] text-gray-500 mt-3 pt-2">
+          <div className="flex flex-wrap items-center justify-between text-xs text-gray-500 mt-3 pt-2">
             {item.askedBy && (
               <div>
                 ถามโดย: <span className="font-medium text-gray-700">{item.askedBy}</span>

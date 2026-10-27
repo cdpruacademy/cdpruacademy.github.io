@@ -16,6 +16,7 @@ import { useTeamMembers } from "@/hooks/use-team-members";
 import { useChannelColors } from "@/hooks/use-channel-colors";
 import { toPng } from "html-to-image";
 import { uploadTimelineSnapshot, saveBothTimelineSnapshots } from "@/lib/supabase";
+import { toast } from "@/lib/notify";
 import { Plus, AlertCircle, ShieldCheck, Loader2, PauseCircle, PlayCircle, ChevronDown } from "lucide-react";
 
 export function ProductTimeline() {
@@ -129,13 +130,8 @@ export function ProductTimeline() {
         }
 
         if (showUserAlert) {
-          alert(
-            `✅ อัปเดตรูปไทม์ไลน์และสรุปช่องทางขึ้น Cloud สำเร็จครบทั้ง 3 รูป!\n\n` +
-            `• 🎯 New Product Timeline: บันทึกเรียบร้อย\n` +
-            `• ⚡ Enhancement Timeline: บันทึกเรียบร้อย\n` +
-            `• 📊 Channel Summary: บันทึกเรียบร้อย\n` +
-            `• รอบเดือน: ${selectedMonth} (${asOfText})\n\n` +
-            `สมาชิกใน LINE สามารถพิมพ์ "CD รูป" เพื่อรับภาพสรุปทั้ง 3 รูปได้ทันทีครับ`
+          toast.success(
+            `อัปเดตรูปทั้ง 3 รูปของ ${selectedMonth} (${asOfText}) แล้ว\nพิมพ์ "CD รูป" ในกลุ่ม LINE เพื่อดูรูปชุดนี้`
           );
         } else {
           console.log("Auto-snapshot background sync completed successfully");
@@ -143,7 +139,7 @@ export function ProductTimeline() {
       } catch (err: any) {
         console.error("Snapshot upload error:", err);
         if (showUserAlert) {
-          alert("เกิดข้อผิดพลาดในการบันทึกรูปภาพ: " + (err?.message || err));
+          toast.error("บันทึกรูปภาพไม่สำเร็จ: " + (err?.message || err));
         }
       } finally {
         if (showUserAlert) setIsSendingLine(false);
@@ -291,7 +287,7 @@ export function ProductTimeline() {
       link.click();
     } catch (err) {
       console.error("Failed to export dashboard image", err);
-      alert("ไม่สามารถ Export ภาพรวมได้ กรุณาลองใหม่อีกครั้ง");
+      toast.error("Export ภาพรวมไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
     } finally {
       setIsExportingAll(false);
     }
@@ -299,9 +295,8 @@ export function ProductTimeline() {
 
   const handleSendToLine = () => {
     if (!isViewingCurrentMonth) {
-      alert(
-        `บอท LINE แสดงข้อมูลเดือนปัจจุบัน (${getSystemCurrentMonth()}) เท่านั้น
-กดปุ่ม "เดือนปัจจุบัน" ก่อน แล้วค่อยส่งรูปเข้า LINE`
+      toast.info(
+        `บอท LINE แสดงเฉพาะเดือนปัจจุบัน (${getSystemCurrentMonth()})\nกดปุ่ม "เดือนปัจจุบัน" ก่อน แล้วค่อยส่งรูปเข้า LINE`
       );
       return;
     }

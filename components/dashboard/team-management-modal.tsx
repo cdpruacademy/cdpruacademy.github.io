@@ -13,6 +13,7 @@ import {
   AlertCircle,
   Palette,
 } from "lucide-react";
+import { confirmAction } from "@/lib/notify";
 
 interface TeamManagementModalProps {
   isOpen: boolean;
@@ -85,10 +86,16 @@ export function TeamManagementModal({
       setErrorMessage("ต้องมีผู้รับผิดชอบในระบบอย่างน้อย 1 ท่าน");
       return;
     }
-    if (confirm(`คุณต้องการลบ "${name}" ออกจากรายชื่อผู้รับผิดชอบหรือไม่?`)) {
+    confirmAction({
+      title: `ลบ ${name} ออกจากทีม?`,
+      message: "งานเดิมที่มีชื่อนี้ยังอยู่ครบ แค่จะไม่มีชื่อนี้ให้เลือกเป็นผู้รับผิดชอบ",
+      confirmLabel: "ลบออกจากทีม",
+      tone: "danger",
+    }).then((ok) => {
+      if (!ok) return;
       onDeleteMember(name);
       setErrorMessage(null);
-    }
+    });
   };
 
   return (
@@ -104,7 +111,7 @@ export function TeamManagementModal({
               <h3 className="text-sm font-bold text-gray-900">
                 จัดการรายชื่อ & สีประจำตัว (Team Members)
               </h3>
-              <p className="text-[11px] text-gray-500">
+              <p className="text-xs text-gray-500">
                 เพิ่ม แก้ไขชื่อ และกำหนดสีประจำตัวของคนในทีม
               </p>
             </div>
@@ -166,7 +173,7 @@ export function TeamManagementModal({
 
           {/* Members List */}
           <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
-            <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-1">
+            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-1">
               รายชื่อและสีประจำตัว ({teamMembers.length} คน)
             </div>
 
@@ -264,12 +271,18 @@ export function TeamManagementModal({
             <button
               type="button"
               onClick={() => {
-                if (confirm("ต้องการรีเซ็ตรายชื่อคนในทีมและสีกลับเป็นค่าเริ่มต้นหรือไม่?")) {
+                confirmAction({
+                  title: "รีเซ็ตรายชื่อทีมและสี?",
+                  message: "รายชื่อคนในทีมและสีจะกลับเป็นค่าเริ่มต้น",
+                  confirmLabel: "รีเซ็ต",
+                  tone: "danger",
+                }).then((ok) => {
+                  if (!ok) return;
                   onResetToDefault();
                   setErrorMessage(null);
-                }
+                });
               }}
-              className="inline-flex items-center gap-1.5 text-[11px] text-gray-400 hover:text-gray-700 transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition-colors"
             >
               <RotateCcw className="w-3 h-3" />
               <span>รีเซ็ตเป็นค่าเริ่มต้น</span>

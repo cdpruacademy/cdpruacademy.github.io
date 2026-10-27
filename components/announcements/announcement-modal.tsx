@@ -226,7 +226,7 @@ export function AnnouncementModal({
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-gray-700 uppercase tracking-wide flex items-center justify-between">
                 <span>หัวข้อเรื่องประชาสัมพันธ์ *</span>
-                <span className="text-[10px] text-gray-400">{title.length}/100</span>
+                <span className="text-xs text-gray-400">{title.length}/100</span>
               </label>
               <input
                 type="text"
@@ -277,7 +277,7 @@ export function AnnouncementModal({
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-gray-700 uppercase tracking-wide flex items-center justify-between">
                 <span>เนื้อหาข้อความรายละเอียด *</span>
-                <span className="text-[10px] text-gray-400">{content.length}/1000</span>
+                <span className="text-xs text-gray-400">{content.length}/1000</span>
               </label>
               <textarea
                 value={content}
@@ -301,7 +301,7 @@ export function AnnouncementModal({
                   <button
                     type="button"
                     onClick={() => setImageUrl("")}
-                    className="text-[11px] text-red-600 hover:underline flex items-center gap-1"
+                    className="text-xs text-red-600 hover:underline flex items-center gap-1"
                   >
                     <Trash2 className="w-3 h-3" />
                     <span>ลบรูป</span>
@@ -379,7 +379,7 @@ export function AnnouncementModal({
                     <div className="text-xs font-bold text-gray-900 flex items-center gap-1">
                       <span>⚡ ส่งเข้ากลุ่ม LINE ทันที</span>
                     </div>
-                    <div className="text-[11px] text-gray-500 mt-0.5">
+                    <div className="text-xs text-gray-500 mt-0.5">
                       บอทจะส่ง Flex Card เข้ากลุ่มภายใน 5 นาทีหลังบันทึก
                     </div>
                   </div>
@@ -408,7 +408,7 @@ export function AnnouncementModal({
                     <div className="text-xs font-bold text-gray-900 flex items-center gap-1">
                       <span>⏰ ตั้งเวลาส่งล่วงหน้า</span>
                     </div>
-                    <div className="text-[11px] text-gray-500 mt-0.5">
+                    <div className="text-xs text-gray-500 mt-0.5">
                       ระบุวันและเวลาที่ต้องการให้บอทเริ่มส่ง
                     </div>
                   </div>
@@ -419,7 +419,7 @@ export function AnnouncementModal({
               {deliveryMode === "scheduled" && (
                 <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-200/80 grid grid-cols-2 gap-2 animate-in fade-in duration-200">
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-gray-700 flex items-center gap-1">
+                    <label className="text-xs font-bold text-gray-700 flex items-center gap-1">
                       <Calendar className="w-3 h-3 text-blue-600" />
                       <span>วันที่ส่ง</span>
                     </label>
@@ -432,7 +432,7 @@ export function AnnouncementModal({
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-gray-700 flex items-center gap-1">
+                    <label className="text-xs font-bold text-gray-700 flex items-center gap-1">
                       <Clock className="w-3 h-3 text-blue-600" />
                       <span>เวลาที่ส่ง</span>
                     </label>
@@ -457,7 +457,7 @@ export function AnnouncementModal({
                   <span className="w-2.5 h-2.5 rounded-full bg-[#06C755]" />
                   <span>LINE Flex Message Preview</span>
                 </span>
-                <span className="text-[10px] text-gray-400">จำลองหน้าจอ LINE</span>
+                <span className="text-xs text-gray-400">จำลองหน้าจอ LINE</span>
               </div>
 
               {/* Simulated LINE Bubble */}
@@ -479,10 +479,10 @@ export function AnnouncementModal({
                 {/* Card Content */}
                 <div className="p-3.5 space-y-2">
                   <div className="flex items-center justify-between gap-1">
-                    <span className="text-[9px] font-black text-white bg-[#ED1C24] px-1.5 py-0.5 rounded tracking-wide uppercase">
+                    <span className="text-xs font-black text-white bg-[#ED1C24] px-1.5 py-0.5 rounded tracking-wide uppercase">
                       📢 CD PR NEWS
                     </span>
-                    <span className="text-[9px] text-gray-400 font-medium">
+                    <span className="text-xs text-gray-400 font-medium">
                       {deliveryMode === "immediate" ? "ส่งทันที" : `${scheduledDate} ${scheduledTime}`}
                     </span>
                   </div>
@@ -491,11 +491,11 @@ export function AnnouncementModal({
                     {title || "หัวข้อข่าวประชาสัมพันธ์จะแสดงตรงนี้"}
                   </h3>
 
-                  <p className="text-[11px] text-gray-600 leading-relaxed line-clamp-4 whitespace-pre-line">
+                  <p className="text-xs text-gray-600 leading-relaxed line-clamp-4 whitespace-pre-line">
                     {content || "ข้อความรายละเอียดข่าวสาร วัน เวลา และข้อมูลสำคัญจะจัดแสดงในการ์ดนี้..."}
                   </p>
 
-                  <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-[10px]">
+                  <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-xs">
                     <div className="flex items-center gap-1">
                       <span className="w-2 h-2 rounded-full" style={{ backgroundColor: authorColor }} />
                       <span className="font-bold text-gray-700">{author}</span>
@@ -505,7 +505,7 @@ export function AnnouncementModal({
 
                   {/* Card Button */}
                   <div className="pt-1">
-                    <div className="w-full py-1.5 text-center text-[10px] font-bold text-[#0066CC] bg-blue-50/80 rounded-lg border border-blue-200">
+                    <div className="w-full py-1.5 text-center text-xs font-bold text-[#0066CC] bg-blue-50/80 rounded-lg border border-blue-200">
                       เปิดดูบน Dashboard ↗
                     </div>
                   </div>
@@ -521,7 +521,7 @@ export function AnnouncementModal({
                     <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                     <span>ยืนยันการส่งข้อความเข้ากลุ่ม LINE หรือไม่?</span>
                   </div>
-                  <p className="text-[11px] text-amber-800">
+                  <p className="text-xs text-amber-800">
                     บอทจะส่งข้อความและรูปภาพเข้ากลุ่มภายใน 5 นาที
                   </p>
                   <div className="flex items-center gap-2 pt-1">

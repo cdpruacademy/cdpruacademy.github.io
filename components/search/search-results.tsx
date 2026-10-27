@@ -261,7 +261,7 @@ export function KnowledgeSearch() {
               </div>
               <div>
                 <h2 className="text-sm font-bold text-gray-900">การสนทนากับ AI</h2>
-                <p className="text-[11px] text-gray-400">
+                <p className="text-xs text-gray-400">
                   {hasApiKey ? "ขับเคลื่อนด้วย Google Gemini API" : "ขับเคลื่อนด้วย Local Knowledge Base"}
                 </p>
               </div>
@@ -334,7 +334,7 @@ export function KnowledgeSearch() {
 
                       {/* Footer Info inside bubble */}
                       <div
-                        className={`flex items-center justify-between gap-3 text-[10px] mt-2 pt-1 ${
+                        className={`flex items-center justify-between gap-3 text-xs mt-2 pt-1 ${
                           isUser ? "text-gray-300" : "text-gray-400"
                         }`}
                       >

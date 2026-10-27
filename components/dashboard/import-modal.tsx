@@ -118,7 +118,7 @@ export function ImportModal({
             </div>
           )}
 
-          <div className="text-[11px] text-gray-500 bg-slate-50 p-3 rounded-lg border border-gray-100 flex items-start gap-2">
+          <div className="text-xs text-gray-500 bg-slate-50 p-3 rounded-lg border border-gray-100 flex items-start gap-2">
             <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
             <div>
               <strong>วิธีใช้:</strong> คุณสามารถกดดาวน์โหลดไฟล์ Excel หรือ JSON จากหน้าเว็บ

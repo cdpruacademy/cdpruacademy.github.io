@@ -25,6 +25,7 @@ import {
   getAvailableYears,
 } from "@/lib/timeline-data";
 import { exportTimelineToExcel, exportTimelineToJSON } from "@/lib/excel-service";
+import { toast, confirmAction } from "@/lib/notify";
 import {
   getStoredSupabaseConfig,
   fetchTimelineFromCloud,
@@ -672,10 +673,13 @@ export function useProducts() {
     [monthlyStore, selectedMonth, timelineType]
   );
 
-  const resetToDefault = useCallback(() => {
-    const confirmed = confirm(
-      `คุณต้องการล้างข้อมูลทั้งหมดในรอบเดือน ${selectedMonth} หรือไม่?`
-    );
+  const resetToDefault = useCallback(async () => {
+    const confirmed = await confirmAction({
+      title: `ล้างข้อมูลทั้งหมดของ ${selectedMonth}?`,
+      message: "งานทุกรายการที่บันทึกในเดือนนี้จะถูกลบ",
+      confirmLabel: "ล้างข้อมูล",
+      tone: "danger",
+    });
     if (!confirmed) return;
 
     setMonthlyStore((prev) => {
@@ -696,23 +700,26 @@ export function useProducts() {
   }, [selectedMonth, syncStore]);
 
   // Clone from previous month (useful for admins starting a new month)
-  const copyFromPreviousMonth = useCallback(() => {
+  const copyFromPreviousMonth = useCallback(async () => {
     const currentIndex = availableMonths.indexOf(selectedMonth);
     if (currentIndex <= 0) {
-      alert("ไม่มีข้อมูลรอบเดือนก่อนหน้าให้คัดลอก");
+      toast.info("ไม่มีข้อมูลรอบเดือนก่อนหน้าให้คัดลอก");
       return;
     }
 
     const prevMonthName = availableMonths[currentIndex - 1];
     const prevMonthData = monthlyStore[prevMonthName];
     if (!prevMonthData || (prevMonthData.products.length === 0 && prevMonthData.enhancements.length === 0)) {
-      alert(`ไม่พบข้อมูลในรอบเดือน ${prevMonthName}`);
+      toast.info(`ไม่พบข้อมูลในรอบเดือน ${prevMonthName}`);
       return;
     }
 
-    const confirmed = confirm(
-      `คุณต้องการคัดลอกรายการจากเดือน ${prevMonthName} มายัง ${selectedMonth} หรือไม่? (ข้อมูลเดิมใน ${selectedMonth} จะถูกแทนที่)`
-    );
+    const confirmed = await confirmAction({
+      title: `คัดลอกงานจาก ${prevMonthName} มายัง ${selectedMonth}?`,
+      message: `ข้อมูลเดิมใน ${selectedMonth} จะถูกแทนที่`,
+      confirmLabel: "คัดลอก",
+      tone: "danger",
+    });
     if (!confirmed) return;
 
     // Deep clone with new IDs
@@ -741,7 +748,7 @@ export function useProducts() {
       return updated;
     });
 
-    alert(`คัดลอกข้อมูลจาก ${prevMonthName} มายัง ${selectedMonth} สำเร็จเรียบร้อย`);
+    toast.success(`คัดลอกข้อมูลจาก ${prevMonthName} มายัง ${selectedMonth} แล้ว`);
   }, [availableMonths, selectedMonth, monthlyStore, syncStore]);
 
   // Add a new month cycle
@@ -750,7 +757,7 @@ export function useProducts() {
       const clean = monthName.trim().toUpperCase();
       if (!clean) return;
       if (availableMonths.includes(clean)) {
-        alert("รอบเดือนนี้มีอยู่ในระบบแล้ว");
+        toast.info("รอบเดือนนี้มีอยู่ในระบบแล้ว");
         setSelectedMonth(clean);
         return;
       }

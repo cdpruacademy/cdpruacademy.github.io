@@ -23,6 +23,7 @@ import {
   Layers,
   XCircle,
 } from "lucide-react";
+import { toast } from "@/lib/notify";
 
 export function AnnouncementView() {
   const { isAdmin } = useAdminAuth();
@@ -89,9 +90,9 @@ export function AnnouncementView() {
     setBroadcastingId(id);
     try {
       await broadcastNow(id);
-      alert("✅ เข้าคิวแล้ว บอทจะส่งเข้ากลุ่ม LINE ภายใน 5 นาที");
+      toast.success("เข้าคิวแล้ว บอทจะส่งเข้ากลุ่ม LINE ภายใน 5 นาที");
     } catch (err: any) {
-      alert("เข้าคิวส่ง LINE ไม่สำเร็จ: " + (err?.message || err));
+      toast.error("เข้าคิวส่ง LINE ไม่สำเร็จ: " + (err?.message || err));
     } finally {
       setBroadcastingId(null);
     }
@@ -116,11 +117,11 @@ export function AnnouncementView() {
                 ข่าวสาร & ประชาสัมพันธ์ทีม (CD Announcements)
               </h1>
               {isAdmin ? (
-                <span className="text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+                <span className="text-xs font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
                   Admin Mode
                 </span>
               ) : (
-                <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
                   Read Only
                 </span>
               )}
@@ -277,31 +278,31 @@ export function AnnouncementView() {
                     {/* Status Badge + Timing */}
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       {isSent ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
                           <CheckCircle2 className="w-3 h-3" />
                           <span>ส่งเข้า LINE แล้ว</span>
                         </span>
                       ) : isFailed ? (
                         <span
-                          className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full"
+                          className="inline-flex items-center gap-1 text-xs font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full"
                           title={item.sendError}
                         >
                           <XCircle className="w-3 h-3" />
                           <span>ส่งไม่สำเร็จ</span>
                         </span>
                       ) : isDue ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
                           <Loader2 className="w-3 h-3 animate-spin" />
                           <span>บอทกำลังจะส่ง (ภายใน 5 นาที)</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
                           <Clock className="w-3 h-3" />
                           <span>รอส่งตามเวลา</span>
                         </span>
                       )}
 
-                      <span className="text-[10px] font-medium text-gray-400">
+                      <span className="text-xs font-medium text-gray-400">
                         {isSent
                           ? `ส่งเมื่อ ${formatDateTime(item.sentAt || item.createdAt)}`
                           : `กำหนดส่ง ${formatDateTime(item.scheduledAt)}`}
@@ -309,7 +310,7 @@ export function AnnouncementView() {
                     </div>
 
                     {isFailed && item.sendError && (
-                      <p className="text-[11px] text-red-700 bg-red-50 border border-red-100 rounded-lg px-2 py-1.5">
+                      <p className="text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-2 py-1.5">
                         {item.sendError}
                       </p>
                     )}
@@ -373,14 +374,14 @@ export function AnnouncementView() {
                           <button
                             type="button"
                             onClick={() => handleDelete(item.id)}
-                            className="text-[10px] font-bold text-white bg-red-600 px-2 py-0.5 rounded hover:bg-red-700"
+                            className="text-xs font-bold text-white bg-red-600 px-2 py-0.5 rounded hover:bg-red-700"
                           >
                             ลบ
                           </button>
                           <button
                             type="button"
                             onClick={() => setDeleteConfirmId(null)}
-                            className="text-[10px] text-gray-500 px-1 hover:text-gray-800"
+                            className="text-xs text-gray-500 px-1 hover:text-gray-800"
                           >
                             ยกเลิก
                           </button>
@@ -406,7 +407,7 @@ export function AnnouncementView() {
 
       {/* 4. Retention Policy Footer Note */}
       <div className="text-center pt-4 border-t border-gray-200/80">
-        <p className="text-[11px] text-gray-400 font-medium flex items-center justify-center gap-1.5">
+        <p className="text-xs text-gray-400 font-medium flex items-center justify-center gap-1.5">
           <Calendar className="w-3.5 h-3.5" />
           <span>ระบบจะจัดเก็บข่าวสารและรูปภาพย้อนหลังสูงสุด 1 ปี (365 วัน) โดยรายการที่หมดอายุจะถูกเคลียร์ออกอัตโนมัติ</span>
         </p>

@@ -76,7 +76,7 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
               />
               <Key className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
             </div>
-            <p className="text-[11px] text-gray-500 mt-1.5 flex items-center gap-1">
+            <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
               <span>สามารถรับ API Key ฟรีได้ที่</span>
               <a
                 href="https://aistudio.google.com/app/apikey"
@@ -89,7 +89,7 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
             </p>
           </div>
 
-          <div className="text-[11px] text-gray-600 bg-slate-50 p-3 rounded-xl border border-gray-200/80 leading-relaxed flex items-start gap-2">
+          <div className="text-xs text-gray-600 bg-slate-50 p-3 rounded-xl border border-gray-200/80 leading-relaxed flex items-start gap-2">
             <Sparkles className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
             <div>
               <strong>การทำงาน:</strong> เมื่อระบุ API Key ระบบจะส่งคำถามไปให้ Gemini

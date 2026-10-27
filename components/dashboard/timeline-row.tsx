@@ -175,7 +175,7 @@ export function TimelineRow({
               [{product.broker}]
             </span>
             {product.isPaused && (
-              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-slate-600 bg-white border border-slate-300 px-1 rounded shrink-0">
+              <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-slate-600 bg-white border border-slate-300 px-1 rounded shrink-0">
                 <PauseCircle className="w-2.5 h-2.5" />
                 หยุดชั่วคราว
               </span>
@@ -252,14 +252,14 @@ export function TimelineRow({
 
               {/* Date text label */}
               {milestone.date && (
-                <div className="text-[10px] md:text-[11px] font-medium text-[#475569] mt-1 whitespace-nowrap text-center">
+                <div className="text-[11px] font-medium text-[#475569] mt-1 whitespace-nowrap text-center">
                   {formatShortDate(milestone.date)}
                 </div>
               )}
 
               {/* CS Date if applicable */}
               {phase.key === "internal-training" && product.csDate && (
-                <div className="text-[10px] font-medium text-[#475569] mt-0.5 whitespace-nowrap">
+                <div className="text-[11px] font-medium text-[#475569] mt-0.5 whitespace-nowrap">
                   {formatShortDate(product.csDate)}
                 </div>
               )}

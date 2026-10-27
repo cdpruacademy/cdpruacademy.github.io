@@ -173,7 +173,7 @@ export function TimelineHeader({
             {/* Year Selector Dropdown (รองรับการดูข้อมูลปีเก่า หรือขึ้นปีใหม่ในอนาคต) */}
             {onYearChange ? (
               <div className="flex items-center gap-1 bg-white border border-gray-200/90 rounded-lg px-2 py-1 shadow-2xs">
-                <span className="text-[11px] font-bold text-gray-500">ปี:</span>
+                <span className="text-xs font-bold text-gray-500">ปี:</span>
                 <select
                   value={activeYear}
                   onChange={(e) => onYearChange(parseInt(e.target.value, 10))}
@@ -235,7 +235,7 @@ export function TimelineHeader({
                   <span>{m}</span>
                   {isCurrent && (
                     <span
-                      className={`text-[9px] px-1 py-0.2 rounded font-black ${
+                      className={`text-xs px-1 py-0.2 rounded font-black ${
                         isSelected ? "bg-white/30 text-white" : "bg-red-50 text-[#ED1C24] border border-red-200"
                       }`}
                     >
@@ -244,7 +244,7 @@ export function TimelineHeader({
                   )}
                   {!isCurrent && isPast && (
                     <span
-                      className={`text-[9px] px-1 py-0.2 rounded font-normal ${
+                      className={`text-xs px-1 py-0.2 rounded font-normal ${
                         isSelected ? "bg-white/30 text-white" : "text-gray-400"
                       }`}
                     >
@@ -253,7 +253,7 @@ export function TimelineHeader({
                   )}
                   {!isCurrent && isFuture && (
                     <span
-                      className={`text-[9px] px-1 py-0.2 rounded font-normal ${
+                      className={`text-xs px-1 py-0.2 rounded font-normal ${
                         isSelected ? "bg-white/30 text-white" : "text-blue-500"
                       }`}
                     >

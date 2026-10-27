@@ -905,41 +905,77 @@ function getCurrentMonthKey() {
   return Utilities.formatDate(new Date(), "Asia/Bangkok", "MMM yyyy").toUpperCase();
 }
 
-// งานที่ยัง active ในเดือนเป้าหมาย: ใช้สำเนาล่าสุดของแต่ละงาน ข้ามงานที่ถูกลบ, หยุดชั่วคราว
-// และงานจากเดือนก่อนที่ Launch แล้ว (กติกาเดียวกับหน้าเว็บ)
-function collectActiveItems(allMonths, targetMonth, listKey) {
-  const target = monthKeyValue(targetMonth);
-  const latest = {};
-  const pause = {};
+// "2 Oct 2026" / "Oct 2026" ตรงกับเดือนเป้าหมาย "OCT 2026" หรือไม่ (เหมือน matchesTargetMonth บนเว็บ)
+function matchesTargetMonth(dateStr, targetMonth) {
+  if (!dateStr) return false;
+  const cleanStr = String(dateStr).trim().toLowerCase();
+  if (cleanStr.indexOf("tbc") >= 0) return false;
+  const parts = String(targetMonth).trim().toLowerCase().split(" ");
+  const hasMonth = cleanStr.indexOf(parts[0].slice(0, 3)) >= 0;
+  const hasYear = parts[1] ? cleanStr.indexOf(parts[1]) >= 0 : true;
+  return hasMonth && hasYear;
+}
 
+// วัน Commercial ผ่านไปแล้วก่อนเดือนเป้าหมายหรือยัง (เหมือน hasLaunchedInPast บนเว็บ)
+function hasLaunchedBefore(item, targetMonth) {
+  if (item.milestones && item.milestones["launch"] && item.milestones["launch"].status === "completed") return true;
+  if (!item.commercialDate || String(item.commercialDate).toLowerCase().indexOf("tbc") >= 0) return false;
+  const target = monthKeyValue(targetMonth);
+  const cClean = String(item.commercialDate).toLowerCase();
+  for (let i = 0; i < MONTH_KEYS.length; i++) {
+    if (cClean.indexOf(MONTH_KEYS[i].toLowerCase()) >= 0) {
+      const yMatch = cClean.match(/\b(20\d{2}|25\d{2})\b/);
+      const year = yMatch ? parseInt(yMatch[0], 10) : Math.floor(target / 12);
+      return year * 12 + i < target;
+    }
+  }
+  return false;
+}
+
+// สถานะหยุดชั่วคราว ณ เดือนเป้าหมาย: เหตุการณ์ หยุด/ทำต่อ ล่าสุดที่ไม่เกินเดือนนั้น
+function isPausedAt(allMonths, id, targetMonth) {
+  const target = monthKeyValue(targetMonth);
+  let latest = null;
   for (const mName in allMonths) {
     const v = monthKeyValue(mName);
     if (v < 0 || v > target) continue;
     const mData = allMonths[mName] || {};
+    const copy = (mData.products || []).concat(mData.enhancements || []).filter(it => it && it.id === id && it.pauseState)[0];
+    if (copy && (!latest || v > latest.v)) latest = { v: v, state: copy.pauseState };
+  }
+  return !!latest && latest.state === "paused";
+}
 
-    (mData.products || []).concat(mData.enhancements || []).forEach(it => {
-      if (it && it.pauseState && (!pause[it.id] || v > pause[it.id].v)) {
-        pause[it.id] = { v: v, state: it.pauseState };
-      }
-    });
+// งานของเดือนเป้าหมาย ด้วยกติกาเดียวกับหน้าเว็บ (getItemsForMonth):
+// งานของเดือนนั้นเอง + งานจากเดือนอื่นที่วันตรงกับเดือนนี้ + งานค้างจากเดือนก่อนที่ยังไม่ Launch
+// ใช้สำเนาล่าสุดของแต่ละงาน และไม่นับงานที่ถูกลบหรือหยุดชั่วคราว
+function collectActiveItems(allMonths, targetMonth, listKey) {
+  const target = monthKeyValue(targetMonth);
+  const monthData = allMonths[targetMonth] || {};
+  const rawNative = monthData[listKey] || [];
+  const nativeIds = {};
+  rawNative.forEach(it => { nativeIds[it.id] = true; });
+  const result = rawNative.filter(it => !it.isDeleted);
 
-    (mData[listKey] || []).forEach(it => {
-      const id = it.id || it.name;
-      if (!latest[id] || v > latest[id].v) latest[id] = { v: v, item: it };
+  const cross = {};
+  for (const mName in allMonths) {
+    if (mName.toUpperCase() === String(targetMonth).toUpperCase()) continue;
+    const v = monthKeyValue(mName);
+    const isPriorMonth = v >= 0 && v < target;
+
+    ((allMonths[mName] || {})[listKey] || []).forEach(it => {
+      if (it.isDeleted || nativeIds[it.id]) return;
+      const isMatch =
+        matchesTargetMonth(it.commercialDate, targetMonth) ||
+        matchesTargetMonth(it.internalDate, targetMonth) ||
+        matchesTargetMonth(it.customRightLabel, targetMonth) ||
+        (isPriorMonth && !hasLaunchedBefore(it, targetMonth));
+      if (isMatch && (!cross[it.id] || v > cross[it.id].v)) cross[it.id] = { v: v, item: it };
     });
   }
+  for (const id in cross) result.push(cross[id].item);
 
-  const result = [];
-  for (const id in latest) {
-    const entry = latest[id];
-    const it = entry.item;
-    if (it.isDeleted) continue;
-    if (pause[id] && pause[id].state === "paused") continue;
-    const launched = it.milestones && it.milestones["launch"] && it.milestones["launch"].status === "completed";
-    if (entry.v < target && launched) continue;
-    result.push(it);
-  }
-  return result;
+  return result.filter(it => !isPausedAt(allMonths, it.id, targetMonth));
 }
 
 function getNormalizedTimelineData() {

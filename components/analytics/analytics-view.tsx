@@ -50,6 +50,7 @@ import { toPng } from "html-to-image";
 import { resolveBrokerColor } from "@/lib/broker-colors";
 import { useChannelColors } from "@/hooks/use-channel-colors";
 import { updateChannelSummarySnapshot } from "@/lib/supabase";
+import { toast } from "@/lib/notify";
 import { ChannelSummaryExportBoard } from "./channel-summary-export-board";
 
 interface AggregatedItem extends ProductItem {
@@ -211,7 +212,7 @@ export function AnalyticsView() {
       link.click();
     } catch (err: any) {
       console.error("Export channel summary error:", err);
-      alert("เกิดข้อผิดพลาดในการบันทึกรูปภาพ: " + (err?.message || err));
+      toast.error("บันทึกรูปภาพไม่สำเร็จ: " + (err?.message || err));
     } finally {
       setIsExporting(false);
     }
@@ -242,15 +243,10 @@ export function AnalyticsView() {
         throw new Error(uploadRes.error || "ไม่สามารถอัปโหลดภาพได้");
       }
 
-      alert(
-        `✅ อัปเดตรูปภาพสรุปตามช่องทางขึ้น Cloud เรียบร้อย!\n\n` +
-        `• หัวข้อ: ${periodLabel}\n` +
-        `• สไตล์รูป: Design PR ประชาสัมพันธ์ใหม่\n\n` +
-        `สมาชิกใน LINE สามารถพิมพ์ "CD รูป" เพื่อรับภาพสรุปชุดนี้ได้ทันทีครับ`
-      );
+      toast.success(`อัปเดตรูปสรุปช่องทาง (${periodLabel}) แล้ว\nพิมพ์ "CD รูป" ในกลุ่ม LINE เพื่อดูรูปนี้`);
     } catch (err: any) {
       console.error("Send channel summary to LINE error:", err);
-      alert("เกิดข้อผิดพลาดในการส่งรูปเข้า LINE: " + (err?.message || err));
+      toast.error("ส่งรูปเข้า LINE ไม่สำเร็จ: " + (err?.message || err));
     } finally {
       setIsSendingLine(false);
     }
@@ -690,7 +686,7 @@ export function AnalyticsView() {
               <h1 className="text-base sm:text-xl font-black text-gray-900 tracking-tight">
                 EXECUTIVE SUMMARY & TEAM ANALYTICS
               </h1>
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
+              <span className="inline-flex items-center gap-1 text-xs font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
                 <ShieldCheck className="w-3 h-3" /> Admin Mode
               </span>
             </div>
@@ -707,7 +703,7 @@ export function AnalyticsView() {
           {/* Year Switcher for Analytics */}
           {availableYears && availableYears.length > 0 && setSelectedYear ? (
             <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-2xs">
-              <span className="text-[11px] font-bold text-gray-500">ปี:</span>
+              <span className="text-xs font-bold text-gray-500">ปี:</span>
               <select
                 value={activeYear}
                 onChange={(e) => {
@@ -809,7 +805,7 @@ export function AnalyticsView() {
             <Users className="w-4 h-4 text-[#ED1C24]" />
             <span>เลือกดูสถิติรายบุคคล หรือ ทั้งทีม:</span>
             {selectedMember ? (
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md">
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md">
                 <span
                   className="w-2 h-2 rounded-full"
                   style={{ backgroundColor: memberColors[selectedMember] || "#ED1C24" }}
@@ -824,7 +820,7 @@ export function AnalyticsView() {
                 )}
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md">
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md">
                 <span>ภาพรวมทั้งทีม:</span>
                 <span className="text-[#ED1C24] font-black">รวม {rawUniqueProjectsCount} โครงการ</span>
                 <span className="text-gray-400 font-normal">|</span>
@@ -853,7 +849,7 @@ export function AnalyticsView() {
               <button
                 type="button"
                 onClick={() => setSelectedMember(null)}
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-gray-500 hover:text-[#ED1C24] transition-colors ml-1"
+                className="inline-flex items-center gap-1 text-xs font-bold text-gray-500 hover:text-[#ED1C24] transition-colors ml-1"
                 title="กลับไปดูภาพรวมทั้งทีม"
               >
                 <RotateCcw className="w-3 h-3" />
@@ -878,7 +874,7 @@ export function AnalyticsView() {
             <Users className="w-3.5 h-3.5" />
             <span>👥 ทั้งทีม (All Team)</span>
             <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+              className={`text-xs px-1.5 py-0.2 rounded-full font-black ${
                 selectedMember === null ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
               }`}
             >
@@ -886,7 +882,7 @@ export function AnalyticsView() {
             </span>
             {allTeamPendingCount > 0 && (
               <span
-                className={`text-[9px] px-1.5 py-0.2 rounded font-semibold ${
+                className={`text-xs px-1.5 py-0.2 rounded font-semibold ${
                   selectedMember === null
                     ? "bg-amber-400 text-amber-950 font-black"
                     : "bg-amber-50 text-amber-800 border border-amber-200"
@@ -921,7 +917,7 @@ export function AnalyticsView() {
                 />
                 <span className="truncate max-w-[130px]">{member}</span>
                 <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                  className={`text-xs px-1.5 py-0.2 rounded-full font-black ${
                     isSelected ? "bg-black/20 text-white" : "bg-slate-100 text-slate-700"
                   }`}
                 >
@@ -929,7 +925,7 @@ export function AnalyticsView() {
                 </span>
                 {stat.pending > 0 && (
                   <span
-                    className={`text-[9px] px-1.5 py-0.2 rounded font-semibold ${
+                    className={`text-xs px-1.5 py-0.2 rounded font-semibold ${
                       isSelected
                         ? "bg-black/30 text-amber-200"
                         : "bg-amber-50 text-amber-800 border border-amber-200"
@@ -960,12 +956,12 @@ export function AnalyticsView() {
               {totalProjects}
             </div>
             {pausedProjectsCount > 0 && (
-              <div className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500">
+              <div className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500">
                 <PauseCircle className="w-3 h-3" />
                 หยุดชั่วคราว {pausedProjectsCount}
               </div>
             )}
-            <div className="text-[11px] text-gray-400">
+            <div className="text-xs text-gray-400">
               {selectedMember
                 ? "นับโครงการที่ได้รับมอบหมาย"
                 : isAnnual
@@ -987,7 +983,7 @@ export function AnalyticsView() {
             <div className="text-2xl sm:text-3xl font-black text-[#ED1C24] tracking-tight">
               {newProductCount}
             </div>
-            <div className="text-[11px] text-[#ED1C24]/80 font-medium">
+            <div className="text-xs text-[#ED1C24]/80 font-medium">
               {totalProjects > 0 ? ((newProductCount / totalProjects) * 100).toFixed(0) : 0}% ของงานทั้งหมด
             </div>
           </div>
@@ -1005,7 +1001,7 @@ export function AnalyticsView() {
             <div className="text-2xl sm:text-3xl font-black text-[#0066CC] tracking-tight">
               {enhancementCount}
             </div>
-            <div className="text-[11px] text-blue-600/70 font-medium">
+            <div className="text-xs text-blue-600/70 font-medium">
               {totalProjects > 0 ? ((enhancementCount / totalProjects) * 100).toFixed(0) : 0}% ของงานทั้งหมด
             </div>
           </div>
@@ -1023,7 +1019,7 @@ export function AnalyticsView() {
             <div className="text-2xl sm:text-3xl font-black text-purple-800 tracking-tight">
               {totalElearning}
             </div>
-            <div className="text-[11px] text-purple-600/70 font-medium">
+            <div className="text-xs text-purple-600/70 font-medium">
               คอร์สอบรมออนไลน์บนระบบ
             </div>
           </div>
@@ -1043,7 +1039,7 @@ export function AnalyticsView() {
                 แนวโน้มและปริมาณโครงการรายเดือน (Monthly Project Volume)
                 {selectedMember && <span className="text-[#ED1C24] font-black"> : {selectedMember}</span>}
               </span>
-              <span className="text-[11px] font-black text-[#ED1C24] bg-red-50 border border-red-200 px-2 py-0.5 rounded-md">
+              <span className="text-xs font-black text-[#ED1C24] bg-red-50 border border-red-200 px-2 py-0.5 rounded-md">
                 ปี {activeYearTh} ({activeYear})
               </span>
             </h3>
@@ -1087,7 +1083,7 @@ export function AnalyticsView() {
               >
                 {/* Total Count Pill */}
                 <span
-                  className={`text-[11px] font-black px-1.5 py-0.5 rounded-md ${
+                  className={`text-xs font-black px-1.5 py-0.5 rounded-md ${
                     stat.totalCount > 0
                       ? isSelected
                         ? "bg-[#ED1C24] text-white"
@@ -1141,13 +1137,13 @@ export function AnalyticsView() {
 
                 {/* Month Label */}
                 <span
-                  className={`text-[10px] font-bold truncate w-full ${
+                  className={`text-xs font-bold truncate w-full ${
                     isSelected ? "text-[#ED1C24]" : "text-gray-700"
                   }`}
                 >
                   {stat.month.split(" ")[0]}
                 </span>
-                <span className="text-[9px] text-gray-400">
+                <span className="text-xs text-gray-400">
                   {stat.month.split(" ")[1]}
                 </span>
               </button>
@@ -1230,7 +1226,7 @@ export function AnalyticsView() {
                       transition={{ duration: 0.15 }}
                       className="flex flex-col items-center justify-center text-center px-1"
                     >
-                      <span className="text-[11px] text-gray-500 font-semibold truncate max-w-[110px]">
+                      <span className="text-xs text-gray-500 font-semibold truncate max-w-[110px]">
                         {displayChannelLabel}
                       </span>
                       <span className="text-3xl font-black text-gray-900 leading-tight">
@@ -1276,7 +1272,7 @@ export function AnalyticsView() {
                       <span className="font-bold text-gray-900">
                         {segment.value}
                       </span>
-                      <span className="text-[11px] text-gray-400 w-9 text-right font-medium">
+                      <span className="text-xs text-gray-400 w-9 text-right font-medium">
                         {pct}%
                       </span>
                     </div>
@@ -1322,7 +1318,7 @@ export function AnalyticsView() {
           {!selectedMember && coOwnedProjectsCount > 0 && (
             <div className="flex items-start gap-2 p-2.5 bg-blue-50/70 border border-blue-200/60 rounded-xl text-xs text-blue-900">
               <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-              <div className="text-[11px] leading-relaxed">
+              <div className="text-xs leading-relaxed">
                 <strong>ทำไมยอดรวมถึงเป็น {totalMemberWorkload} ภาระงาน?</strong> เนื่องจากมี {coOwnedProjectsCount} โครงการที่มีผู้รับผิดชอบร่วมกัน 2 คน (Co-owners) จึงทำให้ยอดภาระงานรายบุคคลนับรวมได้ {totalMemberWorkload} งาน จากโครงการจริงทั้งหมด {rawUniqueProjectsCount} โครงการ
               </div>
             </div>
@@ -1350,14 +1346,14 @@ export function AnalyticsView() {
                       transition={{ duration: 0.15 }}
                       className="flex flex-col items-center justify-center text-center px-1"
                     >
-                      <span className="text-[11px] text-gray-500 font-semibold truncate max-w-[110px]">
+                      <span className="text-xs text-gray-500 font-semibold truncate max-w-[110px]">
                         {displayMemberLabel}
                       </span>
                       <span className="text-3xl font-black text-gray-900 leading-tight">
                         {displayMemberVal}
                       </span>
                       {totalMemberWorkload > 0 && !selectedMember && (
-                        <span className="text-[10px] text-gray-400 font-medium">
+                        <span className="text-xs text-gray-400 font-medium">
                           ({rawUniqueProjectsCount} โครงการจริง)
                         </span>
                       )}
@@ -1406,7 +1402,7 @@ export function AnalyticsView() {
                         {segment.label}
                       </span>
                       {mStat && mStat.shared > 0 && !selectedMember && (
-                        <span className="text-[9px] px-1 py-0.2 bg-indigo-50 text-indigo-700 rounded border border-indigo-200 font-bold shrink-0">
+                        <span className="text-xs px-1 py-0.2 bg-indigo-50 text-indigo-700 rounded border border-indigo-200 font-bold shrink-0">
                           ร่วม {mStat.shared}
                         </span>
                       )}
@@ -1415,7 +1411,7 @@ export function AnalyticsView() {
                       <span className="font-bold text-gray-900">
                         {segment.value}
                       </span>
-                      <span className="text-[11px] text-gray-400 w-9 text-right font-medium">
+                      <span className="text-xs text-gray-400 w-9 text-right font-medium">
                         {pct}%
                       </span>
                       {isTeamMember && (
@@ -1476,7 +1472,7 @@ export function AnalyticsView() {
                         สถานะการส่งมอบโครงการ :{" "}
                         {modalMember && modalMember !== "ALL_TEAM" ? modalMember : "ทั้งทีม (All Team)"}
                       </h3>
-                      <span className="text-[11px] font-bold text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded-full">
+                      <span className="text-xs font-bold text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded-full">
                         {isAnnual ? "ภาพรวมทั้งปี" : selectedPeriod}
                       </span>
                     </div>
@@ -1500,7 +1496,7 @@ export function AnalyticsView() {
 
               {/* Member Selector Tabs inside Modal */}
               <div className="px-4 sm:px-5 py-2.5 bg-white border-b border-gray-100 flex items-center gap-1.5 overflow-x-auto scrollbar-thin shrink-0">
-                <span className="text-[11px] font-bold text-gray-500 shrink-0 mr-1">สลับดู:</span>
+                <span className="text-xs font-bold text-gray-500 shrink-0 mr-1">สลับดู:</span>
                 <button
                   type="button"
                   onClick={() => setModalMember("ALL_TEAM")}
@@ -1534,7 +1530,7 @@ export function AnalyticsView() {
                       />
                       <span>{member}</span>
                       <span
-                        className={`text-[10px] px-1 py-0.2 rounded-full font-black ${
+                        className={`text-xs px-1 py-0.2 rounded-full font-black ${
                           isSel ? "bg-black/20 text-white" : "bg-slate-200 text-slate-700"
                         }`}
                       >
@@ -1542,7 +1538,7 @@ export function AnalyticsView() {
                       </span>
                       {mStat.pending > 0 && (
                         <span
-                          className={`text-[9px] px-1 py-0.2 rounded font-semibold ${
+                          className={`text-xs px-1 py-0.2 rounded font-semibold ${
                             isSel ? "bg-black/30 text-amber-200" : "bg-amber-100 text-amber-800"
                           }`}
                         >
@@ -1755,36 +1751,36 @@ export function AnalyticsView() {
                           className="bg-white hover:bg-slate-50/80 p-3.5 rounded-2xl border border-gray-200 border-l-4 shadow-2xs transition-all flex flex-col justify-between space-y-2.5"
                         >
                           {/* Top Row: Channel + Co-owner badge + Phase status */}
-                          <div className="flex items-center justify-between gap-1.5 text-[11px]">
+                          <div className="flex items-center justify-between gap-1.5 text-xs">
                             <div className="flex items-center gap-1 flex-wrap">
                               <span
                                 style={{ color: brokerColor, backgroundColor: `${brokerColor}15` }}
-                                className="font-black px-2 py-0.5 rounded-md text-[11px] tracking-tight shrink-0"
+                                className="font-black px-2 py-0.5 rounded-md text-xs tracking-tight shrink-0"
                               >
                                 {item.broker}
                               </span>
                               {isCoOwned && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded shrink-0">
+                                <span className="inline-flex items-center gap-1 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded shrink-0">
                                   <Users className="w-2.5 h-2.5" /> งานร่วม
                                 </span>
                               )}
                               {isAnnual && item.activeMonths && item.activeMonths.length > 0 && (
-                                <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
+                                <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
                                   {item.activeMonths.join(", ")}
                                 </span>
                               )}
                             </div>
 
                             {item.isCompleted ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                              <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
                                 <CheckCircle2 className="w-3 h-3 text-emerald-600" /> เปิดตัวแล้ว
                               </span>
                             ) : item.isPaused ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-300 shrink-0">
+                              <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-300 shrink-0">
                                 <PauseCircle className="w-3 h-3 text-slate-500" /> {item.currentPhaseLabel}
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 shrink-0">
+                              <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 shrink-0">
                                 <Clock className="w-3 h-3 animate-pulse text-amber-600" /> {item.currentPhaseLabel}
                               </span>
                             )}
@@ -1798,7 +1794,7 @@ export function AnalyticsView() {
                           </div>
 
                           {/* Owner & eLearning */}
-                          <div className="flex items-center justify-between text-[11px] pt-1 border-t border-gray-100">
+                          <div className="flex items-center justify-between text-xs pt-1 border-t border-gray-100">
                             <div className="flex items-center gap-1.5 min-w-0">
                               <span
                                 className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10"
@@ -1809,16 +1805,16 @@ export function AnalyticsView() {
                               </span>
                             </div>
                             {hasElearning && (
-                              <span className="px-1.5 py-0.2 bg-purple-50 text-purple-700 font-bold rounded-md border border-purple-200 flex items-center gap-1 text-[9px] shrink-0">
+                              <span className="px-1.5 py-0.2 bg-purple-50 text-purple-700 font-bold rounded-md border border-purple-200 flex items-center gap-1 text-xs shrink-0">
                                 <GraduationCap className="w-2.5 h-2.5" /> eLearning
                               </span>
                             )}
                           </div>
 
                           {/* Dates */}
-                          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-dashed border-gray-100 text-[10px]">
+                          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-dashed border-gray-100 text-xs">
                             <div className="bg-slate-50 rounded-lg p-1 px-1.5">
-                              <span className="text-[9px] text-gray-400 block font-medium">Internal</span>
+                              <span className="text-xs text-gray-400 block font-medium">Internal</span>
                               <span className="font-bold text-gray-700 truncate block">
                                 {item.internalDate || "TBC"}
                               </span>
@@ -1830,7 +1826,7 @@ export function AnalyticsView() {
                                   : "bg-red-50 text-[#ED1C24] border border-red-100"
                               }`}
                             >
-                              <span className="text-[9px] opacity-75 block font-medium">Target Launch</span>
+                              <span className="text-xs opacity-75 block font-medium">Target Launch</span>
                               <span className="font-bold truncate block">
                                 {item.commercialDate || item.customRightLabel || "TBC"}
                               </span>
