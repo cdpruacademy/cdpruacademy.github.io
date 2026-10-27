@@ -1,7 +1,7 @@
 // =========================================================================
-// CD-NOTIFY: SMART NLP ENGINE (ANTI-SPAM 100% + SLIPOK MINIMALIST DESIGN)
+// CODY (โคดี้): บอทของทีม CD สำหรับกลุ่ม LINE (ชื่อเดิม CD-Notify)
 // Google Apps Script (GAS) Backend for CD-Notify LINE Bot
-// Last Updated: 28 October 2026 (style B Flex, grouped by Partner)
+// Last Updated: 28 October 2026 (CODY name, style B Flex with icons, grouped by Partner)
 // =========================================================================
 
 // 🔐 Secrets อยู่ใน Script Properties (Project Settings > Script properties) ห้ามใส่ในโค้ด
@@ -17,6 +17,18 @@ const SUPABASE_SECRET_KEY = SCRIPT_PROPS.getProperty("SUPABASE_SECRET_KEY") || "
 const MANAGER_PIN = SCRIPT_PROPS.getProperty("MANAGER_PIN") || "";
 const CRON_SECRET = SCRIPT_PROPS.getProperty("CRON_SECRET") || "";
 const DASHBOARD_WEB_URL = "https://cdpruacademy.github.io/";
+const BOT_NAME = "CODY";
+
+// ข้อความที่บอทตอบ: ขึ้นต้นด้วย CODY, โคดี้, @CODY หรือ CD แบบเดิม (เว้นวรรคแล้วตามด้วยคำถาม)
+// ภาษาไทยมักพิมพ์ติดกัน เช่น "โคดี้รูป" จึงไม่บังคับเว้นวรรคหลัง โคดี้
+const BOT_PREFIX = /^@?(?:(?:cody|cd-notify|cd)(?:ครับ|คะ|ค่ะ)?(?:\s+[\s\S]*)?|โคดี้?[\s\S]*)$/i;
+const BOT_PREFIX_STRIP = /^@?(?:cody|โคดี้|โคดี|cd-notify|cd)(?:ครับ|คะ|ค่ะ)?\s*/i;
+
+// ไอคอน PNG บนเว็บ (สร้างจาก components/icon.tsx ด้วย scripts/make-cody-icons.mjs)
+const ICON_BASE = DASHBOARD_WEB_URL + "cody/";
+function iconUrl(name, color) {
+  return ICON_BASE + name + "-" + color + ".png";
+}
 
 // สีและข้อความแบบ B ("Brand Hero") ให้ตรงกับหน้าเว็บ (ดู DESIGN.md)
 const UI = {
@@ -43,12 +55,12 @@ const DEFAULT_PARTNERS = [
 const UNASSIGNED_PARTNER = { id: "unassigned", name: "Other", color: "#A8A29E", channels: [] };
 
 const STEPS = [
-  { key: "kick-off", label: "Kick-off" },
-  { key: "first-draft", label: "First Draft" },
-  { key: "first-draft-elearning", label: "First Draft e-learning" },
-  { key: "final-approval", label: "Final Approval" },
-  { key: "final-elearning", label: "Final e-learning" },
-  { key: "internal-training", label: "Internal Training" }
+  { key: "kick-off", label: "Kick-off", icon: "kickoff" },
+  { key: "first-draft", label: "First Draft", icon: "draft" },
+  { key: "first-draft-elearning", label: "First Draft e-learning", icon: "elearning" },
+  { key: "final-approval", label: "Final Approval", icon: "approval" },
+  { key: "final-elearning", label: "Final e-learning", icon: "finalElearning" },
+  { key: "internal-training", label: "Internal Training", icon: "training" }
 ];
 
 let partnersCache = null;
@@ -132,15 +144,47 @@ function shortDate(s) {
 
 // ---------- ชิ้นส่วน Flex แบบ B ----------
 
-// แถบแดงด้านบน: หัวข้อเล็ก ตัวเลขใหญ่ และบรรทัดย่อย
+// โลโก้ CODY + ชื่อ อยู่บนสุดของแถบแดงทุกการ์ด
+function flexBrandRow(caption) {
+  return {
+    type: "box",
+    layout: "horizontal",
+    spacing: "md",
+    alignItems: "center",
+    contents: [
+      {
+        type: "box",
+        layout: "vertical",
+        flex: 0,
+        width: "30px",
+        height: "30px",
+        cornerRadius: "9px",
+        backgroundColor: "#FFFFFF",
+        justifyContent: "center",
+        alignItems: "center",
+        contents: [{ type: "image", url: ICON_BASE + "cody-logo.png", size: "26px", aspectMode: "fit" }]
+      },
+      {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          { type: "text", text: BOT_NAME, size: "sm", weight: "bold", color: "#FFFFFF" },
+          { type: "text", text: caption, size: "xxs", color: "#FFFFFF", wrap: true }
+        ]
+      }
+    ]
+  };
+}
+
+// แถบแดงด้านบน: โลโก้ ตัวเลขใหญ่ และบรรทัดย่อย
 function flexHero(caption, bigNumber, bigLabel, sub) {
   const contents = [
-    { type: "text", text: caption, size: "sm", weight: "bold", color: "#FFFFFF", wrap: true },
+    flexBrandRow(caption),
     {
       type: "box",
       layout: "baseline",
       spacing: "md",
-      margin: "md",
+      margin: "lg",
       contents: [
         { type: "text", text: String(bigNumber), size: "5xl", weight: "bold", color: "#FFFFFF", flex: 0 },
         { type: "text", text: bigLabel, size: "lg", weight: "bold", color: "#FFFFFF", wrap: true }
@@ -148,17 +192,49 @@ function flexHero(caption, bigNumber, bigLabel, sub) {
     }
   ];
   if (sub) contents.push({ type: "text", text: sub, size: "xs", color: "#FFFFFF", margin: "sm", wrap: true });
-  return { type: "box", layout: "vertical", backgroundColor: UI.red, paddingAll: "20px", paddingBottom: "24px", contents: contents };
+  return { type: "box", layout: "vertical", backgroundColor: UI.red, paddingAll: "20px", paddingBottom: "22px", contents: contents };
 }
 
-// แถบแดงสำหรับหัวข้อที่เป็นชื่อ (ชื่อ project, ชื่อคน, ชื่อ Partner)
+// แถบหัวที่เป็นชื่อ (project, คน, Partner)
 function flexTitleHero(caption, title, sub, color) {
   const contents = [
-    { type: "text", text: caption, size: "xs", weight: "bold", color: "#FFFFFF", wrap: true },
-    { type: "text", text: title, size: "xl", weight: "bold", color: "#FFFFFF", margin: "sm", wrap: true }
+    flexBrandRow(caption),
+    { type: "text", text: title, size: "xl", weight: "bold", color: "#FFFFFF", margin: "lg", wrap: true }
   ];
   if (sub) contents.push({ type: "text", text: sub, size: "xs", color: "#FFFFFF", margin: "sm", wrap: true });
   return { type: "box", layout: "vertical", backgroundColor: color || UI.red, paddingAll: "20px", contents: contents };
+}
+
+// ไอคอนในกล่องสี (สี่เหลี่ยมมนหรือวงกลม)
+function flexIconTile(name, iconColor, bg, size, round) {
+  const px = size || 28;
+  return {
+    type: "box",
+    layout: "vertical",
+    flex: 0,
+    width: px + "px",
+    height: px + "px",
+    cornerRadius: round ? Math.round(px / 2) + "px" : Math.round(px / 3.5) + "px",
+    backgroundColor: bg,
+    justifyContent: "center",
+    alignItems: "center",
+    contents: [{ type: "image", url: iconUrl(name, iconColor), size: Math.round(px * 0.6) + "px", aspectMode: "fit" }]
+  };
+}
+
+// แถวข้อมูล: ไอคอน ชื่อ และค่าทางขวา
+function flexInfoRow(icon, label, value, valueColor) {
+  return {
+    type: "box",
+    layout: "horizontal",
+    spacing: "md",
+    alignItems: "center",
+    contents: [
+      flexIconTile(icon, "ink", UI.surface, 28, false),
+      { type: "text", text: label, size: "sm", color: UI.soft, flex: 3 },
+      { type: "text", text: value, size: "sm", weight: "bold", color: valueColor || UI.ink, align: "end", flex: 2 }
+    ]
+  };
 }
 
 // ป้ายสถานะแบบเม็ดยา
@@ -175,11 +251,6 @@ function flexPill(text, color, bg) {
     paddingEnd: "10px",
     contents: [{ type: "text", text: text, size: "xs", weight: "bold", color: color }]
   };
-}
-
-// สี่เหลี่ยมสีเล็ก ๆ หน้าชื่อ Partner
-function flexSwatch(color) {
-  return { type: "box", layout: "vertical", width: "12px", height: "12px", cornerRadius: "4px", backgroundColor: color, contents: [{ type: "filler" }] };
 }
 
 // แถบสัดส่วนตาม Partner
@@ -207,8 +278,9 @@ function flexPartnerRow(g, total) {
     type: "box",
     layout: "horizontal",
     spacing: "md",
+    alignItems: "center",
     contents: [
-      { type: "box", layout: "vertical", flex: 0, paddingTop: "4px", contents: [flexSwatch(g.partner.color)] },
+      flexIconTile("partner", "white", g.partner.color, 30, false),
       {
         type: "box",
         layout: "vertical",
@@ -220,7 +292,7 @@ function flexPartnerRow(g, total) {
       },
       {
         type: "text",
-        text: g.items.length + (total ? "  " + Math.round((g.items.length / total) * 100) + "%" : ""),
+        text: g.items.length + (total ? " · " + Math.round((g.items.length / total) * 100) + "%" : ""),
         size: "sm",
         weight: "bold",
         color: UI.ink,
@@ -300,8 +372,8 @@ function doPost(e) {
       if (ev.type === "message" && ev.message.type === "text") {
         const rawText = ev.message.text.trim();
 
-        // 🛡️ กฎเหล็ก Anti-Spam 100%: ต้องขึ้นต้นด้วยคำว่า "CD" หรือ "cd" หรือ "cdครับ" เท่านั้น!
-        const isStrictCd = /^cd(\s+.*)?$/i.test(rawText) || /^cdครับ/i.test(rawText) || /^@cd-notify/i.test(rawText);
+        // 🛡️ กันสแปม: ตอบเฉพาะข้อความที่ขึ้นต้นด้วยชื่อบอท "CODY" / "โคดี้" (หรือ "CD" แบบเดิม)
+        const isStrictCd = BOT_PREFIX.test(rawText);
 
         if (!isStrictCd) {
           continue; // ข้ามทันที ไม่ตอบ ไม่ประมวลผล
@@ -337,7 +409,7 @@ function handlePostback(replyToken, postData, groupId) {
 function handleSmartCdCommand(replyToken, rawText, groupId) {
   if (groupId) saveGroupIdToSupabase(groupId);
 
-  let query = rawText.replace(/^@cd-notify\s*/i, "").replace(/^cdครับ\s*/i, "").replace(/^cd\s*/i, "").trim();
+  let query = rawText.replace(BOT_PREFIX_STRIP, "").trim();
 
   // A. พิมพ์ "CD" เฉยๆ หรือพิมพ์ว่า "เมนู" -> แสดง SlipOK Main Menu
   if (!query || query.toLowerCase() === "menu" || query === "เมนู") {
@@ -346,6 +418,12 @@ function handleSmartCdCommand(replyToken, rawText, groupId) {
   }
 
   const cleanQuery = query.toLowerCase();
+
+  // A2. วิธีใช้
+  if (cleanQuery === "help" || cleanQuery.includes("ช่วย") || cleanQuery.includes("วิธีใช้") || cleanQuery.includes("ทำอะไรได้")) {
+    replyHelp(replyToken, "", getNormalizedTimelineData().items);
+    return;
+  }
 
   // B. ขอรูป Timeline: เช่น "CD รูป", "CD ขอภาพหน่อย", "CD ดู timeline"
   if (cleanQuery.includes("รูป") || cleanQuery.includes("ภาพ") || cleanQuery.includes("timeline") || cleanQuery.includes("image")) {
@@ -368,7 +446,7 @@ function handleSmartCdCommand(replyToken, rawText, groupId) {
         addLeadRoomToSupabase(groupId);
         replyLineText(replyToken, "✅ ยืนยันสิทธิ์ห้อง Lead สำเร็จ!\nห้องนี้สามารถดูโหลดงานรายคนได้แล้วครับ พิมพ์ CD เพื่อดูเมนูได้เลย");
       } else {
-        replyLineText(replyToken, "⚠️ กรุณาใช้คำสั่ง CD auth ในกลุ่มห้องทำงานครับ");
+        replyLineText(replyToken, "⚠️ กรุณาใช้คำสั่ง CODY auth ในกลุ่มห้องทำงานครับ");
       }
     } else {
       replyLineText(replyToken, "❌ รหัส PIN ไม่ถูกต้องครับ");
@@ -440,8 +518,7 @@ function handleSmartCdCommand(replyToken, rawText, groupId) {
   }
 
   // J. ถ้าหาไม่เจอ -> แนะนำคำค้นหา
-  const sampleNames = items.slice(0, 4).map(it => "• CD " + it.name).join("\n");
-  replyLineText(replyToken, "🔍 ไม่พบข้อมูลที่ตรงกับ \"" + query + "\"\n\n💡 คุณสามารถพิมพ์ค้นหาได้เช่น:\n• CD รูป (ดู Timeline)\n• CD cimb หรือ CD ttb (ดูงานแยกตาม Partner)\n• CD ตามด้วยชื่อโปรเจกต์ เช่น:\n" + sampleNames);
+  replyHelp(replyToken, query, items);
 }
 
 // 4. Flex Message: เมนูหลัก (แบบ B: แถบแดง ตัวเลขใหญ่ สถานะ และสัดส่วนตาม Partner)
@@ -472,23 +549,8 @@ function buildSlipOkFlexCard(dataStore, isLead) {
         { type: "filler" }
       ]
     },
-    {
-      type: "box",
-      layout: "horizontal",
-      contents: [
-        { type: "text", text: "New Product", size: "sm", color: UI.soft, flex: 3 },
-        { type: "text", text: String(dataStore.products.length), size: "sm", weight: "bold", color: UI.ink, align: "end", flex: 1 }
-      ]
-    },
-    {
-      type: "box",
-      layout: "horizontal",
-      margin: "sm",
-      contents: [
-        { type: "text", text: "Enhancement", size: "sm", color: UI.soft, flex: 3 },
-        { type: "text", text: String(dataStore.enhancements.length), size: "sm", weight: "bold", color: UI.ink, align: "end", flex: 1 }
-      ]
-    }
+    flexInfoRow("product", "New Product", String(dataStore.products.length)),
+    flexInfoRow("wrench", "Enhancement", String(dataStore.enhancements.length))
   ];
 
   if (groups.length > 0) {
@@ -499,7 +561,7 @@ function buildSlipOkFlexCard(dataStore, isLead) {
   }
 
   const footer = [
-    flexButton("ดูรูป Timeline", { type: "message", text: "CD รูป" }, true),
+    flexButton("ดูรูป Timeline", { type: "message", text: "CODY รูป" }, true),
     {
       type: "box",
       layout: "horizontal",
@@ -511,12 +573,12 @@ function buildSlipOkFlexCard(dataStore, isLead) {
     }
   ];
   if (isLead) {
-    footer.push({ type: "button", style: "link", color: UI.redInk, height: "sm", action: { type: "message", label: "Team workload (Lead)", text: "CD workload" } });
+    footer.push({ type: "button", style: "link", color: UI.redInk, height: "sm", action: { type: "message", label: "Team workload (Lead)", text: "CODY workload" } });
   }
 
   return {
     type: "flex",
-    altText: "CD Team · " + activeMonth + " · " + total + " projects",
+    altText: "CODY · " + activeMonth + " · " + total + " projects",
     contents: flexBubble(
       flexHero("CD Team Timeline · " + activeMonth, total, "Projects", "Last updated · " + (dataStore.asOfText || "ล่าสุด")),
       body,
@@ -584,28 +646,19 @@ function replyProjectTimeline(replyToken, projectName) {
     else kind = "todo";
 
     const look = {
-      done: { bg: UI.done, mark: "✓", markColor: "#FFFFFF", label: UI.ink, tag: "Completed", tagColor: UI.done },
-      now: { bg: UI.red, mark: String(i + 1), markColor: "#FFFFFF", label: UI.redInk, tag: "Current", tagColor: UI.redInk },
-      todo: { bg: UI.surface, mark: String(i + 1), markColor: UI.soft, label: UI.soft, tag: "Upcoming", tagColor: UI.soft },
-      skip: { bg: UI.surface, mark: "–", markColor: UI.soft, label: UI.soft, tag: "Skipped", tagColor: UI.soft }
+      done: { icon: "check", iconColor: "white", bg: UI.done, label: UI.ink, tag: "Completed", tagColor: UI.done },
+      now: { icon: s.icon, iconColor: "white", bg: UI.red, label: UI.redInk, tag: "Current", tagColor: UI.redInk },
+      todo: { icon: s.icon, iconColor: "grey", bg: UI.surface, label: UI.soft, tag: "Upcoming", tagColor: UI.soft },
+      skip: { icon: s.icon, iconColor: "grey", bg: UI.surface, label: UI.soft, tag: "Skipped", tagColor: UI.soft }
     }[kind];
 
     return {
       type: "box",
       layout: "horizontal",
       spacing: "md",
+      alignItems: "center",
       contents: [
-        {
-          type: "box",
-          layout: "vertical",
-          flex: 0,
-          width: "24px",
-          height: "24px",
-          cornerRadius: "12px",
-          backgroundColor: look.bg,
-          justifyContent: "center",
-          contents: [{ type: "text", text: look.mark, size: "xs", weight: "bold", color: look.markColor, align: "center" }]
-        },
+        flexIconTile(look.icon, look.iconColor, look.bg, kind === "now" ? 32 : 28, true),
         {
           type: "box",
           layout: "vertical",
@@ -632,22 +685,8 @@ function replyProjectTimeline(replyToken, projectName) {
     },
     { type: "box", layout: "vertical", spacing: "md", contents: stepRows },
     { type: "separator", color: UI.line },
-    {
-      type: "box",
-      layout: "horizontal",
-      contents: [
-        { type: "text", text: "Target Launch", size: "sm", color: UI.soft, flex: 3 },
-        { type: "text", text: launch, size: "sm", weight: "bold", color: launch === "TBC" ? UI.soft : UI.redInk, align: "end", flex: 2 }
-      ]
-    },
-    {
-      type: "box",
-      layout: "horizontal",
-      contents: [
-        { type: "text", text: "Internal", size: "sm", color: UI.soft, flex: 3 },
-        { type: "text", text: shortDate(item.internalDate) || "TBC", size: "sm", color: UI.ink, align: "end", flex: 2 }
-      ]
-    }
+    flexInfoRow("launch", "Target Launch", launch, launch === "TBC" ? UI.soft : UI.redInk),
+    flexInfoRow("calendar", "Internal", shortDate(item.internalDate) || "TBC")
   ];
 
   const status = finished ? "Completed" : current >= 0 ? "Current: " + STEPS[current].label : "In progress";
@@ -676,9 +715,10 @@ function flexProjectRows(list, activeMonth, partners) {
       type: "box",
       layout: "horizontal",
       spacing: "md",
+      alignItems: "center",
       action: { type: "postback", label: "ดู", data: "action=view_proj&name=" + encodeURIComponent(it.name) },
       contents: [
-        { type: "box", layout: "vertical", flex: 0, paddingTop: "4px", contents: [flexSwatch(p.color)] },
+        flexIconTile("partner", "white", p.color, 28, false),
         {
           type: "box",
           layout: "vertical",
@@ -750,6 +790,52 @@ function replyOwnerProjects(replyToken, ownerName, ownerItems, activeMonth) {
   replyLineMessages(replyToken, [card]);
 }
 
+// วิธีคุยกับ CODY (พิมพ์ CODY help หรือเมื่อหาไม่เจอ)
+function replyHelp(replyToken, query, items) {
+  const tips = [
+    ["timeline", "CODY", "เมนูหลักของเดือนนี้"],
+    ["chart", "CODY รูป", "รูป Timeline ล่าสุด"],
+    ["partner", "CODY สรุป", "จำนวนงานแยกตาม Partner"],
+    ["partner", "CODY ttb", "งานของ Partner หรือ Channel"],
+    ["user", "CODY Surakit", "งานของแต่ละคน"],
+    ["search", "CODY ชื่อ project", "ดูสถานะทีละขั้น"]
+  ];
+  const rows = tips.map(t => ({
+    type: "box",
+    layout: "horizontal",
+    spacing: "md",
+    alignItems: "center",
+    contents: [
+      flexIconTile(t[0], "red", UI.redSoft, 28, false),
+      {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          { type: "text", text: t[1], size: "sm", weight: "bold", color: UI.ink },
+          { type: "text", text: t[2], size: "xxs", color: UI.soft, wrap: true }
+        ]
+      }
+    ]
+  }));
+  const sample = (items || []).slice(0, 2).map(it =>
+    flexButton(it.name.length > 20 ? it.name.substring(0, 18) + ".." : it.name, { type: "postback", data: "action=view_proj&name=" + encodeURIComponent(it.name) }, false)
+  );
+  const card = {
+    type: "flex",
+    altText: query ? "CODY: ไม่พบ \"" + query + "\"" : "วิธีใช้ CODY",
+    contents: flexBubble(
+      flexTitleHero(
+        query ? "ไม่พบ \"" + query + "\"" : "วิธีใช้",
+        query ? "ลองพิมพ์แบบนี้ได้เลย" : "คุยกับ CODY",
+        "พิมพ์ CODY หรือ โคดี้ แล้วเว้นวรรคตามด้วยสิ่งที่อยากรู้"
+      ),
+      [{ type: "box", layout: "vertical", spacing: "md", contents: rows }],
+      sample
+    )
+  };
+  replyLineMessages(replyToken, [card]);
+}
+
 // 9. Flex Message: เจอหลายรายการ ให้เลือก
 function replyMultipleMatches(replyToken, query, matchedItems) {
   const buttons = matchedItems.slice(0, 4).map(it =>
@@ -780,7 +866,7 @@ function replyQuickSearchMenu(replyToken) {
     type: "flex",
     altText: "ค้นหา project CD",
     contents: flexBubble(
-      flexTitleHero("Search", "ค้นหา project", "กดเลือกด้านล่าง หรือพิมพ์ CD ตามด้วยชื่อ project ได้ทันทีครับ"),
+      flexTitleHero("Search", "ค้นหา project", "กดเลือกด้านล่าง หรือพิมพ์ CODY ตามด้วยชื่อ project ได้ทันทีครับ"),
       buttons.length > 0 ? buttons : [{ type: "text", text: "ยังไม่มีรายการ project", size: "sm", color: UI.soft }],
       []
     )
@@ -1251,7 +1337,7 @@ function processAnnouncementQueue() {
 
       const res = groupId
         ? pushLineMessages(groupId, [buildAnnouncementFlex(item)])
-        : { ok: false, error: "บอทยังไม่รู้จักกลุ่ม LINE: พิมพ์ CD ในกลุ่มหนึ่งครั้งแล้วกดส่งใหม่" };
+        : { ok: false, error: "บอทยังไม่รู้จักกลุ่ม LINE: พิมพ์ CODY ในกลุ่มหนึ่งครั้งแล้วกดส่งใหม่" };
       results[item.id] = { queuedAt: item.queuedAt, ok: res.ok, error: res.error || "" };
       Logger.log("Announcement " + item.id + ": " + (res.ok ? "sent" : res.error));
     });

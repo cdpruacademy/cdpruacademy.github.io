@@ -285,24 +285,23 @@ export function TimelineRow({
 
       {/* Target launch */}
       <div className={`flex flex-col items-end gap-1 ${compact ? "pr-4" : "pr-5"}`}>
-        {parts ? (
+        {/* Same size whether the date is set or TBC */}
+        <span
+          className={`inline-flex flex-col items-center overflow-hidden rounded-xl border bg-white ${compact ? "w-[64px]" : "w-[72px]"}`}
+          style={{ borderColor: launchLine }}
+        >
+          <span className="w-full py-px text-center text-[10px] font-bold text-white" style={{ background: launchHead }}>
+            {parts ? parts.mon : "LAUNCH"}
+          </span>
           <span
-            className="inline-flex min-w-[68px] flex-col items-center overflow-hidden rounded-xl border bg-white"
-            style={{ borderColor: launchLine }}
+            className={`flex w-full items-center justify-center truncate px-1 leading-tight font-bold ${compact ? "h-[26px]" : "h-[30px]"} ${
+              parts ? `text-ink ${compact ? "text-lg" : "text-[22px]"}` : `text-ink-soft ${launchText.length > 4 ? "text-xs" : compact ? "text-base" : "text-lg"}`
+            }`}
+            title={launchText}
           >
-            <span className="w-full py-px text-center text-[10px] font-bold text-white" style={{ background: launchHead }}>
-              {parts.mon}
-            </span>
-            <span className={`px-2 leading-tight font-bold text-ink ${compact ? "text-lg" : "text-[22px]"}`}>
-              {parts.day}
-            </span>
+            {parts ? parts.day : launchText}
           </span>
-        ) : (
-          <span className="inline-flex max-w-full flex-col items-center overflow-hidden rounded-xl border border-rule bg-white">
-            <span className="w-full bg-gray-400 py-px text-center text-[10px] font-bold text-white">Launch</span>
-            <span className="px-2 text-sm leading-tight font-bold text-ink-soft">{launchText}</span>
-          </span>
-        )}
+        </span>
         {!product.customRightLabel && (
           <span className="text-[11px] text-ink-soft">
             Internal {formatShortDate(product.internalDate) || "TBC"}

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import {
   ProductItem,
   PHASES,
@@ -9,14 +9,6 @@ import {
   MilestoneStatus,
   TimelineType,
 } from "@/lib/timeline-data"
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -28,19 +20,15 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { PruIcon, type PruIconName } from "@/components/pru-icon"
+import { Icon, IconName, PHASE_ICONS } from "@/components/icon"
+import { PHASE_HEADINGS } from "./timeline-row"
 import { resolveBrokerColor } from "@/lib/broker-colors"
 import { DEFAULT_PARTNERS, Partner, partnerOf } from "@/lib/partners"
 import {
   X,
   Trash2,
   CheckCircle2,
-  Calendar,
-  Layers,
   User,
-  Clock,
-  Sparkles,
 } from "lucide-react"
 import { motion, AnimatePresence } from "motion/react"
 import { DatePicker } from "@/components/ui/date-picker"
@@ -52,28 +40,26 @@ type PhaseState = "todo" | "current" | "done"
 const PHASE_STATES: {
   key: PhaseState
   label: string
-  icon: PruIconName
+  icon: IconName
   selectedClass: string
 }[] = [
   {
     key: "todo",
-    label: "ยังไม่ถึง",
-    icon: "clock",
-    selectedClass:
-      "bg-surface text-ink outline-2 -outline-offset-2 outline-ink",
+    label: "Upcoming",
+    icon: "inProgress",
+    selectedClass: "bg-white text-ink shadow-[0_1px_2px_rgba(0,0,0,.08)]",
   },
   {
     key: "current",
-    label: "ตอนนี้",
-    icon: "pin",
-    selectedClass:
-      "bg-pru-red-soft text-brand-ink outline-2 -outline-offset-2 outline-pru-red",
+    label: "Current",
+    icon: "kickoff",
+    selectedClass: "bg-brand-ink text-white",
   },
   {
     key: "done",
-    label: "เสร็จแล้ว",
+    label: "Completed",
     icon: "check",
-    selectedClass: "bg-ink text-white",
+    selectedClass: "bg-done text-white",
   },
 ]
 
@@ -212,8 +198,32 @@ export function ProductFormModal({
   })
 
   const [name, setName] = useState<string>(() => productToEdit?.name || "")
-  const [selectedOwners, setSelectedOwners] = useState<string[]>([])
-  const [customOwner, setCustomOwner] = useState<string>("")
+  // "Nitikan B. / Surakit P." -> team members ticked, anyone else in the free-text box
+  const initialOwners = (() => {
+    const known: string[] = []
+    const custom: string[] = []
+    ;(productToEdit?.owner || "")
+      .split(/[\/,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .forEach((own) => {
+        const found = teamOwnersList.find(
+          (t) =>
+            t.id.toLowerCase() === own.toLowerCase() ||
+            t.id.toLowerCase().includes(own.toLowerCase())
+        )
+        if (found) {
+          if (!known.includes(found.id)) known.push(found.id)
+        } else custom.push(own)
+      })
+    return { known, custom: custom.join(", ") }
+  })()
+  const [selectedOwners, setSelectedOwners] = useState<string[]>(
+    () => initialOwners.known
+  )
+  const [customOwner, setCustomOwner] = useState<string>(
+    () => initialOwners.custom
+  )
   const [internalDate, setInternalDate] = useState<string>(
     () => productToEdit?.internalDate || "TBC"
   )
@@ -281,128 +291,30 @@ export function ProductFormModal({
 
   const [milestonesState, setMilestonesState] = useState<
     Record<PhaseKey, MilestoneFormState>
-  >(createInitialMilestones())
+  >(() => {
+    const state = createInitialMilestones()
+    if (!productToEdit) return state
+    // Only one step may be Current: keep the last one flagged
+    const current = [...PHASES]
+      .reverse()
+      .find((p) => productToEdit.milestones[p.key]?.isElearningIcon)?.key
+    PHASES.forEach((p) => {
+      const existing = productToEdit.milestones[p.key]
+      state[p.key] = existing
+        ? {
+            enabled: true,
+            date: existing.date || "",
+            status: existing.status || "completed",
+            isElearningIcon: current === p.key,
+          }
+        : { enabled: false, date: "", status: "pending", isElearningIcon: false }
+    })
+    return state
+  })
 
   const [errors, setErrors] = useState<{ name?: string; owner?: string }>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  useEffect(() => {
-    if (productToEdit) {
-      const bTrim = (productToEdit.broker || "").trim()
-      const knownBroker = brokerOptions.find(
-        (b) => b.value.toLowerCase().trim() === bTrim.toLowerCase()
-      )
-      if (knownBroker && knownBroker.value !== "Other") {
-        setBroker(knownBroker.value)
-        setCustomBroker("")
-      } else if (bTrim) {
-        if (bTrim === "Other") {
-          setBroker("Other")
-          setCustomBroker("")
-        } else {
-          const match = brokerOptions.find(
-            (b) => b.value.toLowerCase().trim() === bTrim.toLowerCase()
-          )
-          if (match && match.value !== "Other") {
-            setBroker(match.value)
-            setCustomBroker("")
-          } else {
-            setBroker("Other")
-            setCustomBroker(bTrim)
-          }
-        }
-      } else {
-        setBroker(isEnhancement ? "ttb" : "New Broker")
-        setCustomBroker("")
-      }
-      setName(productToEdit.name)
-
-      // Parse owners (e.g. "Nitikan B. / Surakit P." or "Surakit P.")
-      const rawOwner = productToEdit.owner || ""
-      const splitOwners = rawOwner
-        .split(/[\/,]+/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-      const matchedKnown: string[] = []
-      const leftoverCustom: string[] = []
-
-      splitOwners.forEach((own) => {
-        const found = teamOwnersList.find(
-          (t) =>
-            t.id.toLowerCase() === own.toLowerCase() ||
-            t.id.toLowerCase().includes(own.toLowerCase())
-        )
-        if (found) {
-          if (!matchedKnown.includes(found.id)) matchedKnown.push(found.id)
-        } else {
-          leftoverCustom.push(own)
-        }
-      })
-
-      setSelectedOwners(matchedKnown)
-      setCustomOwner(leftoverCustom.join(", "))
-
-      setInternalDate(productToEdit.internalDate || "TBC")
-      setCommercialDate(productToEdit.commercialDate || "TBC")
-      setCsDate(productToEdit.csDate || "")
-      setCustomRightLabel(productToEdit.customRightLabel || "")
-
-      // Find which phase has the active monitor icon (ensure only 1 active)
-      let activePhaseKey: PhaseKey | null = null
-      const reversedPhases = [...PHASES].reverse()
-      for (const p of reversedPhases) {
-        if (productToEdit.milestones[p.key]?.isElearningIcon) {
-          activePhaseKey = p.key
-          break
-        }
-      }
-
-      const nextMState: Record<PhaseKey, MilestoneFormState> =
-        createInitialMilestones()
-      PHASES.forEach((p) => {
-        const existing = productToEdit.milestones[p.key]
-        if (existing) {
-          nextMState[p.key] = {
-            enabled: true,
-            date: existing.date || "",
-            status: existing.status || "completed",
-            isElearningIcon: activePhaseKey === p.key,
-          }
-        } else {
-          nextMState[p.key] = {
-            enabled: false,
-            date: "",
-            status: "pending",
-            isElearningIcon: false,
-          }
-        }
-      })
-      setMilestonesState(nextMState)
-    } else {
-      let defaultB = isEnhancement ? "ttb" : "New Broker"
-      try {
-        const last = localStorage.getItem("pru_last_used_broker")
-        if (last) {
-          const match = brokerOptions.find(
-            (b) => b.value.toLowerCase().trim() === last.toLowerCase().trim()
-          )
-          if (match && match.value !== "Other") defaultB = match.value
-        }
-      } catch (_) {}
-      setBroker(defaultB)
-      setCustomBroker("")
-      setName("")
-      setSelectedOwners([])
-      setCustomOwner("")
-      setInternalDate("TBC")
-      setCommercialDate("TBC")
-      setCsDate("")
-      setCustomRightLabel("")
-      setMilestonesState(createInitialMilestones())
-    }
-    setErrors({})
-    setIsSubmitting(false)
-  }, [productToEdit, isOpen, isEnhancement, brokerOptions])
 
   // One choice per phase. "ตอนนี้" is the isElearningIcon flag (one phase at most);
   // choosing it marks earlier phases in use as completed and later ones as pending.
@@ -547,18 +459,13 @@ export function ProductFormModal({
           animate={{ x: 0 }}
           exit={{ x: "100%" }}
           transition={{ type: "spring", damping: 28, stiffness: 280 }}
-          className="flex h-full w-screen max-w-full flex-col border-l border-gray-200 bg-white shadow-2xl sm:max-w-xl lg:max-w-[620px]"
+          className="flex h-full w-screen max-w-full flex-col bg-paper shadow-2xl sm:max-w-xl lg:max-w-[620px]"
         >
           {/* Sticky Header */}
           <div className="z-10 flex shrink-0 items-center justify-between border-b border-gray-100 bg-white/95 px-4 py-3.5 backdrop-blur-xs sm:px-6 sm:py-4">
             <div className="flex items-center gap-3">
-              <div
-                style={{
-                  backgroundColor: isEnhancement ? "#0066CC" : "#ED1C24",
-                }}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-xs sm:h-10 sm:w-10"
-              >
-                <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-pru-red text-white">
+                <Icon name={productToEdit ? "edit" : "plus"} size={20} />
               </div>
               <div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -566,7 +473,7 @@ export function ProductFormModal({
                     id="product-form-title"
                     className="text-base leading-tight font-bold text-gray-900 sm:text-lg"
                   >
-                    {productToEdit ? "แก้ไขข้อมูลรายการ" : "เพิ่มรายการใหม่"}
+                    {productToEdit ? "Edit project" : "Add project"}
                   </h2>
                   <Badge
                     variant={isEnhancement ? "secondary" : "default"}
@@ -598,14 +505,16 @@ export function ProductFormModal({
           <form
             id="product-panel-form"
             onSubmit={handleSubmit}
-            className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-6"
+            className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 sm:p-5 [&>div]:rounded-2xl [&>div]:bg-white [&>div]:p-4 [&>div]:shadow-[var(--shadow-card)] [&>section]:rounded-2xl [&>section]:bg-white [&>section]:p-4 [&>section]:shadow-[var(--shadow-card)]"
           >
             {/* Section 1: Basic Information */}
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-gray-700 uppercase">
-                <Layers className="h-3.5 w-3.5 text-brand-ink" />
-                <span>1. ข้อมูลพื้นฐาน (Basic Information)</span>
-              </div>
+              <h3 className="flex items-center gap-2 text-sm font-bold text-ink">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-pru-red-soft text-brand-ink">
+                  <Icon name="folder" size={16} />
+                </span>
+                1. ข้อมูลพื้นฐาน
+              </h3>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {/* Product Name -> ชื่องาน (Task Name) */}
@@ -746,14 +655,14 @@ export function ProductFormModal({
               </div>
             </div>
 
-            <Separator />
-
             {/* Section 2: Launch & Target Dates */}
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-gray-700 uppercase">
-                <Calendar className="h-3.5 w-3.5 text-blue-600" />
-                <span>2. กำหนดการเปิดตัว (Target Launch Dates)</span>
-              </div>
+              <h3 className="flex items-center gap-2 text-sm font-bold text-ink">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-pru-red-soft text-brand-ink">
+                  <Icon name="launch" size={16} />
+                </span>
+                2. วัน Launch
+              </h3>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-1.5">
@@ -768,7 +677,7 @@ export function ProductFormModal({
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label>Commercial Launch Date</Label>
+                  <Label>Target Launch (Commercial)</Label>
                   <DatePicker
                     value={commercialDate}
                     onChange={(val) => setCommercialDate(val)}
@@ -800,124 +709,130 @@ export function ProductFormModal({
               </div>
             </div>
 
-            <Separator />
-
-            {/* Section 3: Milestones & Progress */}
-            <div className="space-y-4">
-              <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-center">
-                <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-gray-700 uppercase">
-                  <Clock className="h-3.5 w-3.5 text-pru-red" />
-                  <span>3. กำหนดขั้นตอนความคืบหน้า (Phase Milestones)</span>
-                </div>
-                <span className="text-xs text-gray-500">
-                  เลือก “ตอนนี้” ได้ทีละ 1 ขั้น · ขั้นก่อนหน้าจะเป็น “เสร็จแล้ว”
-                  ให้อัตโนมัติ
-                </span>
+            {/* Section 3: Steps */}
+            <section className="flex flex-col gap-3">
+              <div className="flex flex-col gap-0.5">
+                <h3 className="flex items-center gap-2 text-sm font-bold text-ink">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-pru-red-soft text-brand-ink">
+                    <Icon name="timeline" size={16} />
+                  </span>
+                  3. ความคืบหน้าแต่ละขั้น (Steps)
+                </h3>
+                <p className="pl-9 text-xs text-ink-soft">
+                  เปิดเฉพาะขั้นที่ project นี้ใช้ · เลือก Current ได้ทีละขั้น ขั้นก่อนหน้าจะเป็น Completed ให้เอง
+                </p>
               </div>
 
-              <div className="space-y-2.5">
-                {PHASES.map((phase) => {
+              <ol className="flex flex-col gap-2">
+                {PHASES.map((phase, index) => {
                   const ms = milestonesState[phase.key]
                   if (!ms) return null
-
+                  const label = PHASE_HEADINGS[phase.key]?.replace("\n", " ") || phase.label.replace("\n", " ")
+                  const state: PhaseState = ms.isElearningIcon
+                    ? "current"
+                    : ms.status === "completed"
+                      ? "done"
+                      : "todo"
+                  const toggleId = `step-toggle-${phase.key}`
                   return (
-                    <div
+                    <li
                       key={phase.key}
-                      className={`rounded-xl border p-3 transition-all ${
-                        ms.enabled
-                          ? "border-gray-200 bg-gray-50/80"
-                          : "border-dashed border-gray-200 bg-white opacity-60"
+                      className={`rounded-2xl border transition-colors ${
+                        !ms.enabled
+                          ? "border-dashed border-rule bg-white"
+                          : state === "current"
+                            ? "border-pru-red-line bg-[#FFF8F8]"
+                            : "border-rule bg-white"
                       }`}
                     >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        {/* Checkbox toggle */}
-                        <label className="flex cursor-pointer items-center gap-2.5 select-none">
-                          <input
-                            type="checkbox"
-                            checked={ms.enabled}
-                            onChange={(e) =>
+                      <div className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5">
+                        <span
+                          className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                            !ms.enabled
+                              ? "bg-surface text-gray-400"
+                              : state === "done"
+                                ? "bg-done text-white"
+                                : state === "current"
+                                  ? "bg-pru-red text-white"
+                                  : "border-[1.5px] border-gray-300 text-gray-400"
+                          }`}
+                          aria-hidden="true"
+                        >
+                          <Icon
+                            name={ms.enabled && state === "done" ? "check" : PHASE_ICONS[phase.key]}
+                            size={15}
+                            strokeWidth={ms.enabled && state === "done" ? 3 : 1.9}
+                          />
+                        </span>
+                        <label htmlFor={toggleId} className={`text-sm font-semibold ${ms.enabled ? "text-ink" : "text-ink-soft"}`}>
+                          <span className="text-gray-400">{index + 1} · </span>
+                          {label}
+                        </label>
+                        {/* Switch: does this project use the step? */}
+                        <button
+                          id={toggleId}
+                          type="button"
+                          role="switch"
+                          aria-checked={ms.enabled}
+                          onClick={() =>
+                            setMilestonesState((prev) => ({
+                              ...prev,
+                              [phase.key]: { ...prev[phase.key], enabled: !prev[phase.key].enabled },
+                            }))
+                          }
+                          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${ms.enabled ? "bg-ink" : "bg-gray-300"}`}
+                        >
+                          <span className="sr-only">ใช้ขั้นนี้</span>
+                          <span
+                            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-[left] ${ms.enabled ? "left-[22px]" : "left-0.5"}`}
+                          />
+                        </button>
+                      </div>
+
+                      {ms.enabled && (
+                        <div className="grid grid-cols-1 gap-2 border-t border-surface px-3 pt-2.5 pb-3 sm:grid-cols-[150px_minmax(0,1fr)] sm:pl-[56px]">
+                          <DatePicker
+                            value={ms.date}
+                            onChange={(val) =>
                               setMilestonesState((prev) => ({
                                 ...prev,
-                                [phase.key]: {
-                                  ...prev[phase.key],
-                                  enabled: e.target.checked,
-                                },
+                                [phase.key]: { ...prev[phase.key], date: val },
                               }))
                             }
-                            className="h-4 w-4 rounded border-gray-300 text-brand-ink focus:ring-brand"
+                            placeholder="วันที่"
+                            defaultMonth={selectedMonth}
                           />
-                          <span className="text-xs font-bold text-gray-800">
-                            {phase.label.replace("\n", " ")}
-                          </span>
-                        </label>
-
-                        {/* Status & Settings when enabled */}
-                        {ms.enabled && (
-                          <div className="flex items-center gap-2">
-                            {/* Milestone Date */}
-                            <div className="w-36">
-                              <DatePicker
-                                value={ms.date}
-                                onChange={(val) =>
-                                  setMilestonesState((prev) => ({
-                                    ...prev,
-                                    [phase.key]: {
-                                      ...prev[phase.key],
-                                      date: val,
-                                    },
-                                  }))
-                                }
-                                placeholder="เลือกวันที่"
-                                defaultMonth={selectedMonth}
-                              />
-                            </div>
-
-                            {/* Status: one of ยังไม่ถึง / ตอนนี้ / เสร็จแล้ว */}
-                            <div
-                              role="radiogroup"
-                              aria-label={`สถานะของ ${phase.label.replace("\n", " ")}`}
-                              className="flex gap-0.5 border-2 border-rule bg-rule"
-                            >
-                              {PHASE_STATES.map((option) => {
-                                const current: PhaseState = ms.isElearningIcon
-                                  ? "current"
-                                  : ms.status === "completed"
-                                    ? "done"
-                                    : "todo"
-                                const selected = current === option.key
-                                return (
-                                  <button
-                                    key={option.key}
-                                    type="button"
-                                    role="radio"
-                                    aria-checked={selected}
-                                    onClick={() =>
-                                      setPhaseState(phase.key, option.key)
-                                    }
-                                    className={`inline-flex h-10 touch-target items-center gap-1.5 px-3 text-xs font-bold whitespace-nowrap ${
-                                      selected
-                                        ? option.selectedClass
-                                        : "bg-white text-ink-soft hover:text-ink"
-                                    }`}
-                                  >
-                                    <PruIcon
-                                      name={option.icon}
-                                      size={14}
-                                      strokeWidth={4}
-                                    />
-                                    {option.label}
-                                  </button>
-                                )
-                              })}
-                            </div>
+                          <div
+                            role="radiogroup"
+                            aria-label={`Status of ${label}`}
+                            className="grid grid-cols-3 gap-0.5 rounded-xl bg-surface p-0.5"
+                          >
+                            {PHASE_STATES.map((option) => {
+                              const selected = state === option.key
+                              return (
+                                <button
+                                  key={option.key}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={selected}
+                                  onClick={() => setPhaseState(phase.key, option.key)}
+                                  className={`inline-flex h-9 touch-target items-center justify-center gap-1.5 rounded-[10px] px-2 text-xs font-semibold whitespace-nowrap transition-colors ${
+                                    selected ? option.selectedClass : "text-ink-soft hover:bg-white/70 hover:text-ink"
+                                  }`}
+                                >
+                                  <Icon name={option.icon} size={14} strokeWidth={2} />
+                                  {option.label}
+                                </button>
+                              )
+                            })}
                           </div>
-                        )}
-                      </div>
-                    </div>
+                        </div>
+                      )}
+                    </li>
                   )
                 })}
-              </div>
-            </div>
+              </ol>
+            </section>
           </form>
 
           {/* Sticky Footer Actions */}
@@ -932,7 +847,7 @@ export function ProductFormModal({
                   className="h-9 gap-1.5 text-xs text-brand-ink hover:bg-red-50 hover:text-brand-hover"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
-                  <span>ลบถาวร</span>
+                  <span>Delete</span>
                 </Button>
               )}
             </div>
@@ -943,19 +858,19 @@ export function ProductFormModal({
                 variant="outline"
                 size="sm"
                 onClick={onClose}
-                className="h-9 px-3 text-xs sm:px-4 sm:text-sm"
+                className="h-10 rounded-full px-4 text-sm"
               >
-                ยกเลิก
+                Cancel
               </Button>
               <Button
                 type="button"
                 onClick={handleSubmit}
                 loading={isSubmitting}
                 size="sm"
-                className="h-9 gap-1.5 bg-brand-fill px-4 text-xs font-semibold text-white shadow-xs hover:bg-brand-hover sm:px-5 sm:text-sm"
+                className="h-10 gap-1.5 rounded-full bg-ink px-5 text-sm font-semibold text-white hover:bg-brand-hover"
               >
                 <CheckCircle2 className="h-4 w-4" />
-                <span>{productToEdit ? "บันทึกการแก้ไข" : "เพิ่มรายการ"}</span>
+                <span>{productToEdit ? "Save" : "Add project"}</span>
               </Button>
             </div>
           </div>

@@ -37,7 +37,7 @@ const slug = (name: string) =>
 
 /** Admin page: partners, their brand colours and the channels under each */
 export function PartnersView() {
-  const { isAdmin, login } = useAdminAuth()
+  const { isAdmin, isAuthLoaded, login } = useAdminAuth()
   const { partners, savePartners } = usePartners()
   const { monthlyStore } = useProducts()
   const [draft, setDraft] = useState<Partner[] | null>(null)
@@ -129,6 +129,36 @@ export function PartnersView() {
   const totalChannels = list.reduce((s, p) => s + p.channels.length, 0)
   const clash = list.some((p) => isNearColor(p.color, form.color))
 
+  // Admins only: everyone else gets the login gate, not the partner list
+  if (!isAdmin) {
+    return (
+      <div>
+        <PageHero>
+          <h1 className="text-[34px] leading-tight font-bold sm:text-[44px]">Partners &amp; Channels</h1>
+        </PageHero>
+        <PageBody>
+          <div className={`${card} mx-auto flex max-w-md flex-col items-center gap-3 px-6 py-10 text-center`}>
+            {isAuthLoaded ? (
+              <>
+                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-pru-red-soft text-brand-ink">
+                  <Icon name="lock" size={28} />
+                </span>
+                <h2 className="text-lg font-bold">Admin only</h2>
+                <p className="text-sm text-ink-soft">หน้านี้สำหรับผู้ดูแลระบบ เข้าสู่ระบบ Admin เพื่อจัดการ Partner และ Channel</p>
+                <button type="button" onClick={() => setIsLoginOpen(true)} className={cardButtonDark}>
+                  Admin login
+                </button>
+              </>
+            ) : (
+              <Loader2 className="h-6 w-6 animate-spin text-brand-ink" />
+            )}
+          </div>
+        </PageBody>
+        <AdminLoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} onSuccess={() => setIsLoginOpen(false)} loginFn={login} />
+      </div>
+    )
+  }
+
   return (
     <div>
       <PageHero>
@@ -160,18 +190,6 @@ export function PartnersView() {
 
       <PageBody className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
         <div className="flex flex-col gap-4">
-          {!isAdmin && (
-            <div className={`${card} flex flex-wrap items-center justify-between gap-3 px-5 py-4`}>
-              <span className="inline-flex items-center gap-2.5 text-sm">
-                <Icon name="lock" size={18} />
-                ดูได้อย่างเดียว เข้าสู่ระบบ Admin เพื่อแก้ไข
-              </span>
-              <button type="button" onClick={() => setIsLoginOpen(true)} className={cardButtonDark}>
-                Admin login
-              </button>
-            </div>
-          )}
-
           <div className="grid gap-4 md:grid-cols-2">
             {list.map((p) => {
               const fg = textOn(p.color)
