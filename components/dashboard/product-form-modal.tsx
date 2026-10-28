@@ -6,6 +6,7 @@ import {
   ProductItem,
   PHASES,
   PhaseKey,
+  MilestoneItem,
   MilestoneStatus,
   TimelineType,
 } from "@/lib/timeline-data"
@@ -79,7 +80,7 @@ const DEFAULT_BROKER_OPTIONS = [
   { value: "ttb", label: "ttb", color: "#009FE3" },
   { value: "ttb touch", label: "ttb touch", color: "#009FE3" },
   { value: "UOB", label: "UOB", color: "#0B2265" },
-  { value: "Agency", label: "Agency (Prudential)", color: "#ED1C24" },
+  { value: "Agency", label: "Agency (Prudential)", color: "#ED1B2E" },
   { value: "Audit", label: "Audit", color: "#1E293B" },
   { value: "New Broker", label: "New Broker", color: "#334155" },
 ]
@@ -380,7 +381,7 @@ export function ProductFormModal({
         }
       } catch (_) {}
 
-      const builtMilestones: Record<string, any> = {}
+      const builtMilestones: Record<string, Pick<MilestoneItem, "date" | "status" | "isElearningIcon">> = {}
       PHASES.forEach((p) => {
         const state = milestonesState[p.key]
         if (state.enabled) {

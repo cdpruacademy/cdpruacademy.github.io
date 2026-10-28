@@ -3,6 +3,14 @@ import type { Partner } from "./partners";
 import { MonthlyStore, getSystemCurrentMonth } from "./timeline-data";
 import { AnnouncementItem, filterWithinOneYear, mergeBotResults } from "./announcement-data";
 
+/** Message from anything thrown: an Error, a Supabase error object or a string */
+function errorMessage(err: unknown, fallback: string): string {
+  if (err && typeof err === "object" && "message" in err && typeof err.message === "string" && err.message) {
+    return err.message;
+  }
+  return typeof err === "string" && err ? err : fallback;
+}
+
 export interface SupabaseConfig {
   url: string;
   anonKey: string;
@@ -189,10 +197,10 @@ export async function testSupabaseConnection(
       tableExists: true,
       message: "เชื่อมต่อฐานข้อมูล Supabase และพบตารางเรียบร้อยแล้ว!",
     };
-  } catch (err: any) {
+  } catch (err) {
     return {
       success: false,
-      message: "เกิดข้อผิดพลาด: " + (err && err.message ? err.message : "ไม่สามารถติดต่อ Supabase ได้"),
+      message: "เกิดข้อผิดพลาด: " + (errorMessage(err, "ไม่สามารถติดต่อ Supabase ได้")),
     };
   }
 }
@@ -307,9 +315,9 @@ export async function saveTimelineToCloud(payload: CloudTimelinePayload): Promis
       }
 
       return { success: true };
-    } catch (err: any) {
+    } catch (err) {
       console.error("Cloud DB save exception:", err);
-      return { success: false, error: err && err.message ? err.message : "บันทึกข้อมูลไม่สำเร็จ" };
+      return { success: false, error: errorMessage(err, "บันทึกข้อมูลไม่สำเร็จ") };
     }
   };
 
@@ -339,7 +347,14 @@ export function subscribeToTimelineCloud(
           filter: "id=eq.current",
         },
         (change) => {
-          const row = change.new as any;
+          type Update = Parameters<typeof onUpdate>[0];
+          const row = change.new as {
+            id?: string;
+            data?: Update["monthlyStore"];
+            available_months?: string[];
+            active_month?: Update["activeMonth"];
+            updated_at: string;
+          };
           if (!row || row.id !== "current" || !row.data) return;
           // Echo of this tab's own save: nothing new to apply
           if (ownTimelineVersions.has(new Date(row.updated_at).toISOString())) return;
@@ -431,11 +446,11 @@ export async function uploadTimelineSnapshot(
     );
 
     return { success: true, publicUrl };
-  } catch (err: any) {
+  } catch (err) {
     console.error("Snapshot upload exception:", err);
     return {
       success: false,
-      error: err?.message || "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ",
+      error: errorMessage(err, "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ"),
     };
   }
 }
@@ -568,11 +583,11 @@ export async function saveBothTimelineSnapshots(
       enhancementUrl,
       channelSummaryUrl: finalChannelUrl,
     };
-  } catch (err: any) {
+  } catch (err) {
     console.error("Save all snapshots exception:", err);
     return {
       success: false,
-      error: err?.message || "เกิดข้อผิดพลาดในการบันทึกรูปภาพ",
+      error: errorMessage(err, "เกิดข้อผิดพลาดในการบันทึกรูปภาพ"),
     };
   }
 }
@@ -652,11 +667,11 @@ export async function updateChannelSummarySnapshot(
       success: true,
       channelSummaryUrl,
     };
-  } catch (err: any) {
+  } catch (err) {
     console.error("Update channel summary snapshot error:", err);
     return {
       success: false,
-      error: err?.message || "เกิดข้อผิดพลาดในการบันทึกรูปภาพ",
+      error: errorMessage(err, "เกิดข้อผิดพลาดในการบันทึกรูปภาพ"),
     };
   }
 }
@@ -734,8 +749,8 @@ export async function saveAnnouncementsToCloud(
     }
 
     return { success: true, items: pruned };
-  } catch (err: any) {
-    return { success: false, error: err?.message || "เกิดข้อผิดพลาดในการบันทึกประกาศ" };
+  } catch (err) {
+    return { success: false, error: errorMessage(err, "เกิดข้อผิดพลาดในการบันทึกประกาศ") };
   }
 }
 
@@ -778,8 +793,8 @@ export async function uploadAnnouncementImage(
       success: true,
       url: `${publicUrlData.publicUrl}?t=${Date.now()}`,
     };
-  } catch (err: any) {
-    return { success: false, error: err?.message || "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ" };
+  } catch (err) {
+    return { success: false, error: errorMessage(err, "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ") };
   }
 }
 

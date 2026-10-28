@@ -78,19 +78,16 @@ export function DatePicker({
   const [viewYear, setViewYear] = useState(initialDate.getFullYear());
   const [viewMonth, setViewMonth] = useState(initialDate.getMonth());
 
-  useEffect(() => {
-    if (isOpen) {
+  // Opening shows the month of the current value (or the default month)
+  const toggleOpen = () => {
+    if (!isOpen) {
       const fb = getFallbackDate(defaultMonth);
-      if (value && !value.toLowerCase().includes("tbc")) {
-        const d = parseDate(value, fb);
-        setViewYear(d.getFullYear());
-        setViewMonth(d.getMonth());
-      } else {
-        setViewYear(fb.getFullYear());
-        setViewMonth(fb.getMonth());
-      }
+      const d = value && !value.toLowerCase().includes("tbc") ? parseDate(value, fb) : fb;
+      setViewYear(d.getFullYear());
+      setViewMonth(d.getMonth());
     }
-  }, [isOpen, value, defaultMonth]);
+    setIsOpen(!isOpen);
+  };
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -151,9 +148,9 @@ export function DatePicker({
     <div ref={containerRef} className={cn("relative w-full", className)}>
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={toggleOpen}
         className={cn(
-          "w-full flex items-center justify-between gap-2 px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white hover:bg-gray-50/80 transition-all shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#ED1C24]/20 focus:border-[#ED1C24] text-left",
+          "w-full flex items-center justify-between gap-2 px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white hover:bg-gray-50/80 transition-all shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#ED1B2E]/20 focus:border-[#ED1B2E] text-left",
           value ? "text-gray-900 font-medium" : "text-gray-400"
         )}
       >
@@ -225,8 +222,8 @@ export function DatePicker({
                   className={cn(
                     "h-7 w-7 rounded-lg flex items-center justify-center font-medium transition-all text-xs",
                     selected
-                      ? "bg-[#ED1C24] text-white font-bold shadow-xs"
-                      : "text-gray-700 hover:bg-red-50 hover:text-[#ED1C24]"
+                      ? "bg-[#ED1B2E] text-white font-bold shadow-xs"
+                      : "text-gray-700 hover:bg-red-50 hover:text-[#ED1B2E]"
                   )}
                 >
                   {day}
@@ -250,7 +247,7 @@ export function DatePicker({
                   const now = new Date();
                   handleSelectDay(now.getDate());
                 }}
-                className="text-[#ED1C24] hover:text-[#D4181F] hover:underline font-medium"
+                className="text-[#ED1B2E] hover:text-[#D4181F] hover:underline font-medium"
               >
                 วันนี้
               </button>

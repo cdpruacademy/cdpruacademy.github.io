@@ -136,10 +136,10 @@ export function ProductTimeline() {
         } else {
           console.log("Auto-snapshot background sync completed successfully")
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error("Snapshot upload error:", err)
         if (showUserAlert) {
-          toast.error("บันทึกรูปภาพไม่สำเร็จ: " + (err?.message || err))
+          toast.error("บันทึกรูปภาพไม่สำเร็จ: " + (err instanceof Error ? err.message : String(err)))
         }
       } finally {
         if (showUserAlert) setIsSendingLine(false)

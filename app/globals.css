@@ -18,7 +18,7 @@
   --color-brand: #ed1b2e;
   --color-brand-fill: #1c1917;   /* primary buttons are ink; red is kept for status and the band */
   --color-brand-hover: #44403c;
-  --color-brand-ink: #c8102e;    /* small red text on white (5.4:1) */
+  --color-brand-ink: #ed1b2e;    /* one Prudential red everywhere (owner decision, 28 Oct 2026) */
   --color-ink: #1c1917;
   --color-ink-soft: #57534e;
   --color-ink-muted: #57534e;
@@ -33,7 +33,7 @@
   --color-status-done-ink: #15803d;
   --color-status-done-tint: #e3f5ea;
   --color-status-active: #ed1b2e;
-  --color-status-active-ink: #c8102e;
+  --color-status-active-ink: #ed1b2e;
   --color-status-active-tint: #ffe9eb;
   --color-status-paused: #a8a29e;
   --color-status-paused-ink: #57534e;
@@ -60,8 +60,8 @@
   --color-red-300: #f68d97; --color-amber-300: #f68d97;
   --color-red-400: #f25462; --color-amber-400: #f25462;
   --color-red-500: #ed1b2e; --color-amber-500: #ed1b2e;
-  --color-red-600: #d01427; --color-amber-600: #d01427;
-  --color-red-700: #b0101f; --color-amber-700: #b0101f;
+  --color-red-600: #ed1b2e; --color-amber-600: #ed1b2e;
+  --color-red-700: #ed1b2e; --color-amber-700: #ed1b2e;
   --color-red-800: #8f0d19; --color-amber-800: #8f0d19;
   --color-red-900: #6e0a13; --color-amber-900: #6e0a13;
   --color-emerald-50: #e3f5ea; --color-green-50: #e3f5ea;

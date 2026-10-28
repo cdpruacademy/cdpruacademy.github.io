@@ -95,6 +95,7 @@ export function PartnersView() {
           ? `มี ${counts[p.id]} projects ใช้ Partner นี้อยู่ projects เหล่านั้นจะไปอยู่ในกลุ่ม Other จนกว่าจะย้าย Channel ไป Partner อื่น`
           : "Partner นี้ยังไม่มี project",
       confirmLabel: "Remove",
+      icon: "trash",
       tone: "danger",
     })
     if (ok) update(list.filter((x) => x.id !== p.id))

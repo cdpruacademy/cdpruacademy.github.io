@@ -20,25 +20,13 @@ import {
   compareMonthKeys,
   checkIsProjectCompleted,
 } from "@/lib/timeline-data"
-import {
-  Users,
-  Layers,
-  GraduationCap,
-  Lock,
-  Clock,
-  CheckCircle2,
-  Search,
-  UserCheck,
-  X,
-  Loader2,
-  PauseCircle,
-} from "lucide-react"
+import { Lock, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { toPng } from "html-to-image"
 
 import { usePartners } from "@/hooks/use-partners"
-import { UNASSIGNED_PARTNER, partnerOf } from "@/lib/partners"
-import { Icon } from "@/components/icon"
+import { UNASSIGNED_PARTNER, inkOf, partnerOf } from "@/lib/partners"
+import { Icon, PHASE_ICONS } from "@/components/icon"
 import {
   PageBody,
   PageHero,
@@ -381,48 +369,32 @@ export function AnalyticsView() {
     const isCompleted = checkIsProjectCompleted(item, selectedPeriod)
     const isPaused = !isCompleted && Boolean(item.isPaused)
 
-    let currentPhaseLabel = isCompleted
-      ? "เปิดตัวแล้ว (Launched)"
-      : "รอดำเนินการ"
+    let currentPhaseLabel = isCompleted ? "Completed" : "Kick-off"
+    let currentPhaseKey = isCompleted ? "launch" : "kick-off"
     if (isPaused) {
-      currentPhaseLabel = item.pausedSince
-        ? `หยุดชั่วคราวตั้งแต่ ${item.pausedSince}`
-        : "หยุดชั่วคราว"
+      currentPhaseLabel = item.pausedSince ? `On hold since ${item.pausedSince}` : "On hold"
     } else if (!isCompleted) {
       const phases: { key: PhaseKey; label: string }[] = [
         { key: "kick-off", label: "Kick-off" },
         { key: "first-draft", label: "First Draft" },
-        { key: "first-draft-elearning", label: "First Draft e-Learning" },
+        { key: "first-draft-elearning", label: "First Draft e-learning" },
         { key: "final-approval", label: "Final Approval" },
-        { key: "final-elearning", label: "Final e-Learning" },
+        { key: "final-elearning", label: "Final e-learning" },
         { key: "internal-training", label: "Internal Training" },
       ]
-      let foundPending = false
-      for (const p of phases) {
-        const m = item.milestones?.[p.key]
-        if (m && m.status !== "completed") {
-          currentPhaseLabel = `รอ ${p.label.replace("\n", " ")}`
-          foundPending = true
-          break
-        }
-      }
-
-      if (!foundPending) {
-        if (item.milestones?.["internal-training"]?.status === "completed") {
-          currentPhaseLabel = item.commercialDate
-            ? `รอ Target Launch (${item.commercialDate})`
-            : "รอ Target Launch"
-        } else if (
-          item.milestones?.["final-approval"]?.status === "completed"
-        ) {
-          currentPhaseLabel = "รอ Internal Training"
-        } else if (item.milestones?.["first-draft"]?.status === "completed") {
-          currentPhaseLabel = "รอ Final Approval"
-        } else if (item.milestones?.["kick-off"]?.status === "completed") {
-          currentPhaseLabel = "รอ First Draft"
-        } else {
-          currentPhaseLabel = "รอ Kick-off"
-        }
+      // The step marked Current wins; otherwise the first step not completed yet
+      const current =
+        phases.find((p) => item.milestones?.[p.key]?.isElearningIcon) ||
+        phases.find((p) => {
+          const m = item.milestones?.[p.key]
+          return m && m.status !== "completed"
+        })
+      if (current) {
+        currentPhaseLabel = current.label
+        currentPhaseKey = current.key
+      } else if (item.milestones?.["internal-training"]?.status === "completed") {
+        currentPhaseLabel = "Target Launch"
+        currentPhaseKey = "launch"
       }
     }
 
@@ -431,6 +403,7 @@ export function AnalyticsView() {
       isCompleted,
       isPaused,
       currentPhaseLabel,
+      currentPhaseKey,
       isCoOwned: isItemCoOwned(item.owner),
     }
   }
@@ -592,7 +565,7 @@ export function AnalyticsView() {
     return teamMembers.map((member) => ({
       label: member,
       value: memberStats[member]?.total || 0,
-      color: memberColors[member] || "#ED1C24",
+      color: memberColors[member] || "#ED1B2E",
     }))
   }, [selectedMember, teamMembers, memberStats, memberColors])
 
@@ -605,7 +578,7 @@ export function AnalyticsView() {
   const getOwnerColor = (ownerName: string | undefined) => {
     if (!ownerName) return "#64748B"
     const matched = teamMembers.find((m) => isOwnerMatch(ownerName, m))
-    return matched ? memberColors[matched] || "#ED1C24" : "#64748B"
+    return matched ? memberColors[matched] || "#ED1B2E" : "#64748B"
   }
 
   // Helper to open Delivery Status Modal for a specific member or all team
@@ -1151,480 +1124,294 @@ export function AnalyticsView() {
       {/* 7. Delivery Status Modal (POPUP WINDOW - REPLACES BOTTOM SECTION) */}
       <AnimatePresence>
         {isDeliveryModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5">
-            {/* Backdrop */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsDeliveryModalOpen(false)}
-              className="fixed inset-0 bg-slate-950/45 backdrop-blur-xs"
+              className="fixed inset-0 bg-ink/40"
               aria-hidden="true"
             />
 
-            {/* Modal Card */}
             <motion.div
               ref={deliveryDialogRef}
               role="dialog"
               aria-modal="true"
               aria-labelledby="delivery-modal-title"
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              initial={{ opacity: 0, scale: 0.97, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              exit={{ opacity: 0, scale: 0.97, y: 12 }}
               transition={{ duration: 0.18 }}
-              className="relative z-10 flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl"
+              className="relative z-10 flex max-h-[92vh] w-full max-w-[1040px] flex-col overflow-hidden rounded-[28px] bg-white shadow-[0_24px_64px_-16px_rgba(28,25,23,0.45)]"
             >
-              {/* Modal Header */}
-              <div className="flex shrink-0 flex-col justify-between gap-3 border-b border-gray-100 bg-slate-50/90 p-4 sm:flex-row sm:items-center sm:p-5">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-white shadow-xs"
-                    style={{
-                      backgroundColor:
-                        modalMember && modalMember !== "ALL_TEAM"
-                          ? memberColors[modalMember] || "#ED1C24"
-                          : "#1E293B",
-                    }}
+              {/* Header */}
+              <header className="flex items-center gap-3.5 px-4 pt-5 pb-4 sm:px-7">
+                <span
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] text-sm font-bold text-white"
+                  style={{
+                    backgroundColor: modalMember ? memberColors[modalMember] || "#ED1B2E" : "#ED1B2E",
+                  }}
+                >
+                  {modalMember ? (
+                    modalMember
+                      .split(/\s+/)
+                      .slice(0, 2)
+                      .map((w) => w.charAt(0))
+                      .join("")
+                      .toUpperCase()
+                  ) : (
+                    <Icon name="team" size={22} />
+                  )}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h2
+                    id="delivery-modal-title"
+                    className="flex flex-wrap items-center gap-2 text-lg leading-tight font-bold text-ink sm:text-[22px]"
                   >
-                    {modalMember && modalMember !== "ALL_TEAM" ? (
-                      <UserCheck className="h-5 w-5" />
-                    ) : (
-                      <Users className="h-5 w-5" />
-                    )}
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3
-                        id="delivery-modal-title"
-                        className="text-base font-black tracking-tight text-gray-900 sm:text-lg"
-                      >
-                        สถานะการส่งมอบโครงการ :{" "}
-                        {modalMember && modalMember !== "ALL_TEAM"
-                          ? modalMember
-                          : "ทั้งทีม (All Team)"}
-                      </h3>
-                      <span className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-bold text-gray-500">
-                        {isAnnual ? "ภาพรวมทั้งปี" : selectedPeriod}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      {modalMember && modalMember !== "ALL_TEAM"
-                        ? `สรุปโครงการที่มอบหมายให้ ${modalMember} (รวมทั้งหมด ${modalItems.length} โครงการ)`
-                        : `สรุปโครงการทั้งหมดของฝ่ายพัฒนาหลักสูตร (รวมทั้งหมด ${modalItems.length} โครงการ)`}
-                    </p>
-                  </div>
+                    Projects · {modalMember || "All team"}
+                    <span className="rounded-full bg-surface px-2.5 py-0.5 text-[13px] font-semibold text-ink-soft">
+                      {isAnnual ? `Year ${selectedYear}` : selectedPeriod}
+                    </span>
+                  </h2>
+                  <p className="mt-0.5 text-sm text-ink-soft">
+                    {modalMember
+                      ? `Projects ที่ ${modalMember} ดูแล · ${modalItems.length} projects`
+                      : `ทุก project ของทีมพัฒนาหลักสูตร · ${modalItems.length} projects`}
+                  </p>
                 </div>
-
                 <button
                   type="button"
                   onClick={() => setIsDeliveryModalOpen(false)}
-                  className="cursor-pointer self-end rounded-xl p-2 text-gray-500 transition-colors hover:bg-gray-200/60 hover:text-gray-700 sm:self-auto"
-                  aria-label="Close modal"
+                  aria-label="ปิด"
+                  className="touch-target flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface text-ink hover:bg-rule"
                 >
-                  <X className="h-5 w-5" />
+                  <Icon name="close" size={20} strokeWidth={2} />
                 </button>
-              </div>
+              </header>
 
-              {/* Member Selector Tabs inside Modal */}
-              <div className="flex shrink-0 scrollbar-thin items-center gap-1.5 overflow-x-auto border-b border-gray-100 bg-white px-4 py-2.5 sm:px-5">
-                <span className="mr-1 shrink-0 text-xs font-bold text-gray-500">
-                  สลับดู:
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setModalMember("ALL_TEAM")}
-                  className={`shrink-0 cursor-pointer rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
-                    modalMember === "ALL_TEAM" || modalMember === null
-                      ? "bg-slate-900 text-white shadow-2xs"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                  }`}
-                >
-                  ทั้งทีม ({allTeamItemsWithStatus.length})
-                </button>
-                {teamMembers.map((member) => {
-                  const isSel = modalMember === member
-                  const mColor = memberColors[member] || "#ED1C24"
-                  const mStat = memberStats[member] || {
-                    total: 0,
-                    completed: 0,
-                    pending: 0,
-                  }
+              {/* Member chips */}
+              <div className="flex shrink-0 gap-2 overflow-x-auto px-4 pb-4 sm:flex-wrap sm:px-7">
+                {[null, ...teamMembers].map((member) => {
+                  const on = modalMember === member || (!member && !modalMember)
+                  const color = member ? memberColors[member] || "#ED1B2E" : "#1C1917"
+                  const count = member ? memberStats[member]?.total || 0 : allTeamItemsWithStatus.length
                   return (
                     <button
-                      key={member}
+                      key={member || "ALL_TEAM"}
                       type="button"
                       onClick={() => setModalMember(member)}
-                      className={`inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
-                        isSel
-                          ? "text-white shadow-2xs"
-                          : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                      aria-pressed={on}
+                      className={`touch-target inline-flex h-10 shrink-0 items-center gap-2 rounded-full border-[1.5px] pr-1.5 pl-3.5 text-sm font-semibold whitespace-nowrap transition-colors ${
+                        on ? "text-white" : "border-rule bg-white text-ink hover:bg-surface"
                       }`}
-                      style={isSel ? { backgroundColor: mColor } : undefined}
+                      style={on ? { backgroundColor: color, borderColor: color } : undefined}
                     >
                       <span
-                        className="h-2 w-2 shrink-0 rounded-full border border-black/10"
-                        style={{ backgroundColor: isSel ? "#FFFFFF" : mColor }}
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: on ? "#FFFFFF" : color }}
                       />
-                      <span>{member}</span>
+                      {member || "All team"}
                       <span
-                        className={`py-0.2 rounded-full px-1 text-xs font-black ${
-                          isSel
-                            ? "bg-black/20 text-white"
-                            : "bg-slate-200 text-slate-700"
+                        className={`inline-flex h-[26px] min-w-[26px] items-center justify-center rounded-full px-1.5 text-xs font-bold tabular-nums ${
+                          on ? "bg-black/20" : "bg-surface"
                         }`}
                       >
-                        {mStat.total}
+                        {count}
                       </span>
-                      {mStat.pending > 0 && (
-                        <span
-                          className={`py-0.2 rounded px-1 text-xs font-semibold ${
-                            isSel
-                              ? "bg-black/30 text-amber-200"
-                              : "bg-amber-100 text-amber-800"
-                          }`}
-                        >
-                          ค้าง {mStat.pending}
-                        </span>
-                      )}
                     </button>
                   )
                 })}
               </div>
 
-              {/* Modal Body */}
-              <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
-                {/* Summary Cards inside Modal */}
-                <div
-                  className={`grid grid-cols-1 gap-3 ${modalPausedItems.length > 0 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}
-                >
-                  {/* Card 1: Pending */}
-                  <button
-                    type="button"
-                    onClick={() => setModalStatusFilter("pending")}
-                    className={`cursor-pointer rounded-2xl border-2 p-3.5 text-left transition-all sm:p-4 ${
-                      modalStatusFilter === "pending"
-                        ? "border-pru-red bg-pru-red-soft"
-                        : "border-gray-200 bg-white hover:border-amber-300 hover:bg-amber-50/20"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800 uppercase">
-                          <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" />
-                          <span>ยังไม่เสร็จ / ค้างอยู่</span>
-                        </div>
-                        <div className="mt-1 text-2xl font-black text-amber-600 sm:text-3xl">
-                          {modalPendingItems.length}{" "}
-                          <span className="text-xs font-bold text-amber-700">
-                            โครงการ
-                          </span>
-                        </div>
-                      </div>
-                      <div
-                        className={`flex h-10 w-10 items-center justify-center rounded-xl ${
-                          modalStatusFilter === "pending"
-                            ? "bg-amber-500 text-white"
-                            : "bg-amber-100 text-amber-600"
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                {/* Status tiles */}
+                <div className="grid shrink-0 grid-cols-3 gap-2 px-4 pb-4 sm:gap-3 sm:px-7">
+                  {(
+                    [
+                      { key: "pending", label: "In progress", n: modalPendingItems.length, icon: "inProgress", fg: "text-brand-ink", soft: "bg-pru-red-soft", solid: "bg-pru-red", ring: "border-pru-red-line" },
+                      { key: "completed", label: "Completed", n: modalCompletedItems.length, icon: "completed", fg: "text-done", soft: "bg-done-soft", solid: "bg-done", ring: "border-[#bbe3ca]" },
+                      { key: "paused", label: "On hold", n: modalPausedItems.length, icon: "onHold", fg: "text-ink-soft", soft: "bg-surface", solid: "bg-ink-soft", ring: "border-stone-300" },
+                    ] as const
+                  ).map((t) => {
+                    const on = modalStatusFilter === t.key
+                    return (
+                      <button
+                        key={t.key}
+                        type="button"
+                        onClick={() => setModalStatusFilter(on ? "all" : t.key)}
+                        aria-pressed={on}
+                        className={`flex items-center gap-3 rounded-[18px] border-2 p-3 text-left transition-colors sm:px-4 ${
+                          on ? `${t.soft} ${t.ring}` : "border-rule bg-white hover:bg-paper"
                         }`}
                       >
-                        <Clock className="h-5 w-5" />
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* Card 2: Completed */}
-                  <button
-                    type="button"
-                    onClick={() => setModalStatusFilter("completed")}
-                    className={`cursor-pointer rounded-2xl border-2 p-3.5 text-left transition-all sm:p-4 ${
-                      modalStatusFilter === "completed"
-                        ? "border-ink bg-surface"
-                        : "border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/20"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 uppercase">
-                          <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                          <span>เสร็จสมบูรณ์แล้ว</span>
-                        </div>
-                        <div className="mt-1 text-2xl font-black text-emerald-600 sm:text-3xl">
-                          {modalCompletedItems.length}{" "}
-                          <span className="text-xs font-bold text-emerald-700">
-                            โครงการ
-                          </span>
-                        </div>
-                      </div>
-                      <div
-                        className={`flex h-10 w-10 items-center justify-center rounded-xl ${
-                          modalStatusFilter === "completed"
-                            ? "bg-emerald-500 text-white"
-                            : "bg-emerald-100 text-emerald-600"
-                        }`}
-                      >
-                        <CheckCircle2 className="h-5 w-5" />
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* Card 3: Paused (only when there are any) */}
-                  {modalPausedItems.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setModalStatusFilter("paused")}
-                      className={`cursor-pointer rounded-2xl border-2 p-3.5 text-left transition-all sm:p-4 ${
-                        modalStatusFilter === "paused"
-                          ? "border-slate-400 bg-slate-50 shadow-xs ring-2 ring-slate-400/20"
-                          : "border-gray-200 bg-white hover:border-slate-300 hover:bg-slate-50"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 uppercase">
-                            <span className="h-2 w-2 rounded-full bg-slate-400" />
-                            <span>หยุดชั่วคราว</span>
-                          </div>
-                          <div className="mt-1 text-2xl font-black text-slate-500 sm:text-3xl">
-                            {modalPausedItems.length}{" "}
-                            <span className="text-xs font-bold text-slate-500">
-                              โครงการ
-                            </span>
-                          </div>
-                        </div>
-                        <div
-                          className={`flex h-10 w-10 items-center justify-center rounded-xl ${
-                            modalStatusFilter === "paused"
-                              ? "bg-slate-500 text-white"
-                              : "bg-slate-100 text-slate-500"
+                        <span
+                          className={`hidden h-11 w-11 shrink-0 items-center justify-center rounded-[14px] sm:flex ${
+                            on ? `${t.solid} text-white` : `${t.soft} ${t.fg}`
                           }`}
                         >
-                          <PauseCircle className="h-5 w-5" />
-                        </div>
-                      </div>
-                    </button>
-                  )}
+                          <Icon name={t.icon} size={22} strokeWidth={2} />
+                        </span>
+                        <span>
+                          <span className="block text-[13px] font-semibold text-stone-700 sm:text-sm">{t.label}</span>
+                          <span className={`text-2xl leading-tight font-bold tabular-nums sm:text-[30px] ${t.fg}`}>
+                            {t.n}
+                          </span>
+                        </span>
+                      </button>
+                    )
+                  })}
                 </div>
 
-                {/* Filter and Search Row inside Modal */}
-                <div className="flex flex-col justify-between gap-2 pt-1 sm:flex-row sm:items-center">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold ${
-                        modalStatusFilter === "pending"
-                          ? "border border-amber-200 bg-amber-50 text-amber-800"
-                          : modalStatusFilter === "completed"
-                            ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
-                            : modalStatusFilter === "paused"
-                              ? "border border-slate-300 bg-slate-50 text-slate-600"
-                              : "border border-slate-200 bg-slate-100 text-slate-800"
-                      }`}
-                    >
-                      {modalStatusFilter === "pending" && (
-                        <Clock className="h-3.5 w-3.5 text-amber-600" />
-                      )}
-                      {modalStatusFilter === "completed" && (
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                      )}
-                      {modalStatusFilter === "paused" && (
-                        <PauseCircle className="h-3.5 w-3.5 text-slate-500" />
-                      )}
-                      {modalStatusFilter === "all" && (
-                        <Layers className="h-3.5 w-3.5 text-slate-600" />
-                      )}
-                      <span>
-                        {modalStatusFilter === "pending"
-                          ? `งานที่ค้างอยู่ (${modalDisplayedItems.length})`
-                          : modalStatusFilter === "completed"
-                            ? `งานที่เสร็จแล้ว (${modalDisplayedItems.length})`
-                            : modalStatusFilter === "paused"
-                              ? `งานที่หยุดชั่วคราว (${modalDisplayedItems.length})`
-                              : `งานทั้งหมด (${modalDisplayedItems.length})`}
-                      </span>
-                    </span>
-
-                    {modalStatusFilter !== "all" ? (
-                      <button
-                        type="button"
-                        onClick={() => setModalStatusFilter("all")}
-                        className="cursor-pointer rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900"
-                      >
-                        ดูทั้งหมด ({modalItems.length})
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setModalStatusFilter("pending")}
-                        className="cursor-pointer rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 transition-colors"
-                      >
-                        เฉพาะงานค้าง ({modalPendingItems.length})
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Search Input inside Modal */}
-                  <div className="relative w-full sm:w-56">
-                    <Search className="absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
+                {/* Search */}
+                <div className="flex shrink-0 items-center gap-3 px-4 pb-2 sm:px-7">
+                  <span className="relative w-full max-w-[420px]">
+                    <Icon
+                      name="search"
+                      size={18}
+                      strokeWidth={2}
+                      className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-ink-soft"
+                    />
+                    <label htmlFor="delivery-search" className="sr-only">
+                      ค้นหา project
+                    </label>
                     <input
+                      id="delivery-search"
                       type="text"
                       value={modalSearchQuery}
                       onChange={(e) => setModalSearchQuery(e.target.value)}
-                      placeholder="ค้นหาชื่อโครงการ, ช่องทาง..."
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1 pr-3 pl-7 text-xs focus:ring-1 focus:ring-brand focus:outline-none"
+                      placeholder="ค้นหาชื่อ project, Channel หรือ Owner"
+                      className="h-11 w-full rounded-full border-[1.5px] border-rule pr-4 pl-10 text-[15px] text-ink focus:border-transparent focus:ring-2 focus:ring-brand-ink focus:outline-none"
                     />
-                  </div>
+                  </span>
+                  {modalStatusFilter === "all" && (
+                    <span className="text-[13px] text-ink-soft">ทุกสถานะ</span>
+                  )}
                 </div>
 
-                {/* Visual Cards Grid in Modal (แบบ B) */}
-                {modalDisplayedItems.length === 0 ? (
-                  <div className="space-y-1.5 rounded-2xl border border-dashed border-gray-200 bg-slate-50 py-10 text-center text-xs text-gray-500">
-                    <div className="text-2xl">
-                      {modalStatusFilter === "pending"
-                        ? "🎉"
-                        : modalStatusFilter === "completed"
-                          ? "📦"
-                          : "🔍"}
+                {/* List */}
+                <div className="px-2 pb-2 sm:px-5">
+                  {modalDisplayedItems.length === 0 ? (
+                    <div className="m-2 flex flex-col items-center gap-2 rounded-2xl bg-paper py-10 text-center">
+                      <Icon
+                        name={modalSearchQuery ? "search" : modalStatusFilter === "pending" ? "completed" : "folder"}
+                        size={28}
+                        className="text-ink-soft"
+                      />
+                      <p className="text-sm font-semibold text-stone-700">
+                        {modalSearchQuery
+                          ? "ไม่พบ project ที่ค้นหา"
+                          : modalStatusFilter === "pending"
+                            ? "ไม่มี project ที่ยังทำอยู่"
+                            : modalStatusFilter === "completed"
+                              ? "ยังไม่มี project ที่ Completed ในช่วงนี้"
+                              : "ไม่มี project ในกลุ่มนี้"}
+                      </p>
                     </div>
-                    <p className="font-bold text-gray-700">
-                      {modalStatusFilter === "pending"
-                        ? "ไม่มีโครงการที่ค้างอยู่ ทุกรายการเปิดตัวเสร็จสมบูรณ์แล้ว!"
-                        : modalStatusFilter === "completed"
-                          ? "ยังไม่มีโครงการที่เปิดตัวเสร็จสมบูรณ์ในช่วงเวลานี้"
-                          : "ไม่พบโครงการที่ค้นหา"}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {modalDisplayedItems.map((item) => {
-                      const brokerColor = partnerOf(item.broker, partners).color
-                      const ownerColor = getOwnerColor(item.owner)
-                      const isCoOwned = isItemCoOwned(item.owner)
-                      const hasElearning = Boolean(
-                        item.milestones?.["first-draft-elearning"] ||
-                        item.milestones?.["final-elearning"]
-                      )
-
-                      return (
-                        <div
-                          key={item.id}
-                          className="flex flex-col justify-between space-y-2.5 rounded-2xl border border-gray-200 bg-white p-3.5 shadow-2xs transition-all hover:bg-slate-50/80"
-                        >
-                          {/* Top Row: Channel + Co-owner badge + Phase status */}
-                          <div className="flex items-center justify-between gap-1.5 text-xs">
-                            <div className="flex flex-wrap items-center gap-1">
-                              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-slate-100 px-2 py-0.5 text-xs font-black tracking-tight text-ink-soft">
-                                <span
-                                  className="h-2 w-2 rounded-full"
-                                  style={{ backgroundColor: brokerColor }}
-                                  aria-hidden="true"
-                                />
-                                {item.broker}
-                              </span>
-                              {isCoOwned && (
-                                <span className="py-0.2 inline-flex shrink-0 items-center gap-1 rounded border border-slate-200 bg-slate-50 px-1.5 text-xs font-bold text-slate-700">
-                                  <Users className="h-2.5 w-2.5" /> งานร่วม
-                                </span>
-                              )}
-                              {isAnnual &&
-                                item.activeMonths &&
-                                item.activeMonths.length > 0 && (
-                                  <span className="py-0.2 rounded border border-slate-200 bg-slate-100 px-1.5 text-xs font-semibold text-slate-500">
-                                    {item.activeMonths.join(", ")}
-                                  </span>
-                                )}
-                            </div>
-
-                            {item.isCompleted ? (
-                              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">
-                                <CheckCircle2 className="h-3 w-3 text-emerald-600" />{" "}
-                                เปิดตัวแล้ว
-                              </span>
-                            ) : item.isPaused ? (
-                              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
-                                <PauseCircle className="h-3 w-3 text-slate-500" />{" "}
-                                {item.currentPhaseLabel}
-                              </span>
-                            ) : (
-                              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-800">
-                                <Clock className="h-3 w-3 animate-pulse text-amber-600" />{" "}
-                                {item.currentPhaseLabel}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Project Name */}
-                          <div>
-                            <h4 className="line-clamp-2 text-xs leading-snug font-bold text-gray-900 sm:text-sm">
-                              {item.name}
-                            </h4>
-                          </div>
-
-                          {/* Owner & eLearning */}
-                          <div className="flex items-center justify-between border-t border-gray-100 pt-1 text-xs">
-                            <div className="flex min-w-0 items-center gap-1.5">
-                              <span
-                                className="h-2.5 w-2.5 shrink-0 rounded-full border border-black/10"
-                                style={{ backgroundColor: ownerColor }}
-                              />
-                              <span className="max-w-[170px] truncate font-semibold text-gray-700">
-                                👤 {item.owner || "ยังไม่ระบุ"}
-                              </span>
-                            </div>
-                            {hasElearning && (
-                              <span className="py-0.2 flex shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-1.5 text-xs font-bold text-slate-700">
-                                <GraduationCap className="h-2.5 w-2.5" />{" "}
-                                eLearning
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Dates */}
-                          <div className="grid grid-cols-2 gap-2 border-t border-dashed border-gray-100 pt-1 text-xs">
-                            <div className="rounded-lg bg-slate-50 p-1 px-1.5">
-                              <span className="block text-xs font-medium text-gray-500">
-                                Internal
-                              </span>
-                              <span className="block truncate font-bold text-gray-700">
-                                {item.internalDate || "TBC"}
-                              </span>
-                            </div>
-                            <div
-                              className={`rounded-lg p-1 px-1.5 ${
-                                item.isCompleted
-                                  ? "border border-emerald-100 bg-emerald-50 text-emerald-800"
-                                  : "border border-red-100 bg-red-50 text-brand-ink"
-                              }`}
+                  ) : (
+                    <>
+                      <div className="hidden grid-cols-[minmax(0,1fr)_170px_210px_76px] gap-4 px-4 py-1.5 text-xs font-bold text-ink-soft md:grid">
+                        <span>Project</span>
+                        <span>Owner</span>
+                        <span>{modalStatusFilter === "completed" ? "Status" : "Current step"}</span>
+                        <span className="text-center">Launch</span>
+                      </div>
+                      <ul>
+                        {modalDisplayedItems.map((item) => {
+                          const partner = partnerOf(item.broker, partners)
+                          const launch = item.commercialDate || item.customRightLabel || ""
+                          const [day, mon] = launch.split(/\s+/)
+                          const hasDate = Boolean(day && mon && /^\d/.test(day))
+                          const tone = item.isCompleted ? "done" : item.isPaused ? "hold" : "now"
+                          return (
+                            <li
+                              key={item.id}
+                              className="grid grid-cols-[minmax(0,1fr)_64px] items-center gap-x-4 gap-y-2 rounded-2xl border-t border-surface px-3 py-3 hover:bg-paper md:grid-cols-[minmax(0,1fr)_170px_210px_76px] md:px-4"
                             >
-                              <span className="block text-xs font-medium opacity-75">
-                                Target Launch
+                              <span className="flex min-w-0 flex-col gap-1">
+                                <b className="truncate text-[15px] text-ink" title={item.name}>
+                                  {item.name}
+                                </b>
+                                <span
+                                  className="inline-flex items-center gap-1.5 text-xs font-semibold"
+                                  style={{ color: inkOf(partner.color) }}
+                                >
+                                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: partner.color }} />
+                                  {partner.name} · {item.broker}
+                                  {isAnnual && item.activeMonths && item.activeMonths.length > 0 && (
+                                    <span className="font-medium text-ink-soft">· {item.activeMonths.join(", ")}</span>
+                                  )}
+                                </span>
                               </span>
-                              <span className="block truncate font-bold">
-                                {item.commercialDate ||
-                                  item.customRightLabel ||
-                                  "TBC"}
+                              <span className="order-3 col-span-2 inline-flex items-center gap-1.5 text-[13px] text-stone-700 md:order-none md:col-span-1">
+                                <span
+                                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                                  style={{ backgroundColor: getOwnerColor(item.owner) }}
+                                />
+                                <span className="truncate">{item.owner || "ยังไม่ระบุ"}</span>
                               </span>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
+                              <span
+                                className={`order-4 col-span-2 inline-flex items-center gap-2 text-[13px] font-semibold md:order-none md:col-span-1 ${
+                                  tone === "done" ? "text-done" : tone === "hold" ? "text-ink-soft" : "text-brand-ink"
+                                }`}
+                              >
+                                <span
+                                  className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full text-white ${
+                                    tone === "done" ? "bg-done" : tone === "hold" ? "bg-ink-soft" : "bg-pru-red"
+                                  }`}
+                                >
+                                  <Icon
+                                    name={
+                                      tone === "done"
+                                        ? "check"
+                                        : tone === "hold"
+                                          ? "onHold"
+                                          : PHASE_ICONS[item.currentPhaseKey] || "inProgress"
+                                    }
+                                    size={15}
+                                    strokeWidth={2}
+                                  />
+                                </span>
+                                {item.currentPhaseLabel}
+                              </span>
+                              <span
+                                className={`col-start-2 row-start-1 w-16 justify-self-center overflow-hidden rounded-xl border-[1.5px] text-center md:col-start-auto md:row-start-auto ${
+                                  !hasDate ? "border-rule" : item.isCompleted ? "border-[#bbe3ca]" : "border-pru-red-line"
+                                }`}
+                              >
+                                <span
+                                  className={`block py-0.5 text-[10px] font-bold text-white uppercase ${
+                                    !hasDate ? "bg-stone-400" : item.isCompleted ? "bg-done" : "bg-pru-red"
+                                  }`}
+                                >
+                                  {hasDate ? mon : "Launch"}
+                                </span>
+                                <span className="block py-0.5 text-[17px] font-bold text-ink tabular-nums">
+                                  {hasDate ? day : "TBC"}
+                                </span>
+                              </span>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </>
+                  )}
+                </div>
               </div>
 
-              {/* Modal Footer */}
-              <div className="flex shrink-0 items-center justify-between border-t border-gray-100 bg-slate-50 px-4 py-3 text-xs sm:px-5">
-                <span className="font-medium text-gray-500">
-                  แสดง {modalDisplayedItems.length} จากทั้งหมด{" "}
-                  {modalItems.length} โครงการ
+              {/* Footer */}
+              <footer className="flex shrink-0 items-center justify-between border-t border-rule px-4 pt-3.5 pb-4 sm:px-7">
+                <span className="text-sm text-ink-soft">
+                  แสดง {modalDisplayedItems.length} จาก {modalItems.length} projects
                 </span>
                 <button
                   type="button"
                   onClick={() => setIsDeliveryModalOpen(false)}
-                  className="cursor-pointer rounded-xl bg-slate-800 px-4 py-1.5 font-bold text-white shadow-2xs transition-colors hover:bg-slate-900"
+                  className="touch-target inline-flex h-11 items-center rounded-full bg-ink px-6 text-sm font-semibold text-white transition-colors hover:bg-brand-hover"
                 >
-                  ปิดหน้าต่าง
+                  Close
                 </button>
-              </div>
+              </footer>
             </motion.div>
           </div>
         )}
@@ -1636,6 +1423,9 @@ export function AnalyticsView() {
         onClose={() => setIsTeamModalOpen(false)}
         teamMembers={teamMembers}
         memberColors={memberColors}
+        memberCounts={Object.fromEntries(
+          Object.entries(memberStats).map(([name, st]) => [name, st.total])
+        )}
         onAddMember={addMember}
         onUpdateMember={updateMember}
         onUpdateMemberColor={updateMemberColor}

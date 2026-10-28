@@ -47,7 +47,7 @@ const Label = React.forwardRef<HTMLLabelElement, LabelProps>(
         {children}
         {required && (
           <span
-            className="text-destructive ml-1 text-[#ED1C24] font-bold"
+            className="text-destructive ml-1 text-[#ED1B2E] font-bold"
             aria-label="required"
           >
             *

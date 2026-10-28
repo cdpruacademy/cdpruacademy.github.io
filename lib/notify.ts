@@ -1,6 +1,8 @@
 // In-page replacements for window.alert / window.confirm, rendered by <NotifyHost /> in the layout.
 // Usable from hooks and plain functions, not only components.
 
+import type { IconName } from "@/components/icon";
+
 export type ToastKind = "success" | "error" | "info";
 
 export interface ToastItem {
@@ -14,6 +16,8 @@ export interface ConfirmOptions {
   message?: string;
   confirmLabel?: string;
   tone?: "danger" | "default";
+  /** Icon in the dialog; defaults to a warning sign (danger) or info (default) */
+  icon?: IconName;
 }
 
 export interface ConfirmRequest extends ConfirmOptions {

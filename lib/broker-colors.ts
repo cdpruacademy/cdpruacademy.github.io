@@ -2,7 +2,7 @@ export const DEFAULT_BROKER_COLORS: Record<string, string> = {
   ttb: "#009FE3",
   "ttb touch": "#009FE3",
   UOB: "#0B2265",
-  Agency: "#ED1C24",
+  Agency: "#ED1B2E",
   CIMB: "#7E1518",
   D2C: "#6366F1",
   "New Broker": "#334155",
@@ -31,7 +31,7 @@ export function resolveBrokerColor(
   // 3. Known brand substring fallbacks
   if (lower.includes("ttb")) return colorMap?.["ttb"] || colorMap?.["ttb touch"] || "#009FE3";
   if (lower.includes("uob")) return colorMap?.["UOB"] || "#0B2265";
-  if (lower.includes("agency")) return colorMap?.["Agency"] || "#ED1C24";
+  if (lower.includes("agency")) return colorMap?.["Agency"] || "#ED1B2E";
   if (lower.includes("cimb")) return colorMap?.["CIMB"] || "#7E1518";
   if (lower.includes("d2c")) return colorMap?.["D2C"] || "#6366F1";
   if (lower.includes("audit")) return colorMap?.["Audit"] || "#1E293B";

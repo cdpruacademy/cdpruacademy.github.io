@@ -33,7 +33,7 @@ function iconUrl(name, color) {
 // สีและข้อความแบบ B ("Brand Hero") ให้ตรงกับหน้าเว็บ (ดู DESIGN.md)
 const UI = {
   red: "#ED1B2E",
-  redInk: "#C8102E",
+  redInk: "#ED1B2E",
   redSoft: "#FFE9EB",
   done: "#15803D",
   doneSoft: "#E3F5EA",

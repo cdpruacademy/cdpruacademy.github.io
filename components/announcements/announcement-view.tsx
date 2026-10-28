@@ -261,6 +261,7 @@ export function AnnouncementView() {
                         onClick={async () => {
                           const ok = await confirmAction({
                             title: "ลบประกาศนี้?",
+                            icon: "trash",
                             message: item.title,
                             confirmLabel: "Delete",
                             tone: "danger",
@@ -282,12 +283,15 @@ export function AnnouncementView() {
         )}
       </PageBody>
 
-      <AnnouncementModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={handleSave}
-        itemToEdit={itemToEdit}
-      />
+      {isModalOpen && (
+        <AnnouncementModal
+          key={itemToEdit?.id ?? "new"}
+          isOpen
+          onClose={() => setIsModalOpen(false)}
+          onSave={handleSave}
+          itemToEdit={itemToEdit}
+        />
+      )}
     </div>
   )
 }

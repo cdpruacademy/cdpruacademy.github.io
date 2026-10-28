@@ -17,7 +17,7 @@ const NAMES = [
   "check", "completed", "inProgress", "partner", "user", "calendar", "folder", "product",
   "wrench", "timeline", "chart", "megaphone", "send", "search",
 ]
-const COLORS = { white: "#FFFFFF", grey: "#A8A29E", ink: "#1C1917", red: "#C8102E" }
+const COLORS = { white: "#FFFFFF", grey: "#A8A29E", ink: "#1C1917", red: "#ED1B2E" }
 
 const out = path.join(root, "public/cody")
 fs.mkdirSync(out, { recursive: true })

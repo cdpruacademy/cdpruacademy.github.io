@@ -3,7 +3,7 @@ name: CD Team Dashboard
 description: Prudential Thailand curriculum development team's project timeline, analytics, announcements and partner settings. Style B, "Brand Hero".
 colors:
   pru-red: "#ED1B2E"
-  brand-ink: "#C8102E"
+  brand-ink: "#ED1B2E"
   pru-red-soft: "#FFE9EB"
   done: "#15803D"
   done-soft: "#E3F5EA"
@@ -37,7 +37,7 @@ Chosen by the owner on 28 Oct 2026 from three options on the design canvas
 - **Red means Current; green means Completed.** On the timeline, a done step is a green circle with a tick, the Current step is a red circle with that step's icon, and an upcoming step is a grey ring with the step's icon. Skipped steps are a short grey bar.
 - **Partner colours** belong to partners, not channels, and are edited on the Partners page. Use them only for partner badges, group bands, chart segments and dots. Never use a partner colour for status.
 - **Cards** are white, 20px corners, the soft `--shadow-card`. Buttons are pills. Primary actions on white are ink (`cardButtonDark`); on the red band they are white (`heroButtonSolid`).
-- **Text on red:** white, at least 14px semibold. Small red text on white uses `brand-ink` (#C8102E).
+- **One red.** Every red on the site, in the LINE images and in CODY is Prudential red #ED1B2E (`pru-red`; `brand-ink` and the `red-*` scale point to the same value). The owner chose this on 28 Oct 2026 over a darker red for small text, so keep red text 14px semibold or larger. Text on the red band is white.
 - **Words:** UI labels are English (Project, Completed, In progress, Current, Upcoming, Skipped, On hold, Partner, Channel, Owner, Target Launch); short helper text stays Thai. See PRODUCT.md.
 - **Table headings** show the step icon in an ink circle, the step number and a two-line name broken between words (`PHASE_HEADINGS` in `timeline-row.tsx`).
 

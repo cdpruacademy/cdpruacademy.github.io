@@ -147,7 +147,7 @@ export function TimelineRow({
     ? formatShortDate(product.customRightLabel)
     : formatShortDate(product.commercialDate) || "TBC"
   const parts = product.customRightLabel ? null : launchParts(launchText)
-  const launchHead = !parts ? "#A8A29E" : isFinished ? "#15803D" : "#C8102E"
+  const launchHead = !parts ? "#A8A29E" : isFinished ? "#15803D" : "#ED1B2E"
   const launchLine = !parts ? "#E7E5E4" : isFinished ? "#BBE3CA" : "#F8B4BB"
 
   const actionButton =

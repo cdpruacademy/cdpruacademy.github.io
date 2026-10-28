@@ -13,10 +13,11 @@ import {
 } from "@/lib/timeline-data"
 import { Loader2 } from "lucide-react"
 import { CloudStatusBadge } from "./cloud-status-badge"
-import { Icon, PHASE_ICONS } from "@/components/icon"
+import { Icon, PHASE_ICONS, type IconName } from "@/components/icon"
 import {
   HeroSegment,
   card,
+  cardButton,
   heroButton,
   heroButtonSolid,
 } from "@/components/page-hero"
@@ -116,6 +117,9 @@ export function TimelineHero({
 }: TimelineHeroProps) {
   const [isEditingAsOf, setIsEditingAsOf] = useState(false)
   const [tempAsOf, setTempAsOf] = useState(asOfText)
+  // Phone-only bottom sheets: the "more" menu and the month/year picker
+  const [sheet, setSheet] = useState<null | "more" | "month">(null)
+  const [pickerYear, setPickerYear] = useState(0)
 
   const systemMonth = getSystemCurrentMonth()
   const activeYear =
@@ -139,9 +143,229 @@ export function TimelineHero({
     "touch-target inline-flex h-10 w-10 items-center justify-center rounded-full border-[1.5px] border-white/55 text-white hover:bg-white/15 disabled:opacity-40"
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex flex-col gap-4 md:gap-6">
+      {/* Phone controls: type, one month button and a "more" menu; Add project floats above the tab bar */}
+      <div className="flex flex-col gap-3 md:hidden">
+        <div role="tablist" aria-label="Timeline type" className="grid grid-cols-2 gap-0.5 rounded-full bg-black/20 p-[3px]">
+          {(
+            [
+              { value: "product", label: "New Product" },
+              { value: "enhancement", label: "Enhancement" },
+            ] as const
+          ).map((o) => {
+            const on = o.value === timelineType
+            return (
+              <button
+                key={o.value}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                onClick={() => onTimelineTypeChange(o.value)}
+                className={`touch-target h-[34px] rounded-full text-sm font-semibold ${on ? "bg-white text-brand-ink" : "text-white"}`}
+              >
+                {o.label}
+              </button>
+            )
+          })}
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex h-11 flex-1 items-center rounded-full bg-black/20">
+            <button
+              type="button"
+              onClick={() => currentIndex > 0 && onMonthChange(displayMonths[currentIndex - 1])}
+              disabled={currentIndex <= 0}
+              aria-label="Previous month"
+              className="touch-target flex h-11 w-11 items-center justify-center text-white disabled:opacity-40"
+            >
+              <Icon name="chevronLeft" size={18} strokeWidth={2.2} />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPickerYear(activeYear)
+                setSheet("month")
+              }}
+              aria-haspopup="dialog"
+              className="touch-target inline-flex h-11 flex-1 items-center justify-center gap-1.5 text-base font-bold text-white"
+            >
+              {monthLabel(selectedMonth)}
+              <Icon name="chevronDown" size={14} strokeWidth={2.4} />
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                currentIndex < displayMonths.length - 1 && onMonthChange(displayMonths[currentIndex + 1])
+              }
+              disabled={currentIndex >= displayMonths.length - 1}
+              aria-label="Next month"
+              className="touch-target flex h-11 w-11 items-center justify-center text-white disabled:opacity-40"
+            >
+              <Icon name="chevronRight" size={18} strokeWidth={2.2} />
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSheet("more")}
+            aria-label="More"
+            aria-haspopup="dialog"
+            className={`touch-target flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-[1.5px] border-white/55 ${sheet === "more" ? "bg-white text-brand-ink" : "text-white"}`}
+          >
+            <Icon name="more" size={20} strokeWidth={3} />
+          </button>
+        </div>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={onAddClick}
+            className="touch-target fixed right-4 bottom-20 z-30 inline-flex h-[52px] items-center gap-2 rounded-full bg-pru-red pr-5 pl-4 text-[15px] font-bold text-white shadow-[0_10px_24px_-8px_rgba(237,27,46,0.7)]"
+          >
+            <Icon name="plus" size={20} strokeWidth={2.4} />
+            Add project
+          </button>
+        )}
+      </div>
+
+      {sheet && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="absolute inset-0 animate-in bg-ink/40 fade-in" onClick={() => setSheet(null)} />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={sheet === "more" ? "More" : "เลือกเดือน"}
+            className="absolute inset-x-0 bottom-0 animate-in rounded-t-[28px] bg-white px-5 pt-2.5 pb-[calc(1.75rem+env(safe-area-inset-bottom))] text-ink duration-200 slide-in-from-bottom"
+          >
+            <span className="mx-auto mb-3.5 block h-[5px] w-10 rounded-full bg-stone-300" />
+            {sheet === "more" ? (
+              <>
+                <p className="mb-2 text-[13px] font-semibold text-ink-soft">
+                  {monthLabel(selectedMonth)} · {timelineType === "enhancement" ? "Enhancement" : "New Product"}
+                </p>
+                {(
+                  [
+                    onSendLineClick && {
+                      icon: "send",
+                      label: isSendingLine ? "Sending…" : "Send to LINE",
+                      hint: "ส่งรูป Timeline เดือนนี้เข้ากลุ่ม",
+                      onClick: onSendLineClick,
+                      disabled: isSendingLine,
+                    },
+                    {
+                      icon: "download",
+                      label: isExporting ? "Saving…" : "Save image",
+                      hint: "รูปเดียวกับที่ส่ง LINE",
+                      onClick: onExportAllClick,
+                      disabled: isExporting,
+                    },
+                    selectedMonth !== systemMonth && {
+                      icon: "calendar",
+                      label: "Go to this month",
+                      onClick: goToCurrent,
+                      quiet: true,
+                    },
+                  ].filter(Boolean) as {
+                    icon: IconName
+                    label: string
+                    hint?: string
+                    onClick: () => void
+                    disabled?: boolean
+                    quiet?: boolean
+                  }[]
+                ).map((item) => (
+                  <button
+                    key={item.icon}
+                    type="button"
+                    disabled={item.disabled}
+                    onClick={() => {
+                      setSheet(null)
+                      item.onClick()
+                    }}
+                    className="flex w-full items-center gap-3.5 px-1 py-2.5 text-left disabled:opacity-50"
+                  >
+                    <span
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] ${item.quiet ? "bg-surface text-stone-700" : "bg-pru-red-soft text-brand-ink"}`}
+                    >
+                      <Icon name={item.icon} size={20} strokeWidth={1.9} />
+                    </span>
+                    <span>
+                      <b className="text-base">{item.label}</b>
+                      {item.hint && <span className="block text-[13px] text-ink-soft">{item.hint}</span>}
+                    </span>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setSheet(null)}
+                  className={`${cardButton} mt-3 h-12 w-full justify-center text-[15px]`}
+                >
+                  ยกเลิก
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="mb-3.5 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setPickerYear((y) => y - 1)}
+                    disabled={!yearsList.includes(pickerYear - 1)}
+                    aria-label="Previous year"
+                    className="touch-target flex h-11 w-11 items-center justify-center rounded-full border border-rule disabled:opacity-30"
+                  >
+                    <Icon name="chevronLeft" size={18} strokeWidth={2.2} />
+                  </button>
+                  <span className="text-center">
+                    <b className="text-[22px] tabular-nums">{pickerYear}</b>
+                    <span className="block text-xs text-ink-soft">พ.ศ. {pickerYear + 543}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPickerYear((y) => y + 1)}
+                    disabled={!yearsList.includes(pickerYear + 1)}
+                    aria-label="Next year"
+                    className="touch-target flex h-11 w-11 items-center justify-center rounded-full border border-rule disabled:opacity-30"
+                  >
+                    <Icon name="chevronRight" size={18} strokeWidth={2.2} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {getMonthsForYear(pickerYear).map((m) => {
+                    const on = m === selectedMonth
+                    const isNow = m === systemMonth
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() => {
+                          if (pickerYear !== activeYear) onYearChange?.(pickerYear)
+                          onMonthChange(m)
+                          setSheet(null)
+                        }}
+                        className={`relative h-[52px] rounded-2xl border-[1.5px] text-[15px] font-semibold ${
+                          on ? "border-pru-red bg-pru-red text-white" : "border-rule bg-white text-ink"
+                        }`}
+                      >
+                        {monthLabel(m).split(" ")[0].slice(0, 3)}
+                        {isNow && (
+                          <span
+                            className={`absolute bottom-1.5 left-1/2 h-[5px] w-[5px] -translate-x-1/2 rounded-full ${on ? "bg-white" : "bg-pru-red"}`}
+                          />
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-soft">
+                  <span className="h-1.5 w-1.5 rounded-full bg-pru-red" />
+                  This month
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Controls (tablet and desktop) */}
+      <div className="hidden flex-wrap items-center justify-between gap-3 md:flex">
         <div className="flex flex-wrap items-center gap-2.5">
           <HeroSegment
             label="Timeline type"
@@ -235,7 +459,7 @@ export function TimelineHero({
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_440px] lg:items-end">
         <div className="flex flex-col gap-4">
           <div className="flex items-end gap-4">
-            <span className="text-[88px] leading-[0.82] font-bold tracking-[-0.04em] sm:text-[124px]">
+            <span className="text-[72px] leading-[0.82] font-bold tracking-[-0.04em] sm:text-[124px]">
               {counts?.total ?? "–"}
             </span>
             <span className="pb-1.5 text-2xl leading-tight font-bold sm:text-[30px]">
@@ -283,7 +507,13 @@ export function TimelineHero({
             </span>
           </div>
           {counts && (
-            <div className="flex flex-wrap gap-2.5">
+            <p className="text-[15px] sm:hidden">
+              {counts.completed} Completed · {counts.inProgress} In progress
+              {counts.onHold > 0 && ` · ${counts.onHold} On hold`}
+            </p>
+          )}
+          {counts && (
+            <div className="hidden flex-wrap gap-2.5 sm:flex">
               <span className="inline-flex items-center gap-2 rounded-full bg-white py-1.5 pr-3.5 pl-2 font-bold text-done">
                 <Icon name="completed" size={22} strokeWidth={2} />
                 {counts.completed} Completed
@@ -300,7 +530,22 @@ export function TimelineHero({
           )}
         </div>
         {groups.length > 0 && (
-          <div className={`${card} p-5 text-ink`}>
+          <div
+            className="flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-white p-0.5 sm:hidden"
+            role="img"
+            aria-label={groups.map((g) => `${g.partner.name} ${g.items.length}`).join(", ")}
+          >
+            {groups.map((g) => (
+              <span
+                key={g.partner.id}
+                className="rounded-full"
+                style={{ flex: g.items.length, backgroundColor: g.partner.color }}
+              />
+            ))}
+          </div>
+        )}
+        {groups.length > 0 && (
+          <div className={`${card} hidden p-5 text-ink sm:block`}>
             <b className="mb-3.5 block text-[15px]">Projects by partner</b>
             <PartnerMix groups={groups} />
           </div>
