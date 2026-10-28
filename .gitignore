@@ -34,3 +34,6 @@ pnpm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local notes for Claude (kept out of the public repo)
+/CLAUDE.md
