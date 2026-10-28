@@ -300,8 +300,6 @@ export function ProductTimeline() {
 
   return (
     <div ref={dashboardRef}>
-      {/* A thin stripe in the type colour: red for New Product, blue for Enhancement */}
-      <div className={`h-1.5 ${timelineType === "enhancement" ? "bg-enh" : "bg-pru-red"}`} />
       <div className="mx-auto flex w-full max-w-[1360px] flex-col gap-5 px-4 pt-5 pb-12 sm:px-8 sm:pt-7">
         <TimelineHero
           timelineType={timelineType}

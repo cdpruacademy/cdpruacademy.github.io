@@ -228,7 +228,7 @@ export function PartnersView() {
                           type="color"
                           value={isHexColor(p.color) ? p.color : "#000000"}
                           onChange={(e) => patch(p.id, { color: e.target.value.toUpperCase() })}
-                          className="h-8 w-10 cursor-pointer rounded-md border border-rule"
+                          className="h-9 w-11 cursor-pointer rounded-[10px] border-0 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1)]"
                         />
                         <input
                           aria-label={`${p.name} colour code`}
@@ -344,7 +344,7 @@ export function PartnersView() {
                   aria-label="Pick brand colour"
                   value={isHexColor(form.color) ? form.color : "#000000"}
                   onChange={(e) => setForm({ ...form, color: e.target.value.toUpperCase() })}
-                  className="h-10 w-12 shrink-0 cursor-pointer rounded-xl border border-rule"
+                  className="h-[46px] w-[46px] shrink-0 cursor-pointer rounded-[14px] border-0"
                 />
                 <input id="new-partner-color" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} placeholder="#RRGGBB" className={input} />
               </span>
