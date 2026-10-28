@@ -6,7 +6,7 @@
 
 /* CD Team design tokens: "Brand Hero" (style B, see DESIGN.md).
    Warm paper ground, near-black ink, Prudential red for the top band and the Current step,
-   green for Completed, rounded white cards with a soft shadow. */
+   ink for Completed (red, ink and greys only), rounded white cards with a soft shadow. */
 @theme {
   --color-paper: #f7f5f3;
   --color-surface: #f5f5f4;
@@ -22,16 +22,16 @@
   --color-ink: #1c1917;
   --color-ink-soft: #57534e;
   --color-ink-muted: #57534e;
-  --color-success-ink: #15803d;
-  --color-done: #15803d;         /* Completed */
-  --color-done-soft: #e3f5ea;
-  --color-done-line: #bbe3ca;
+  --color-success-ink: #1c1917;
+  --color-done: #1c1917;         /* Completed: ink (owner decision, 28 Oct 2026) */
+  --color-done-soft: #efedeb;
+  --color-done-line: #d6d3d1;
   --color-enhancement: #78716c;  /* Enhancement series */
   --color-enhancement-hover: #57534e;
   --color-enhancement-ink: #57534e;
-  --color-status-done: #15803d;
-  --color-status-done-ink: #15803d;
-  --color-status-done-tint: #e3f5ea;
+  --color-status-done: #1c1917;
+  --color-status-done-ink: #1c1917;
+  --color-status-done-tint: #efedeb;
   --color-status-active: #ed1b2e;
   --color-status-active-ink: #ed1b2e;
   --color-status-active-tint: #ffe9eb;
@@ -64,13 +64,13 @@
   --color-red-700: #ed1b2e; --color-amber-700: #ed1b2e;
   --color-red-800: #8f0d19; --color-amber-800: #8f0d19;
   --color-red-900: #6e0a13; --color-amber-900: #6e0a13;
-  --color-emerald-50: #e3f5ea; --color-green-50: #e3f5ea;
-  --color-emerald-100: #ccecd8; --color-green-100: #ccecd8;
-  --color-emerald-200: #bbe3ca; --color-green-200: #bbe3ca;
-  --color-emerald-500: #16a34a; --color-green-500: #16a34a;
-  --color-emerald-600: #15803d; --color-green-600: #15803d;
-  --color-emerald-700: #15803d; --color-green-700: #15803d;
-  --color-emerald-800: #166534; --color-green-800: #166534;
+  --color-emerald-50: #efedeb; --color-green-50: #efedeb;
+  --color-emerald-100: #e7e5e4; --color-green-100: #e7e5e4;
+  --color-emerald-200: #d6d3d1; --color-green-200: #d6d3d1;
+  --color-emerald-500: #44403c; --color-green-500: #44403c;
+  --color-emerald-600: #1c1917; --color-green-600: #1c1917;
+  --color-emerald-700: #1c1917; --color-green-700: #1c1917;
+  --color-emerald-800: #1c1917; --color-green-800: #1c1917;
   --color-blue-50: #f5f5f4; --color-blue-100: #e7e5e4; --color-blue-200: #d6d3d1;
   --color-blue-600: #44403c; --color-blue-700: #44403c; --color-blue-900: #1c1917;
 

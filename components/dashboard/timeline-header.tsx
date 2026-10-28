@@ -568,14 +568,14 @@ export function TimelineTrackHeader({
   return (
     <div className={`${compact ? TIMELINE_GRID_COMPACT : TIMELINE_GRID} border-b-2 border-ink`}>
       <div className={`flex items-end ${compact ? "pb-2.5 pl-5" : "pb-3 pl-6"}`}>
-        <span className="text-[13px] font-bold">Project</span>
+        <span className={`font-bold ${compact ? "text-[15px]" : "text-[13px]"}`}>Project</span>
       </div>
       {phases.map((phase, i) => (
         <div key={phase.key} className={`flex flex-col items-center gap-1.5 px-1 text-center ${compact ? "pt-3 pb-2.5" : "pt-4 pb-3"}`}>
           <span className={`flex ${dot} items-center justify-center rounded-full bg-ink text-white`}>
             <Icon name={PHASE_ICONS[phase.key]} size={compact ? 14 : 16} />
           </span>
-          <span className="min-h-[33px] text-[13px] leading-tight font-bold whitespace-pre-line">
+          <span className={`min-h-[33px] leading-tight font-bold whitespace-pre-line ${compact ? "text-[15px]" : "text-[13px]"}`}>
             <span className="text-gray-400">{i + 1} · </span>
             {PHASE_HEADINGS[phase.key]}
           </span>
@@ -585,7 +585,7 @@ export function TimelineTrackHeader({
         <span className={`flex ${dot} items-center justify-center rounded-full bg-brand-ink text-white`}>
           <Icon name="launch" size={compact ? 14 : 16} />
         </span>
-        <span className="min-h-[33px] text-[13px] leading-tight font-bold whitespace-pre-line text-brand-ink">
+        <span className={`min-h-[33px] leading-tight font-bold whitespace-pre-line text-brand-ink ${compact ? "text-[15px]" : "text-[13px]"}`}>
           {"Target\nLaunch"}
         </span>
       </div>

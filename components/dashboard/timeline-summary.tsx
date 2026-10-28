@@ -87,10 +87,10 @@ export function StepTiles({
           >
             <Icon name={t.icon} size={compact ? 20 : 24} />
           </span>
-          <span className={`leading-none font-bold ${compact ? "text-[26px]" : "text-[30px]"} ${t.active ? "text-brand-ink" : "text-gray-400"}`}>
+          <span className={`leading-none font-bold text-[30px] ${t.active ? "text-brand-ink" : "text-gray-400"}`}>
             {t.n}
           </span>
-          <span className="min-h-[30px] text-xs leading-tight font-semibold whitespace-pre-line text-ink">
+          <span className={`min-h-[30px] leading-tight font-semibold whitespace-pre-line text-ink ${compact ? "text-sm" : "text-xs"}`}>
             {t.label}
           </span>
         </div>
@@ -101,8 +101,8 @@ export function StepTiles({
         <span className={`flex items-center justify-center rounded-[14px] bg-done-soft text-done ${compact ? "h-10 w-10" : "h-12 w-12"}`}>
           <Icon name="completed" size={compact ? 20 : 24} />
         </span>
-        <span className={`leading-none font-bold text-done ${compact ? "text-[26px]" : "text-[30px]"}`}>{done}</span>
-        <span className="min-h-[30px] text-xs leading-tight font-semibold text-ink">Completed</span>
+        <span className={`leading-none font-bold text-done text-[30px]`}>{done}</span>
+        <span className={`min-h-[30px] leading-tight font-semibold text-ink ${compact ? "text-sm" : "text-xs"}`}>Completed</span>
       </div>
     </section>
   )

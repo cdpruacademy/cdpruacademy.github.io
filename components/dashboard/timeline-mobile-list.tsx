@@ -88,7 +88,7 @@ export function TimelineMobileList({
                   <React.Fragment key={i}>
                     {i > 0 && (
                       <span
-                        className={`h-0.5 flex-1 ${i <= (isFinished ? kinds.length - 1 : current) && k !== "todo" ? "bg-done" : "border-t-2 border-dashed border-gray-300"}`}
+                        className={`h-0.5 flex-1 ${i <= (isFinished ? kinds.length - 1 : current) && k !== "todo" ? "bg-done" : "bg-rule"}`}
                       />
                     )}
                     <span
@@ -98,8 +98,8 @@ export function TimelineMobileList({
                           : k === "now"
                             ? "h-7 w-7 bg-pru-red text-white shadow-[0_0_0_3px_#FFE1E4]"
                             : k === "todo"
-                              ? "h-5 w-5 border-[1.5px] border-gray-300 text-gray-400"
-                              : "h-1.5 w-3 bg-rule"
+                              ? "h-5 w-5 border-[1.5px] border-stone-300 bg-white text-stone-400"
+                              : "h-0 w-0"
                       }`}
                     >
                       {k === "done" && <Icon name="check" size={11} strokeWidth={3.4} />}
@@ -151,7 +151,7 @@ export function TimelineMobileList({
                               ? "bg-done text-white"
                               : k === "now"
                                 ? "bg-pru-red text-white"
-                                : "border-[1.5px] border-gray-300 text-gray-400"
+                                : "border-[1.5px] border-stone-300 text-stone-400"
                           }`}
                         >
                           <Icon name={k === "done" ? "check" : PHASE_ICONS[phase.key]} size={14} strokeWidth={k === "done" ? 3 : 1.9} />

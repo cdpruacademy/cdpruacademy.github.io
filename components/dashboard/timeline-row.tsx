@@ -42,7 +42,7 @@ export const PHASE_HEADINGS: Record<string, string> = {
 /** Grid shared by the column headings and every row */
 export const TIMELINE_GRID = "grid grid-cols-[300px_repeat(6,minmax(0,1fr))_140px]"
 export const TIMELINE_GRID_COMPACT =
-  "grid grid-cols-[280px_repeat(6,minmax(0,1fr))_112px]"
+  "grid grid-cols-[300px_repeat(6,minmax(0,1fr))_120px]"
 
 /**
  * Where a project stands: the phase the team marked as Current (the isElearningIcon flag),
@@ -147,8 +147,8 @@ export function TimelineRow({
     ? formatShortDate(product.customRightLabel)
     : formatShortDate(product.commercialDate) || "TBC"
   const parts = product.customRightLabel ? null : launchParts(launchText)
-  const launchHead = !parts ? "#A8A29E" : isFinished ? "#15803D" : "#ED1B2E"
-  const launchLine = !parts ? "#E7E5E4" : isFinished ? "#BBE3CA" : "#F8B4BB"
+  const launchHead = !parts ? "#A8A29E" : isFinished ? "#1C1917" : "#ED1B2E"
+  const launchLine = !parts ? "#E7E5E4" : isFinished ? "#D6D3D1" : "#F8B4BB"
 
   const actionButton =
     "touch-target inline-flex h-9 w-9 items-center justify-center rounded-full text-ink-soft hover:bg-surface hover:text-ink"
@@ -204,12 +204,12 @@ export function TimelineRow({
       {/* Project */}
       <div className={`flex min-w-0 flex-col gap-1.5 ${compact ? "py-2.5 pr-3 pl-5" : "py-4 pr-4 pl-6"}`}>
         <span
-          className={`line-clamp-2 leading-snug font-semibold text-ink ${compact ? "text-sm" : "text-[15px]"}`}
+          className={`line-clamp-2 leading-snug font-semibold text-ink ${compact ? "text-lg" : "text-[15px]"}`}
           title={product.name}
         >
           {product.name}
         </span>
-        <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-ink-soft">
+        <span className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 text-ink-soft ${compact ? "text-sm" : "text-xs"}`}>
           <b className="font-semibold text-ink">{product.broker}</b>
           <span className="inline-flex min-w-0 items-center gap-1">
             <Icon name="user" size={13} />
@@ -239,12 +239,12 @@ export function TimelineRow({
             <div className="relative flex h-9 w-full items-center justify-center">
               {segLeft && (
                 <span
-                  className={`absolute left-0 w-1/2 ${i <= reach ? "top-[16px] h-[3px] bg-done" : "top-[17px] h-0 border-t-2 border-dashed border-gray-300"}`}
+                  className={`absolute top-[16px] left-0 h-[3px] w-1/2 ${i <= reach ? "bg-done" : "bg-rule"}`}
                 />
               )}
               {segRight && (
                 <span
-                  className={`absolute right-0 w-1/2 ${i + 1 <= reach ? "top-[16px] h-[3px] bg-done" : "top-[17px] h-0 border-t-2 border-dashed border-gray-300"}`}
+                  className={`absolute top-[16px] right-0 h-[3px] w-1/2 ${i + 1 <= reach ? "bg-done" : "bg-rule"}`}
                 />
               )}
               {k === "done" && (
@@ -258,18 +258,15 @@ export function TimelineRow({
                 </span>
               )}
               {k === "todo" && (
-                <span className="relative flex h-7 w-7 items-center justify-center rounded-full border-[1.5px] border-gray-300 bg-white text-gray-400" title={label}>
+                <span className="relative flex h-7 w-7 items-center justify-center rounded-full border-[1.5px] border-stone-300 bg-white text-stone-400" title={label}>
                   <Icon name={icon} size={14} label={label} />
                 </span>
               )}
-              {k === "skip" && (
-                <span className="relative h-1.5 w-4 rounded-full bg-rule" title={label}>
-                  <span className="sr-only">{label}</span>
-                </span>
-              )}
+              {/* A skipped step is not part of this project: no marker, the line runs straight through */}
+              {k === "skip" && <span className="sr-only">{label}</span>}
             </div>
             <span
-              className={`min-h-4 text-xs whitespace-nowrap ${k === "now" ? "font-bold text-brand-ink" : "text-ink-soft"}`}
+              className={`min-h-4 whitespace-nowrap ${compact ? "text-sm" : "text-xs"} ${k === "now" ? "font-bold text-brand-ink" : "text-ink-soft"}`}
             >
               {milestone?.date ? formatShortDate(milestone.date) : ""}
               {k === "now" && milestone?.date ? " · Current" : ""}
@@ -287,15 +284,15 @@ export function TimelineRow({
       <div className={`flex flex-col items-end gap-1 ${compact ? "pr-4" : "pr-5"}`}>
         {/* Same size whether the date is set or TBC */}
         <span
-          className={`inline-flex flex-col items-center overflow-hidden rounded-xl border bg-white ${compact ? "w-[64px]" : "w-[72px]"}`}
+          className={`inline-flex flex-col items-center overflow-hidden rounded-xl border bg-white ${compact ? "w-[80px]" : "w-[72px]"}`}
           style={{ borderColor: launchLine }}
         >
-          <span className="w-full py-px text-center text-[10px] font-bold text-white" style={{ background: launchHead }}>
+          <span className={`w-full py-px text-center font-bold text-white ${compact ? "text-xs" : "text-[10px]"}`} style={{ background: launchHead }}>
             {parts ? parts.mon : "LAUNCH"}
           </span>
           <span
-            className={`flex w-full items-center justify-center truncate px-1 leading-tight font-bold ${compact ? "h-[26px]" : "h-[30px]"} ${
-              parts ? `text-ink ${compact ? "text-lg" : "text-[22px]"}` : `text-ink-soft ${launchText.length > 4 ? "text-xs" : compact ? "text-base" : "text-lg"}`
+            className={`flex w-full items-center justify-center truncate px-1 leading-tight font-bold ${compact ? "h-[34px]" : "h-[30px]"} ${
+              parts ? `text-ink ${compact ? "text-[24px]" : "text-[22px]"}` : `text-ink-soft ${launchText.length > 4 ? "text-xs" : compact ? "text-xl" : "text-lg"}`
             }`}
             title={launchText}
           >
@@ -303,7 +300,7 @@ export function TimelineRow({
           </span>
         </span>
         {!product.customRightLabel && (
-          <span className="text-[11px] text-ink-soft">
+          <span className={`text-ink-soft ${compact ? "text-[13px]" : "text-[11px]"}`}>
             Internal {formatShortDate(product.internalDate) || "TBC"}
           </span>
         )}
@@ -333,15 +330,15 @@ export function PartnerGroupHeader({
       style={{ background: tintOf(partner.color) }}
     >
       <span
-        className={`inline-flex items-center justify-center rounded-lg text-white ${compact ? "h-6 w-6" : "h-[30px] w-[30px]"}`}
+        className={`inline-flex items-center justify-center rounded-lg text-white ${compact ? "h-7 w-7" : "h-[30px] w-[30px]"}`}
         style={{ background: partner.color }}
       >
         <Icon name="partner" size={compact ? 13 : 16} />
       </span>
-      <b className={compact ? "text-sm" : "text-base"} style={{ color: inkOf(partner.color) }}>
+      <b className={compact ? "text-lg" : "text-base"} style={{ color: inkOf(partner.color) }}>
         {partner.name}
       </b>
-      <span className="text-[13px] text-ink-soft">
+      <span className={`text-ink-soft ${compact ? "text-[15px]" : "text-[13px]"}`}>
         {count} projects · {done} completed
       </span>
     </div>
@@ -351,7 +348,7 @@ export function PartnerGroupHeader({
 /** Key under the table and in the LINE image */
 export function TimelineLegend({ large = false }: { large?: boolean }) {
   return (
-    <div className={`flex flex-wrap items-center gap-x-6 gap-y-2 py-3 text-[13px] text-ink-soft ${large ? "px-5" : "px-6"}`}>
+    <div className={`flex flex-wrap items-center gap-x-6 gap-y-2 py-3 text-ink-soft ${large ? "px-5 text-[15px]" : "px-6 text-[13px]"}`}>
       <span className="inline-flex items-center gap-2">
         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-done text-white">
           <Icon name="check" size={11} strokeWidth={3.4} />
@@ -365,12 +362,8 @@ export function TimelineLegend({ large = false }: { large?: boolean }) {
         Current (icon of that step)
       </span>
       <span className="inline-flex items-center gap-2">
-        <span className="h-5 w-5 rounded-full border-[1.5px] border-gray-300" />
+        <span className="h-5 w-5 rounded-full border-[1.5px] border-stone-300" />
         Upcoming
-      </span>
-      <span className="inline-flex items-center gap-2">
-        <span className="h-1.5 w-4 rounded-full bg-rule" />
-        Skipped
       </span>
     </div>
   )
