@@ -11,9 +11,9 @@ import {
 } from "@/lib/timeline-data"
 import { TimelineHero } from "./timeline-header"
 import { getProgress } from "./timeline-row"
-import { StepTiles, TimelineTable, groupByPartner } from "./timeline-summary"
+import { TimelineTable, groupByPartner } from "./timeline-summary"
 import { Icon } from "@/components/icon"
-import { PageBody, PageHero, card, cardButton } from "@/components/page-hero"
+import { card, cardButton } from "@/components/page-hero"
 import { TimelineMobileList } from "./timeline-mobile-list"
 import { TimelineExportBoard } from "./timeline-export-board"
 import { ChannelSummaryExportBoard } from "@/components/analytics/channel-summary-export-board"
@@ -300,7 +300,9 @@ export function ProductTimeline() {
 
   return (
     <div ref={dashboardRef}>
-      <PageHero>
+      {/* A thin stripe in the type colour: red for New Product, blue for Enhancement */}
+      <div className={`h-1.5 ${timelineType === "enhancement" ? "bg-enh" : "bg-pru-red"}`} />
+      <div className="mx-auto flex w-full max-w-[1360px] flex-col gap-5 px-4 pt-5 pb-12 sm:px-8 sm:pt-7">
         <TimelineHero
           timelineType={timelineType}
           onTimelineTypeChange={setTimelineType}
@@ -322,7 +324,6 @@ export function ProductTimeline() {
                 }
               : undefined
           }
-          groups={isLoaded ? groups : []}
           onAddClick={handleOpenAdd}
           onExportAllClick={handleExportAll}
           onSendLineClick={handleSendToLine}
@@ -332,9 +333,7 @@ export function ProductTimeline() {
           isCloudConnected={isCloudConnected}
           isSyncing={isSyncing}
         />
-      </PageHero>
 
-      <PageBody className="flex flex-col gap-5">
         {syncConflict && (
           <div
             role="alert"
@@ -369,10 +368,6 @@ export function ProductTimeline() {
               Reload latest data
             </button>
           </div>
-        )}
-
-        {isLoaded && (
-          <StepTiles items={currentItems} timelineType={timelineType} />
         )}
 
         {!isLoaded ? (
@@ -489,7 +484,7 @@ export function ProductTimeline() {
           <span>{isAdmin ? "Admin mode" : "View only"}</span>
           <span>Prudential Thailand · ฝ่ายพัฒนาหลักสูตร</span>
         </footer>
-      </PageBody>
+      </div>
 
       {isModalOpen && (
         <ProductFormModal

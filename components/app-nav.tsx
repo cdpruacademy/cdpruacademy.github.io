@@ -44,8 +44,10 @@ export function AppNav() {
       item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
     const locked = item.adminOnly && !isAdmin
     const top =
-      "touch-target inline-flex h-10 items-center gap-2 rounded-full px-4 text-[15px] whitespace-nowrap transition-colors " +
-      (isActive ? "bg-white/20 font-bold text-white" : "text-white hover:bg-white/10")
+      "touch-target inline-flex h-[64px] items-center gap-2 px-4 text-[15px] whitespace-nowrap transition-colors md:h-[72px] " +
+      (isActive
+        ? "font-bold text-ink shadow-[inset_0_-3px_0_var(--color-pru-red)]"
+        : "text-ink-soft hover:text-ink")
     const bottom =
       "flex flex-col items-center justify-center gap-0.5 text-xs " +
       (isActive ? "font-bold text-brand-ink" : "text-ink-soft")
@@ -84,15 +86,15 @@ export function AppNav() {
 
   return (
     <>
-      <header className="bg-pru-red text-white">
+      <header className="border-b border-rule bg-white text-ink">
         <div className="mx-auto flex h-[64px] max-w-[1360px] items-center justify-between gap-4 px-4 sm:px-8 md:h-[72px]">
           <div className="flex min-w-0 items-center gap-6">
-            <span className="inline-flex rounded-xl bg-white px-2.5 py-1.5">
+            <span className="inline-flex">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={`${BASE_PATH}/prudential-logo-th.png`}
                 alt="พรูเด็นเชียล ประกันชีวิต"
-                className="h-[22px] w-auto md:h-[26px]"
+                className="h-[26px] w-auto md:h-[30px]"
               />
             </span>
             <nav aria-label="เมนูหลัก" className="hidden items-center gap-1 md:flex">
@@ -103,7 +105,7 @@ export function AppNav() {
           <div className="flex items-center gap-2">
             {isAdmin ? (
               <>
-                <span className="hidden items-center gap-1.5 rounded-full bg-black/20 px-3 py-1.5 text-[13px] font-semibold sm:inline-flex">
+                <span className="hidden items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[13px] font-semibold sm:inline-flex">
                   <Icon name="lock" size={14} />
                   Admin
                 </span>
@@ -112,7 +114,7 @@ export function AppNav() {
                   onClick={() => void logout()}
                   aria-label="ออกจากโหมด Admin"
                   title="ออกจากโหมด Admin"
-                  className="inline-flex h-10 w-10 touch-target items-center justify-center rounded-full border-[1.5px] border-white/55 text-white hover:bg-white/15"
+                  className="inline-flex h-10 w-10 touch-target items-center justify-center rounded-full border border-rule text-ink hover:bg-surface"
                 >
                   <Icon name="logout" size={18} />
                 </button>
@@ -121,7 +123,7 @@ export function AppNav() {
               <button
                 type="button"
                 onClick={() => setIsLoginModalOpen(true)}
-                className="inline-flex h-10 touch-target items-center gap-2 rounded-full border-[1.5px] border-white/55 px-4 text-sm font-semibold text-white hover:bg-white/15"
+                className="inline-flex h-10 touch-target items-center gap-2 rounded-full border border-rule px-4 text-sm font-semibold text-ink hover:bg-surface"
               >
                 <Icon name="lock" size={16} />
                 <span>Admin login</span>

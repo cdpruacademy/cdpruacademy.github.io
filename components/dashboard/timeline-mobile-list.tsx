@@ -40,6 +40,7 @@ export function TimelineMobileList({
     <ul className="flex flex-col gap-3">
       {items.map((item) => {
         const { phases, kinds, current, isFinished } = stepKinds(item, timelineType)
+        const toneBg = isFinished ? "bg-done" : item.isPaused ? "bg-stone-600" : "bg-pru-red"
         const partner = partnerOf(item.broker, partners)
         const isOpen = openId === item.id
         const panelId = `mobile-steps-${item.id}`
@@ -88,15 +89,17 @@ export function TimelineMobileList({
                   <React.Fragment key={i}>
                     {i > 0 && (
                       <span
-                        className={`h-0.5 flex-1 ${i <= (isFinished ? kinds.length - 1 : current) && k !== "todo" ? "bg-done" : "bg-rule"}`}
+                        className={`h-0.5 flex-1 ${i <= (isFinished ? kinds.length - 1 : current) && k !== "todo" ? toneBg : "bg-rule"}`}
                       />
                     )}
                     <span
                       className={`flex shrink-0 items-center justify-center rounded-full ${
                         k === "done"
-                          ? "h-5 w-5 bg-done text-white"
+                          ? `h-5 w-5 text-white ${toneBg}`
                           : k === "now"
-                            ? "h-7 w-7 bg-pru-red text-white shadow-[0_0_0_3px_#FFE1E4]"
+                            ? item.isPaused
+                              ? "h-7 w-7 bg-stone-600 text-white shadow-[0_0_0_3px_#E7E5E4]"
+                              : "h-7 w-7 bg-pru-red text-white shadow-[0_0_0_3px_#FFE1E4]"
                             : k === "todo"
                               ? "h-5 w-5 border-[1.5px] border-stone-300 bg-white text-stone-400"
                               : "h-0 w-0"
@@ -148,7 +151,7 @@ export function TimelineMobileList({
                         <span
                           className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
                             k === "done"
-                              ? "bg-done text-white"
+                              ? `text-white ${toneBg}`
                               : k === "now"
                                 ? "bg-pru-red text-white"
                                 : "border-[1.5px] border-stone-300 text-stone-400"

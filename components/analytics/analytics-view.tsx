@@ -551,7 +551,7 @@ export function AnalyticsView() {
         paused: 0,
       }
       return [
-        { label: "Completed", value: mStat.completed, color: "#1C1917" },
+        { label: "Completed", value: mStat.completed, color: "#15803D" },
         {
           label: "In progress",
           value: mStat.pending,
@@ -1230,7 +1230,7 @@ export function AnalyticsView() {
                   {(
                     [
                       { key: "pending", label: "In progress", n: modalPendingItems.length, icon: "inProgress", fg: "text-brand-ink", soft: "bg-pru-red-soft", solid: "bg-pru-red", ring: "border-pru-red-line" },
-                      { key: "completed", label: "Completed", n: modalCompletedItems.length, icon: "completed", fg: "text-done", soft: "bg-done-soft", solid: "bg-done", ring: "border-[#D6D3D1]" },
+                      { key: "completed", label: "Completed", n: modalCompletedItems.length, icon: "completed", fg: "text-done", soft: "bg-done-soft", solid: "bg-done", ring: "border-[#bbe3ca]" },
                       { key: "paused", label: "On hold", n: modalPausedItems.length, icon: "onHold", fg: "text-ink-soft", soft: "bg-surface", solid: "bg-ink-soft", ring: "border-stone-300" },
                     ] as const
                   ).map((t) => {
@@ -1376,7 +1376,7 @@ export function AnalyticsView() {
                               </span>
                               <span
                                 className={`col-start-2 row-start-1 w-16 justify-self-center overflow-hidden rounded-xl border-[1.5px] text-center md:col-start-auto md:row-start-auto ${
-                                  !hasDate ? "border-rule" : item.isCompleted ? "border-[#D6D3D1]" : "border-pru-red-line"
+                                  !hasDate ? "border-rule" : item.isCompleted ? "border-[#bbe3ca]" : "border-pru-red-line"
                                 }`}
                               >
                                 <span

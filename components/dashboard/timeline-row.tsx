@@ -147,8 +147,11 @@ export function TimelineRow({
     ? formatShortDate(product.customRightLabel)
     : formatShortDate(product.commercialDate) || "TBC"
   const parts = product.customRightLabel ? null : launchParts(launchText)
-  const launchHead = !parts ? "#A8A29E" : isFinished ? "#1C1917" : "#ED1B2E"
-  const launchLine = !parts ? "#E7E5E4" : isFinished ? "#D6D3D1" : "#F8B4BB"
+  // One colour per project: red while in progress, green once finished, dark grey on hold
+  const tone = isFinished ? "done" : product.isPaused ? "hold" : "active"
+  const toneBg = { done: "bg-done", hold: "bg-stone-600", active: "bg-pru-red" }[tone]
+  const launchHead = !parts ? "#A8A29E" : { done: "#15803D", hold: "#57534E", active: "#ED1B2E" }[tone]
+  const launchLine = !parts ? "#E7E5E4" : { done: "#BBE3CA", hold: "#D6D3D1", active: "#F8B4BB" }[tone]
 
   const actionButton =
     "touch-target inline-flex h-9 w-9 items-center justify-center rounded-full text-ink-soft hover:bg-surface hover:text-ink"
@@ -239,21 +242,21 @@ export function TimelineRow({
             <div className="relative flex h-9 w-full items-center justify-center">
               {segLeft && (
                 <span
-                  className={`absolute top-[16px] left-0 h-[3px] w-1/2 ${i <= reach ? "bg-done" : "bg-rule"}`}
+                  className={`absolute top-[16px] left-0 h-[3px] w-1/2 ${i <= reach ? toneBg : "bg-rule"}`}
                 />
               )}
               {segRight && (
                 <span
-                  className={`absolute top-[16px] right-0 h-[3px] w-1/2 ${i + 1 <= reach ? "bg-done" : "bg-rule"}`}
+                  className={`absolute top-[16px] right-0 h-[3px] w-1/2 ${i + 1 <= reach ? toneBg : "bg-rule"}`}
                 />
               )}
               {k === "done" && (
-                <span className="relative flex h-7 w-7 items-center justify-center rounded-full bg-done text-white" title={label}>
+                <span className={`relative flex h-7 w-7 items-center justify-center rounded-full text-white ${toneBg}`} title={label}>
                   <Icon name="check" size={14} strokeWidth={3} label={label} />
                 </span>
               )}
               {k === "now" && (
-                <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-pru-red text-white shadow-[0_0_0_5px_#FFE1E4]" title={label}>
+                <span className={`relative flex h-9 w-9 items-center justify-center rounded-full text-white ${tone === "hold" ? "bg-stone-600 shadow-[0_0_0_5px_#E7E5E4]" : "bg-pru-red shadow-[0_0_0_5px_#FFE1E4]"}`} title={label}>
                   <Icon name={icon} size={18} strokeWidth={2} label={label} />
                 </span>
               )}
@@ -266,13 +269,14 @@ export function TimelineRow({
               {k === "skip" && <span className="sr-only">{label}</span>}
             </div>
             <span
-              className={`min-h-4 whitespace-nowrap ${compact ? "text-sm" : "text-xs"} ${k === "now" ? "font-bold text-brand-ink" : "text-ink-soft"}`}
+              className={`whitespace-nowrap ${compact ? "h-5 text-sm leading-5" : "h-4 text-xs leading-4"} ${k === "now" ? `font-bold ${tone === "hold" ? "text-stone-600" : "text-brand-ink"}` : "text-ink-soft"}`}
             >
               {milestone?.date ? formatShortDate(milestone.date) : ""}
               {k === "now" && milestone?.date ? " · Current" : ""}
             </span>
             {phase.key === "internal-training" && product.csDate && (
-              <span className="text-[11px] whitespace-nowrap text-ink-soft">
+              // Kept out of the flow so every step cell has the same height and the line stays straight
+              <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[11px] leading-none whitespace-nowrap text-ink-soft">
                 CS {formatShortDate(product.csDate)}
               </span>
             )}
@@ -345,21 +349,35 @@ export function PartnerGroupHeader({
   )
 }
 
-/** Key under the table and in the LINE image */
+/** Key under the table and in the LINE image: a project's colour shows where it stands */
 export function TimelineLegend({ large = false }: { large?: boolean }) {
+  const swatch = (bg: string) => (
+    <span className="flex items-center" aria-hidden="true">
+      <span className={`h-[3px] w-3 ${bg}`} />
+      <span className={`flex h-5 w-5 items-center justify-center rounded-full text-white ${bg}`}>
+        <Icon name="check" size={11} strokeWidth={3.4} />
+      </span>
+    </span>
+  )
   return (
     <div className={`flex flex-wrap items-center gap-x-6 gap-y-2 py-3 text-ink-soft ${large ? "px-5 text-[15px]" : "px-6 text-[13px]"}`}>
       <span className="inline-flex items-center gap-2">
-        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-done text-white">
-          <Icon name="check" size={11} strokeWidth={3.4} />
-        </span>
+        {swatch("bg-pru-red")}
+        In progress
+      </span>
+      <span className="inline-flex items-center gap-2">
+        {swatch("bg-done")}
         Completed
       </span>
       <span className="inline-flex items-center gap-2">
-        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-pru-red text-white">
+        {swatch("bg-stone-600")}
+        On hold
+      </span>
+      <span className="inline-flex items-center gap-2">
+        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-pru-red text-white shadow-[0_0_0_3px_#FFE1E4]">
           <Icon name="kickoff" size={11} strokeWidth={2.4} />
         </span>
-        Current (icon of that step)
+        Current step
       </span>
       <span className="inline-flex items-center gap-2">
         <span className="h-5 w-5 rounded-full border-[1.5px] border-stone-300" />

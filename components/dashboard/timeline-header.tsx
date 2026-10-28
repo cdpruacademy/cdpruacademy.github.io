@@ -14,15 +14,8 @@ import {
 import { Loader2 } from "lucide-react"
 import { CloudStatusBadge } from "./cloud-status-badge"
 import { Icon, PHASE_ICONS, type IconName } from "@/components/icon"
-import {
-  HeroSegment,
-  card,
-  cardButton,
-  heroButton,
-  heroButtonSolid,
-} from "@/components/page-hero"
+import { cardButton, cardButtonDark } from "@/components/page-hero"
 import { PHASE_HEADINGS, TIMELINE_GRID, TIMELINE_GRID_COMPACT } from "./timeline-row"
-import { PartnerGroup, PartnerMix } from "./timeline-summary"
 
 export const THAI_MONTHS = [
   "มกราคม",
@@ -78,7 +71,6 @@ interface TimelineHeroProps {
   asOfText: string
   onAsOfChange: (asOf: string) => void
   counts?: { total: number; completed: number; inProgress: number; onHold: number }
-  groups: PartnerGroup[]
   onAddClick: () => void
   onExportAllClick: () => void
   onSendLineClick?: () => void
@@ -89,10 +81,37 @@ interface TimelineHeroProps {
   isSyncing?: boolean
 }
 
-const heroSelect =
-  "h-10 rounded-full border-[1.5px] border-white/55 bg-transparent px-4 text-sm font-semibold text-white [&>option]:text-ink"
+/** "NEW PRODUCT" or "ENHANCEMENT" in a white pill, so the two timelines are told apart at a glance */
+export function TimelineTypeBadge({
+  timelineType,
+  large = false,
+  soft = false,
+}: {
+  timelineType: TimelineType
+  large?: boolean
+  /** On white: a tinted pill instead of a white one */
+  soft?: boolean
+}) {
+  const isEnhancement = timelineType === "enhancement"
+  const bg = soft ? (isEnhancement ? "bg-enh-soft" : "bg-pru-red-soft") : "bg-white"
+  return (
+    <span
+      className={`inline-flex items-center gap-2 self-start rounded-full font-bold tracking-[0.06em] ${bg} ${
+        isEnhancement ? "text-enh" : "text-brand-ink"
+      } ${large ? "h-11 pr-5 pl-3.5 text-lg" : soft ? "h-8 pr-3.5 pl-2.5 text-[13px]" : "h-9 pr-4 pl-3 text-sm"}`}
+    >
+      <Icon name={isEnhancement ? "wrench" : "product"} size={large ? 22 : 18} strokeWidth={2} />
+      {isEnhancement ? "ENHANCEMENT" : "NEW PRODUCT"}
+    </span>
+  )
+}
 
-/** The red band of the Timeline page: controls, the month's headline numbers and the partner mix */
+const TYPE_OPTIONS = [
+  { value: "product", label: "New Product", icon: "product" },
+  { value: "enhancement", label: "Enhancement", icon: "wrench" },
+] as const
+
+/** Top of the Timeline page: controls, then one summary card (number, statuses, partner mix) */
 export function TimelineHero({
   timelineType,
   onTimelineTypeChange,
@@ -105,7 +124,6 @@ export function TimelineHero({
   asOfText,
   onAsOfChange,
   counts,
-  groups,
   onAddClick,
   onExportAllClick,
   onSendLineClick,
@@ -139,14 +157,14 @@ export function TimelineHero({
     setIsEditingAsOf(false)
   }
 
-  const roundButton =
-    "touch-target inline-flex h-10 w-10 items-center justify-center rounded-full border-[1.5px] border-white/55 text-white hover:bg-white/15 disabled:opacity-40"
+  // New Product is red, Enhancement is blue
+  const typeColor = timelineType === "enhancement" ? "#1E4FA3" : "#ED1B2E"
 
   return (
     <div className="flex flex-col gap-4 md:gap-6">
       {/* Phone controls: type, one month button and a "more" menu; Add project floats above the tab bar */}
       <div className="flex flex-col gap-3 md:hidden">
-        <div role="tablist" aria-label="Timeline type" className="grid grid-cols-2 gap-0.5 rounded-full bg-black/20 p-[3px]">
+        <div role="tablist" aria-label="Timeline type" className="grid grid-cols-2 gap-1 rounded-full bg-white p-1 shadow-[inset_0_0_0_1px_var(--color-rule)]">
           {(
             [
               { value: "product", label: "New Product" },
@@ -161,7 +179,7 @@ export function TimelineHero({
                 role="tab"
                 aria-selected={on}
                 onClick={() => onTimelineTypeChange(o.value)}
-                className={`touch-target h-[34px] rounded-full text-sm font-semibold ${on ? "bg-white text-brand-ink" : "text-white"}`}
+                className={`touch-target h-[34px] rounded-full text-sm font-semibold ${on ? `${o.value === "enhancement" ? "bg-enh" : "bg-pru-red"} text-white` : "text-ink"}`}
               >
                 {o.label}
               </button>
@@ -169,13 +187,13 @@ export function TimelineHero({
           })}
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex h-11 flex-1 items-center rounded-full bg-black/20">
+          <div className="flex h-11 flex-1 items-center rounded-full bg-white shadow-[inset_0_0_0_1px_var(--color-rule)]">
             <button
               type="button"
               onClick={() => currentIndex > 0 && onMonthChange(displayMonths[currentIndex - 1])}
               disabled={currentIndex <= 0}
               aria-label="Previous month"
-              className="touch-target flex h-11 w-11 items-center justify-center text-white disabled:opacity-40"
+              className="touch-target flex h-11 w-11 items-center justify-center text-ink disabled:opacity-40"
             >
               <Icon name="chevronLeft" size={18} strokeWidth={2.2} />
             </button>
@@ -186,7 +204,7 @@ export function TimelineHero({
                 setSheet("month")
               }}
               aria-haspopup="dialog"
-              className="touch-target inline-flex h-11 flex-1 items-center justify-center gap-1.5 text-base font-bold text-white"
+              className="touch-target inline-flex h-11 flex-1 items-center justify-center gap-1.5 text-base font-bold text-ink"
             >
               {monthLabel(selectedMonth)}
               <Icon name="chevronDown" size={14} strokeWidth={2.4} />
@@ -198,7 +216,7 @@ export function TimelineHero({
               }
               disabled={currentIndex >= displayMonths.length - 1}
               aria-label="Next month"
-              className="touch-target flex h-11 w-11 items-center justify-center text-white disabled:opacity-40"
+              className="touch-target flex h-11 w-11 items-center justify-center text-ink disabled:opacity-40"
             >
               <Icon name="chevronRight" size={18} strokeWidth={2.2} />
             </button>
@@ -208,7 +226,7 @@ export function TimelineHero({
             onClick={() => setSheet("more")}
             aria-label="More"
             aria-haspopup="dialog"
-            className={`touch-target flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-[1.5px] border-white/55 ${sheet === "more" ? "bg-white text-brand-ink" : "text-white"}`}
+            className={`touch-target flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-rule ${sheet === "more" ? "bg-ink text-white" : "bg-white text-ink"}`}
           >
             <Icon name="more" size={20} strokeWidth={3} />
           </button>
@@ -365,60 +383,76 @@ export function TimelineHero({
       )}
 
       {/* Controls (tablet and desktop) */}
-      <div className="hidden flex-wrap items-center justify-between gap-3 md:flex">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <HeroSegment
-            label="Timeline type"
-            value={timelineType}
-            onChange={onTimelineTypeChange}
-            options={[
-              { value: "product", label: "New Product" },
-              { value: "enhancement", label: "Enhancement" },
-            ]}
-          />
-          <button
-            type="button"
-            onClick={() => currentIndex > 0 && onMonthChange(displayMonths[currentIndex - 1])}
-            disabled={currentIndex <= 0}
-            aria-label="Previous month"
-            className={roundButton}
-          >
-            <Icon name="chevronLeft" size={18} strokeWidth={2} />
-          </button>
-          <label className="inline-flex items-center">
-            <span className="sr-only">Month</span>
-            <select
-              value={currentIndex >= 0 ? selectedMonth : ""}
-              onChange={(e) => onMonthChange(e.target.value)}
-              className={`${heroSelect} text-base font-bold`}
+      <div className="hidden flex-wrap items-center justify-between gap-4 md:flex">
+        <div className="flex flex-wrap items-center gap-4">
+          <h1 className="text-[32px] leading-tight font-bold">Timeline</h1>
+          <div role="tablist" aria-label="Timeline type" className="inline-flex gap-1 rounded-full bg-white p-1 shadow-[inset_0_0_0_1px_var(--color-rule)]">
+            {TYPE_OPTIONS.map((o) => {
+              const on = o.value === timelineType
+              return (
+                <button
+                  key={o.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={on}
+                  onClick={() => onTimelineTypeChange(o.value)}
+                  className={`touch-target inline-flex h-10 items-center gap-2 rounded-full px-[18px] text-[15px] font-bold transition-colors ${
+                    on ? `${o.value === "enhancement" ? "bg-enh" : "bg-pru-red"} text-white` : "text-ink hover:bg-surface"
+                  }`}
+                >
+                  <Icon name={o.icon} size={18} />
+                  {o.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex h-10 items-center rounded-full bg-white shadow-[inset_0_0_0_1px_var(--color-rule)]">
+            <button
+              type="button"
+              onClick={() => currentIndex > 0 && onMonthChange(displayMonths[currentIndex - 1])}
+              disabled={currentIndex <= 0}
+              aria-label="Previous month"
+              className="touch-target flex h-10 w-10 items-center justify-center rounded-full text-ink hover:bg-surface disabled:opacity-40"
             >
-              {displayMonths.map((m) => (
-                <option key={m} value={m}>
-                  {monthLabel(m)}
-                  {getMonthStatus(m) === "current" ? " (this month)" : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            onClick={() =>
-              currentIndex < displayMonths.length - 1 &&
-              onMonthChange(displayMonths[currentIndex + 1])
-            }
-            disabled={currentIndex >= displayMonths.length - 1}
-            aria-label="Next month"
-            className={roundButton}
-          >
-            <Icon name="chevronRight" size={18} strokeWidth={2} />
-          </button>
+              <Icon name="chevronLeft" size={18} strokeWidth={2} />
+            </button>
+            <label className="inline-flex items-center">
+              <span className="sr-only">Month</span>
+              <select
+                value={currentIndex >= 0 ? selectedMonth : ""}
+                onChange={(e) => onMonthChange(e.target.value)}
+                className="h-10 bg-transparent px-1 text-[15px] font-bold text-ink focus:outline-none"
+              >
+                {displayMonths.map((m) => (
+                  <option key={m} value={m}>
+                    {monthLabel(m)}
+                    {getMonthStatus(m) === "current" ? " (this month)" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={() =>
+                currentIndex < displayMonths.length - 1 && onMonthChange(displayMonths[currentIndex + 1])
+              }
+              disabled={currentIndex >= displayMonths.length - 1}
+              aria-label="Next month"
+              className="touch-target flex h-10 w-10 items-center justify-center rounded-full text-ink hover:bg-surface disabled:opacity-40"
+            >
+              <Icon name="chevronRight" size={18} strokeWidth={2} />
+            </button>
+          </span>
           {onYearChange && (
             <label className="inline-flex items-center">
               <span className="sr-only">Year</span>
               <select
                 value={activeYear}
                 onChange={(e) => onYearChange(parseInt(e.target.value, 10))}
-                className={heroSelect}
+                className="h-10 rounded-full border border-rule bg-white px-4 text-sm font-semibold text-ink"
               >
                 {yearsList.map((y) => (
                   <option key={y} value={y}>
@@ -429,25 +463,26 @@ export function TimelineHero({
             </label>
           )}
           {selectedMonth !== systemMonth && (
-            <button type="button" onClick={goToCurrent} className="touch-target h-10 px-2 text-sm font-semibold text-white underline underline-offset-4">
+            <button type="button" onClick={goToCurrent} className="touch-target h-10 px-2 text-sm font-semibold text-ink underline underline-offset-4">
               This month
             </button>
           )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={onExportAllClick} disabled={isExporting} className={`${heroButton} hidden md:inline-flex`}>
+          <button type="button" onClick={onExportAllClick} disabled={isExporting} className={cardButton}>
             {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon name="download" size={18} />}
             {isExporting ? "Saving…" : "Save image"}
           </button>
           {onSendLineClick && (
-            <button type="button" onClick={onSendLineClick} disabled={isSendingLine} className={heroButton}>
+            <button type="button" onClick={onSendLineClick} disabled={isSendingLine} className={cardButtonDark}>
               {isSendingLine ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon name="send" size={18} />}
               {isSendingLine ? "Sending…" : "Send to LINE"}
             </button>
           )}
           {isAdmin && (
-            <button type="button" onClick={onAddClick} className={heroButtonSolid}>
+            <button
+              type="button"
+              onClick={onAddClick}
+              className="touch-target inline-flex h-10 items-center gap-2 rounded-full bg-pru-red px-4 text-sm font-bold whitespace-nowrap text-white transition hover:brightness-95"
+            >
               <Icon name="plus" size={18} strokeWidth={2.2} />
               Add project
             </button>
@@ -455,16 +490,20 @@ export function TimelineHero({
         </div>
       </div>
 
-      {/* Headline numbers and partner mix */}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_440px] lg:items-end">
-        <div className="flex flex-col gap-4">
+      {/* Summary: one card filled with the tab's colour (red New Product, blue Enhancement) */}
+      <section
+        className="flex flex-col gap-5 rounded-[24px] px-5 py-5 text-white sm:px-8 sm:py-7 lg:flex-row lg:items-end lg:justify-between"
+        style={{ backgroundColor: typeColor }}
+      >
+        <div className="flex flex-col gap-3">
+          <TimelineTypeBadge timelineType={timelineType} />
           <div className="flex items-end gap-4">
-            <span className="text-[72px] leading-[0.82] font-bold tracking-[-0.04em] sm:text-[124px]">
+            <span className="text-[64px] leading-[0.82] font-bold tracking-[-0.04em] tabular-nums sm:text-[104px]">
               {counts?.total ?? "–"}
             </span>
-            <span className="pb-1.5 text-2xl leading-tight font-bold sm:text-[30px]">
+            <span className="pb-1 text-xl leading-tight font-bold sm:text-[28px]">
               Projects
-              <span className="mt-1 flex flex-wrap items-center gap-x-2 text-[15px] font-medium">
+              <span className="mt-1 flex flex-wrap items-center gap-x-2 text-sm font-medium sm:text-[15px]">
                 {isEditingAsOf ? (
                   <span className="export-hide inline-flex items-center gap-2">
                     <label htmlFor="as-of-input" className="sr-only">Last updated</label>
@@ -495,10 +534,10 @@ export function TimelineHero({
                     title="Edit the date of this data"
                     className="underline decoration-dotted underline-offset-4"
                   >
-                    Last updated · {asOfText}
+                    {monthLabel(selectedMonth)} · {asOfText}
                   </button>
                 ) : (
-                  <span>Last updated · {asOfText}</span>
+                  <span>{monthLabel(selectedMonth)} · {asOfText}</span>
                 )}
                 <span className="export-hide">
                   <CloudStatusBadge isCloudConnected={isCloudConnected} isSyncing={isSyncing} />
@@ -506,56 +545,36 @@ export function TimelineHero({
               </span>
             </span>
           </div>
-          {counts && (
-            <p className="text-[15px] sm:hidden">
-              {counts.completed} Completed · {counts.inProgress} In progress
-              {counts.onHold > 0 && ` · ${counts.onHold} On hold`}
-            </p>
-          )}
-          {counts && (
-            <div className="hidden flex-wrap gap-2.5 sm:flex">
-              <span className="inline-flex items-center gap-2 rounded-full bg-white py-1.5 pr-3.5 pl-2 font-bold text-done">
-                <Icon name="completed" size={22} strokeWidth={2} />
-                {counts.completed} Completed
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-full bg-white py-1.5 pr-3.5 pl-2 font-bold text-brand-ink">
-                <Icon name="inProgress" size={22} strokeWidth={2} />
-                {counts.inProgress} In progress
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-full bg-black/20 py-1.5 pr-3.5 pl-2 font-semibold">
-                <Icon name="onHold" size={22} strokeWidth={2} />
-                {counts.onHold} On hold
-              </span>
-            </div>
-          )}
         </div>
-        {groups.length > 0 && (
-          <div
-            className="flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-white p-0.5 sm:hidden"
-            role="img"
-            aria-label={groups.map((g) => `${g.partner.name} ${g.items.length}`).join(", ")}
-          >
-            {groups.map((g) => (
-              <span
-                key={g.partner.id}
-                className="rounded-full"
-                style={{ flex: g.items.length, backgroundColor: g.partner.color }}
-              />
+
+        {counts && (
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:w-[540px]">
+            {(
+              [
+                { n: counts.inProgress, label: "In progress", icon: "inProgress" },
+                { n: counts.completed, label: "Completed", icon: "completed" },
+                { n: counts.onHold, label: "On hold", icon: "onHold" },
+              ] as const
+            ).map((s) => (
+              <span key={s.label} className="flex flex-col gap-1 rounded-[18px] bg-white/15 px-3 py-3 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.25)] sm:px-4 sm:py-4">
+                <span className="flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap sm:text-sm">
+                  <Icon name={s.icon} size={18} strokeWidth={2} className="hidden shrink-0 sm:block" />
+                  {s.label}
+                </span>
+                <b className="text-[28px] leading-none tabular-nums sm:text-[36px]">{s.n}</b>
+              </span>
             ))}
           </div>
         )}
-        {groups.length > 0 && (
-          <div className={`${card} hidden p-5 text-ink sm:block`}>
-            <b className="mb-3.5 block text-[15px]">Projects by partner</b>
-            <PartnerMix groups={groups} />
-          </div>
-        )}
-      </div>
+      </section>
     </div>
   )
 }
 
-/** Column headings shared by the page table and the LINE image */
+/**
+ * Column headings shared by the page table and the LINE image: one rounded box per step.
+ * Steps share one quiet colour; Internal Training is red and Target Launch is green.
+ */
 export function TimelineTrackHeader({
   timelineType,
   compact = false,
@@ -564,30 +583,31 @@ export function TimelineTrackHeader({
   compact?: boolean
 }) {
   const phases = timelineType === "enhancement" ? ENHANCEMENT_PHASES : PRODUCT_PHASES
-  const dot = compact ? "h-7 w-7" : "h-8 w-8"
+  const box = `flex h-full flex-col items-center justify-center gap-1.5 rounded-2xl px-1.5 text-center ${compact ? "py-2.5" : "py-3"}`
+  const label = `leading-tight font-bold whitespace-pre-line ${compact ? "text-[15px]" : "text-[13px]"}`
   return (
-    <div className={`${compact ? TIMELINE_GRID_COMPACT : TIMELINE_GRID} border-b-2 border-ink`}>
-      <div className={`flex items-end ${compact ? "pb-2.5 pl-5" : "pb-3 pl-6"}`}>
+    <div className={`${compact ? TIMELINE_GRID_COMPACT : TIMELINE_GRID} border-b border-rule py-3`}>
+      <div className={`flex items-end ${compact ? "pl-5" : "pl-6"}`}>
         <span className={`font-bold ${compact ? "text-[15px]" : "text-[13px]"}`}>Project</span>
       </div>
-      {phases.map((phase, i) => (
-        <div key={phase.key} className={`flex flex-col items-center gap-1.5 px-1 text-center ${compact ? "pt-3 pb-2.5" : "pt-4 pb-3"}`}>
-          <span className={`flex ${dot} items-center justify-center rounded-full bg-ink text-white`}>
-            <Icon name={PHASE_ICONS[phase.key]} size={compact ? 14 : 16} />
-          </span>
-          <span className={`min-h-[33px] leading-tight font-bold whitespace-pre-line ${compact ? "text-[15px]" : "text-[13px]"}`}>
-            <span className="text-gray-400">{i + 1} · </span>
-            {PHASE_HEADINGS[phase.key]}
-          </span>
+      {phases.map((phase, i) => {
+        const isTraining = phase.key === "internal-training"
+        return (
+          <div key={phase.key} className="px-1">
+            <div className={`${box} ${isTraining ? "bg-pru-red text-white" : "bg-[#efedeb] text-ink"}`}>
+              <Icon name={PHASE_ICONS[phase.key]} size={compact ? 18 : 17} strokeWidth={1.9} />
+              <span className={label}>
+                {i + 1} · {PHASE_HEADINGS[phase.key]}
+              </span>
+            </div>
+          </div>
+        )
+      })}
+      <div className={compact ? "pr-4 pl-1" : "pr-5 pl-1"}>
+        <div className={`${box} bg-done text-white`}>
+          <Icon name="launch" size={compact ? 18 : 17} strokeWidth={1.9} />
+          <span className={label}>{"Target\nLaunch"}</span>
         </div>
-      ))}
-      <div className={`flex flex-col items-center gap-1.5 text-center ${compact ? "pt-3 pb-2.5" : "pt-4 pb-3"}`}>
-        <span className={`flex ${dot} items-center justify-center rounded-full bg-brand-ink text-white`}>
-          <Icon name="launch" size={compact ? 14 : 16} />
-        </span>
-        <span className={`min-h-[33px] leading-tight font-bold whitespace-pre-line text-brand-ink ${compact ? "text-[15px]" : "text-[13px]"}`}>
-          {"Target\nLaunch"}
-        </span>
       </div>
     </div>
   )

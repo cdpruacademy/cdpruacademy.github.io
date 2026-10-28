@@ -1,6 +1,6 @@
 import * as React from "react"
 
-/** Buttons that sit on the red band */
+/** Buttons that sit on the red card */
 export const heroButton =
   "touch-target inline-flex h-10 items-center gap-2 rounded-full border-[1.5px] border-white/55 px-4 text-sm font-semibold whitespace-nowrap text-white transition-colors hover:bg-white/15 disabled:opacity-50"
 export const heroButtonSolid =
@@ -16,16 +16,25 @@ export const cardButtonDark =
 export const card = "rounded-[20px] bg-white shadow-[var(--shadow-card)]"
 
 /**
- * The Prudential-red band at the top of every page. It continues the red nav bar,
- * and the page body (PageBody) overlaps its lower edge.
+ * The red card at the top of each page, under the white nav (the "Clean" look).
+ * Pages put their title, numbers and controls in it, in white.
  */
-export function PageHero({ children }: { children: React.ReactNode }) {
+export function PageHero({
+  children,
+  tone = "red",
+}: {
+  children: React.ReactNode
+  /** "blue" is the Enhancement colour */
+  tone?: "red" | "blue"
+}) {
   return (
-    <section className="bg-pru-red text-white">
-      <div className="mx-auto w-full max-w-[1360px] px-4 pt-4 pb-24 sm:px-8 sm:pt-6">
+    <div className="mx-auto w-full max-w-[1360px] px-4 pt-5 sm:px-8 sm:pt-7">
+      <section
+        className={`rounded-[24px] px-5 py-6 text-white sm:px-8 sm:py-7 ${tone === "blue" ? "bg-enh" : "bg-pru-red"}`}
+      >
         {children}
-      </div>
-    </section>
+      </section>
+    </div>
   )
 }
 
@@ -38,14 +47,14 @@ export function PageBody({
 }) {
   return (
     <div
-      className={`mx-auto -mt-16 w-full max-w-[1360px] px-4 pb-12 sm:px-8 ${className}`}
+      className={`mx-auto w-full max-w-[1360px] px-4 pt-5 pb-12 sm:px-8 ${className}`}
     >
       {children}
     </div>
   )
 }
 
-/** Segmented control on the red band */
+/** Segmented control on the red card */
 export function HeroSegment<T extends string>({
   value,
   options,

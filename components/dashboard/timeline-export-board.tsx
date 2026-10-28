@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { monthLabel } from "./timeline-header"
+import { TimelineTypeBadge, monthLabel } from "./timeline-header"
 import { getProgress } from "./timeline-row"
 import { PartnerMix, StepTiles, TimelineTable, groupByPartner } from "./timeline-summary"
 import { ProductItem, TimelineType } from "@/lib/timeline-data"
@@ -29,10 +29,11 @@ export const TimelineExportBoard = React.forwardRef<HTMLDivElement, TimelineExpo
 
     return (
       <div ref={ref} style={{ width: "1280px" }} className="flex flex-col bg-paper font-sans text-ink">
-        <div className="grid grid-cols-[minmax(0,1fr)_420px] items-end gap-7 bg-pru-red px-10 pt-7 pb-[84px] text-white">
+        <div className={`grid grid-cols-[minmax(0,1fr)_420px] items-end gap-7 px-10 pt-7 pb-[84px] text-white ${isEnhancement ? "bg-enh" : "bg-pru-red"}`}>
           <div className="flex flex-col gap-3.5">
-            <div className="text-xl font-bold">
-              {isEnhancement ? "Enhancement Timeline" : "New Product Timeline"} · {monthLabel(selectedMonth)}
+            <div className="flex items-center gap-3.5 text-[22px] font-bold">
+              <TimelineTypeBadge timelineType={timelineType} large />
+              Timeline · {monthLabel(selectedMonth)}
             </div>
             <div className="flex items-end gap-4">
               <span className="text-[120px] leading-[0.82] font-bold tracking-[-0.04em]">{items.length}</span>
