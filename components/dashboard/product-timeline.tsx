@@ -15,6 +15,7 @@ import { TimelineTable, groupByPartner } from "./timeline-summary"
 import { Icon } from "@/components/icon"
 import { card, cardButton } from "@/components/page-hero"
 import { TimelineMobileList } from "./timeline-mobile-list"
+import { NO_FILTERS, TimelineFilters, applyFilters } from "./timeline-filters"
 import { TimelineExportBoard } from "./timeline-export-board"
 import { ChannelSummaryExportBoard } from "@/components/analytics/channel-summary-export-board"
 import { ProductFormModal } from "./product-form-modal"
@@ -76,6 +77,7 @@ export function ProductTimeline() {
   const [productToEdit, setProductToEdit] = useState<ProductItem | null>(null)
   const [isExportingAll, setIsExportingAll] = useState(false)
   const [isSendingLine, setIsSendingLine] = useState(false)
+  const [filters, setFilters] = useState(NO_FILTERS)
 
   const dashboardRef = useRef<HTMLDivElement>(null)
   const productExportRef = useRef<HTMLDivElement>(null)
@@ -284,6 +286,7 @@ export function ProductTimeline() {
   }
 
   const groups = groupByPartner(currentItems, partners, timelineType)
+  const shownItems = applyFilters(currentItems, filters, partners, timelineType)
   const completedCount = currentItems.filter(
     (i) => getProgress(i, timelineType).isFinished
   ).length
@@ -399,28 +402,59 @@ export function ProductTimeline() {
           </div>
         ) : (
           <>
-            <div className="md:hidden">
-              <TimelineMobileList
-                items={currentItems}
-                timelineType={timelineType}
-                isAdmin={isAdmin}
-                partners={partners}
-                {...rowHandlers}
-              />
-            </div>
-            <section className={`${card} hidden overflow-hidden md:block`}>
-              <div className="overflow-x-auto">
-                <div className="min-w-[1160px]">
-                  <TimelineTable
-                    items={currentItems}
+            <TimelineFilters
+              filters={filters}
+              onChange={setFilters}
+              groups={groups}
+              items={currentItems}
+              timelineType={timelineType}
+              shown={shownItems.length}
+            />
+            {shownItems.length === 0 ? (
+              <div
+                className={`${card} flex flex-col items-center gap-3 px-6 py-12 text-center`}
+              >
+                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface text-ink-soft">
+                  <Icon name="search" size={28} />
+                </span>
+                <h2 className="text-lg font-bold">No matching projects</h2>
+                <p className="text-sm text-ink-soft">
+                  ลองเปลี่ยนคำค้นหรือตัวกรอง
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setFilters(NO_FILTERS)}
+                  className={cardButton}
+                >
+                  Clear filters
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="md:hidden">
+                  <TimelineMobileList
+                    items={shownItems}
                     timelineType={timelineType}
-                    partners={partners}
                     isAdmin={isAdmin}
+                    partners={partners}
                     {...rowHandlers}
                   />
                 </div>
-              </div>
-            </section>
+                <section className={`${card} hidden overflow-hidden md:block`}>
+                  <div className="overflow-x-auto">
+                    <div className="min-w-[1160px]">
+                      <TimelineTable
+                        items={shownItems}
+                        timelineType={timelineType}
+                        partners={partners}
+                        isAdmin={isAdmin}
+                        {...rowHandlers}
+                      />
+                    </div>
+                  </div>
+                </section>
+              </>
+            )}
           </>
         )}
 

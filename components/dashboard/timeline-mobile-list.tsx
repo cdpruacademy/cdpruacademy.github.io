@@ -41,6 +41,7 @@ export function TimelineMobileList({
       {items.map((item) => {
         const { phases, kinds, current, isFinished } = stepKinds(item, timelineType)
         const toneBg = isFinished ? "bg-done" : item.isPaused ? "bg-stone-600" : "bg-pru-red"
+        const toneLine = isFinished ? "border-done-line" : item.isPaused ? "border-stone-300" : "border-pru-red-line"
         const partner = partnerOf(item.broker, partners)
         const isOpen = openId === item.id
         const panelId = `mobile-steps-${item.id}`
@@ -78,8 +79,8 @@ export function TimelineMobileList({
                     </span>
                   </span>
                 </span>
-                <span className="flex shrink-0 flex-col items-center overflow-hidden rounded-xl border border-pru-red-line">
-                  <span className="w-full bg-brand-ink px-2 text-center text-[10px] font-bold text-white">Launch</span>
+                <span className={`flex shrink-0 flex-col items-center overflow-hidden rounded-xl border ${toneLine}`}>
+                  <span className={`w-full px-2 text-center text-[10px] font-bold text-white ${toneBg}`}>Launch</span>
                   <span className="px-2 text-[15px] leading-snug font-bold text-ink">{launch}</span>
                 </span>
               </span>
