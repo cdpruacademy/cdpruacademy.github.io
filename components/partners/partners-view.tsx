@@ -8,6 +8,7 @@ import { usePartners } from "@/hooks/use-partners"
 import { useProducts } from "@/hooks/use-products"
 import { AdminLoginModal } from "@/components/auth/admin-login-modal"
 import { Icon } from "@/components/icon"
+import { PickMenu } from "@/components/ui/pick-menu"
 import {
   PageBody,
   PageHero,
@@ -300,22 +301,16 @@ export function PartnersView() {
                   <span key={o} className="inline-flex items-center gap-2 rounded-full bg-surface py-1 pr-1 pl-3 text-[13px] font-semibold">
                     {o}
                     {isAdmin && (
-                      <select
-                        aria-label={`Move ${o} to a partner`}
-                        value=""
-                        onChange={(e) => {
-                          const target = list.find((p) => p.id === e.target.value)
+                      <PickMenu
+                        label={`Move ${o} to a partner`}
+                        placeholder="Move to…"
+                        onChange={(id) => {
+                          const target = list.find((p) => p.id === id)
                           if (target) patch(target.id, { channels: [...target.channels, o] })
                         }}
-                        className="h-8 rounded-full border border-rule bg-white px-2 text-xs"
-                      >
-                        <option value="">Move to…</option>
-                        {list.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
+                        options={list.map((p) => ({ value: p.id, label: p.name }))}
+                        className="h-8 rounded-full border border-rule bg-white px-3 text-xs font-semibold hover:bg-surface"
+                      />
                     )}
                   </span>
                 ))}

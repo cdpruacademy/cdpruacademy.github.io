@@ -27,6 +27,7 @@ import { toPng } from "html-to-image"
 import { usePartners } from "@/hooks/use-partners"
 import { UNASSIGNED_PARTNER, inkOf, partnerOf } from "@/lib/partners"
 import { Icon, PHASE_ICONS } from "@/components/icon"
+import { PickMenu } from "@/components/ui/pick-menu"
 import {
   PageBody,
   PageHero,
@@ -694,41 +695,27 @@ export function AnalyticsView() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2.5">
               {availableYears && availableYears.length > 0 && setSelectedYear ? (
-                <label className="inline-flex items-center">
-                  <span className="sr-only">Year</span>
-                  <select
-                    value={activeYear}
-                    onChange={(e) => {
-                      setSelectedYear(parseInt(e.target.value, 10))
-                      setSelectedPeriod("ALL_YEAR")
-                    }}
-                    className="h-10 rounded-full border-[1.5px] border-white/55 bg-transparent px-4 text-sm font-semibold text-white [&>option]:text-ink"
-                  >
-                    {availableYears.map((y) => (
-                      <option key={y} value={y}>
-                        {y} (พ.ศ. {y + 543})
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <PickMenu
+                  label="Year"
+                  value={String(activeYear)}
+                  onChange={(v) => {
+                    setSelectedYear(parseInt(v, 10))
+                    setSelectedPeriod("ALL_YEAR")
+                  }}
+                  options={availableYears.map((y) => ({ value: String(y), label: `${y} (พ.ศ. ${y + 543})` }))}
+                  className="h-10 rounded-full border-[1.5px] border-white/55 px-4 text-sm font-semibold text-white hover:bg-white/15"
+                />
               ) : null}
-              <label className="inline-flex items-center">
-                <span className="sr-only">Period</span>
-                <select
-                  value={selectedPeriod}
-                  onChange={(e) => setSelectedPeriod(e.target.value)}
-                  className="h-10 rounded-full border-[1.5px] border-white/55 bg-transparent px-4 text-sm font-semibold text-white [&>option]:text-ink"
-                >
-                  <option value="ALL_YEAR">All year {activeYear}</option>
-                  <optgroup label={`Months of ${activeYear}`}>
-                    {yearMonths.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </label>
+              <PickMenu
+                label="Period"
+                value={selectedPeriod}
+                onChange={setSelectedPeriod}
+                options={[
+                  { value: "ALL_YEAR", label: `All year ${activeYear}` },
+                  ...yearMonths.map((m) => ({ value: m, label: m, group: `Months of ${activeYear}` })),
+                ]}
+                className="h-10 rounded-full border-[1.5px] border-white/55 px-4 text-sm font-semibold text-white hover:bg-white/15"
+              />
               {!isAnnual && (
                 <button type="button" onClick={() => setSelectedPeriod("ALL_YEAR")} className={heroButton}>
                   <Icon name="refresh" size={16} />

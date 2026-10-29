@@ -1397,3 +1397,64 @@ function checkScriptProperties() {
   const missing = required.filter(function (k) { return !SCRIPT_PROPS.getProperty(k); });
   Logger.log(missing.length ? "❌ ยังไม่ได้ตั้งค่า: " + missing.join(", ") : "✅ Script Properties ครบแล้ว");
 }
+
+// 16. Rich Menu ของ CODY (ขึ้นเฉพาะแชตส่วนตัวกับ CODY, LINE ไม่แสดงในกลุ่ม)
+// รันฟังก์ชันนี้ 1 ครั้งใน Script Editor หลังเว็บ deploy แล้ว (รูปอยู่ที่ public/cody/rich-menu.png)
+// กดปุ่มแล้ว = ผู้ใช้พิมพ์ "CODY timeline" / "CODY partner" / "CODY help" ซึ่ง CODY ตอบกลับ (ไม่นับโควตา)
+const RICH_MENU_NAME = "CODY menu";
+
+function setupRichMenu() {
+  const headers = { Authorization: "Bearer " + LINE_CHANNEL_ACCESS_TOKEN };
+
+  // ลบเมนู CODY เดิม (ถ้ามี) เพื่อไม่ให้ซ้ำ
+  const listResp = UrlFetchApp.fetch("https://api.line.me/v2/bot/richmenu/list", { headers: headers, muteHttpExceptions: true });
+  const existing = (JSON.parse(listResp.getContentText()).richmenus || []).filter(function (m) { return m.name === RICH_MENU_NAME; });
+  existing.forEach(function (m) {
+    UrlFetchApp.fetch("https://api.line.me/v2/bot/richmenu/" + m.richMenuId, { method: "delete", headers: headers, muteHttpExceptions: true });
+  });
+
+  // สร้างเมนู 3 ช่อง ขนาดรูป 2500 x 843
+  const area = function (x, width, text) {
+    return { bounds: { x: x, y: 0, width: width, height: 843 }, action: { type: "message", label: text, text: text } };
+  };
+  const createResp = UrlFetchApp.fetch("https://api.line.me/v2/bot/richmenu", {
+    method: "post",
+    contentType: "application/json",
+    headers: headers,
+    payload: JSON.stringify({
+      size: { width: 2500, height: 843 },
+      selected: true,
+      name: RICH_MENU_NAME,
+      chatBarText: "เมนู CODY",
+      areas: [area(0, 833, "CODY timeline"), area(833, 834, "CODY partner"), area(1667, 833, "CODY help")]
+    }),
+    muteHttpExceptions: true
+  });
+  if (createResp.getResponseCode() !== 200) {
+    Logger.log("❌ สร้างเมนูไม่สำเร็จ: " + createResp.getContentText());
+    return;
+  }
+  const richMenuId = JSON.parse(createResp.getContentText()).richMenuId;
+
+  // อัปโหลดรูปเมนูจากเว็บ
+  const image = UrlFetchApp.fetch(DASHBOARD_WEB_URL + "cody/rich-menu.png").getBlob();
+  const uploadResp = UrlFetchApp.fetch("https://api-data.line.me/v2/bot/richmenu/" + richMenuId + "/content", {
+    method: "post",
+    contentType: "image/png",
+    headers: headers,
+    payload: image.getBytes(),
+    muteHttpExceptions: true
+  });
+  if (uploadResp.getResponseCode() !== 200) {
+    Logger.log("❌ อัปโหลดรูปเมนูไม่สำเร็จ: " + uploadResp.getContentText());
+    return;
+  }
+
+  // ตั้งเป็นเมนูหลักให้ทุกคนที่แชตกับ CODY
+  const defaultResp = UrlFetchApp.fetch("https://api.line.me/v2/bot/user/all/richmenu/" + richMenuId, {
+    method: "post",
+    headers: headers,
+    muteHttpExceptions: true
+  });
+  Logger.log(defaultResp.getResponseCode() === 200 ? "✅ ตั้ง Rich Menu แล้ว: " + richMenuId : "❌ ตั้งเป็นเมนูหลักไม่สำเร็จ: " + defaultResp.getContentText());
+}

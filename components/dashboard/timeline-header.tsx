@@ -15,6 +15,7 @@ import { Loader2 } from "lucide-react"
 import { CloudStatusBadge } from "./cloud-status-badge"
 import { Icon, PHASE_ICONS, type IconName } from "@/components/icon"
 import { cardButton, cardButtonDark } from "@/components/page-hero"
+import { PickMenu } from "@/components/ui/pick-menu"
 import { PHASE_HEADINGS, TIMELINE_GRID, TIMELINE_GRID_COMPACT } from "./timeline-row"
 
 export const THAI_MONTHS = [
@@ -419,21 +420,18 @@ export function TimelineHero({
             >
               <Icon name="chevronLeft" size={18} strokeWidth={2} />
             </button>
-            <label className="inline-flex items-center">
-              <span className="sr-only">Month</span>
-              <select
-                value={currentIndex >= 0 ? selectedMonth : ""}
-                onChange={(e) => onMonthChange(e.target.value)}
-                className="h-10 bg-transparent px-1 text-[15px] font-bold text-ink focus:outline-none"
-              >
-                {displayMonths.map((m) => (
-                  <option key={m} value={m}>
-                    {monthLabel(m)}
-                    {getMonthStatus(m) === "current" ? " (this month)" : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <PickMenu
+              label="Month"
+              value={currentIndex >= 0 ? selectedMonth : undefined}
+              placeholder={monthLabel(selectedMonth)}
+              onChange={onMonthChange}
+              options={displayMonths.map((m) => ({
+                value: m,
+                label: monthLabel(m),
+                note: getMonthStatus(m) === "current" ? "This month" : undefined,
+              }))}
+              className="h-10 rounded-full px-1.5 text-[15px] font-bold text-ink hover:bg-surface"
+            />
             <button
               type="button"
               onClick={() =>
@@ -447,20 +445,13 @@ export function TimelineHero({
             </button>
           </span>
           {onYearChange && (
-            <label className="inline-flex items-center">
-              <span className="sr-only">Year</span>
-              <select
-                value={activeYear}
-                onChange={(e) => onYearChange(parseInt(e.target.value, 10))}
-                className="h-10 rounded-full border border-rule bg-white px-4 text-sm font-semibold text-ink"
-              >
-                {yearsList.map((y) => (
-                  <option key={y} value={y}>
-                    {y} (พ.ศ. {y + 543})
-                  </option>
-                ))}
-              </select>
-            </label>
+            <PickMenu
+              label="Year"
+              value={String(activeYear)}
+              onChange={(v) => onYearChange(parseInt(v, 10))}
+              options={yearsList.map((y) => ({ value: String(y), label: `${y} (พ.ศ. ${y + 543})` }))}
+              className="h-10 rounded-full border border-rule bg-white px-4 text-sm font-semibold text-ink hover:bg-surface"
+            />
           )}
           {selectedMonth !== systemMonth && (
             <button type="button" onClick={goToCurrent} className="touch-target h-10 px-2 text-sm font-semibold text-ink underline underline-offset-4">
