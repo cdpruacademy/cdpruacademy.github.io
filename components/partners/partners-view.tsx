@@ -146,7 +146,7 @@ export function PartnersView() {
                   <Icon name="lock" size={28} />
                 </span>
                 <h2 className="text-lg font-bold">Admin only</h2>
-                <p className="text-sm text-ink-soft">หน้านี้สำหรับผู้ดูแลระบบ เข้าสู่ระบบ Admin เพื่อจัดการ Partner และ Channel</p>
+                <p className="text-sm text-ink-soft">เข้าสู่ระบบ Admin เพื่อดูหน้านี้</p>
                 <button type="button" onClick={() => setIsLoginOpen(true)} className={cardButtonDark}>
                   Admin login
                 </button>
@@ -167,9 +167,6 @@ export function PartnersView() {
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div>
             <h1 className="text-[34px] leading-tight font-bold sm:text-[44px]">Partners &amp; Channels</h1>
-            <p className="mt-2 max-w-[62ch] text-base">
-              สีมาจาก Partner และใช้กับทุก Channel ข้างใต้ มี Partner ใหม่ก็เพิ่มที่นี่ได้เลย ไม่ต้องแก้โค้ด
-            </p>
           </div>
           <div className="flex items-end gap-7">
             <div>
@@ -294,7 +291,7 @@ export function PartnersView() {
             <section className={`${card} flex flex-col gap-3 border-[1.5px] border-amber-200 px-5 py-4`}>
               <span className="flex items-start gap-2.5 text-sm">
                 <Icon name="warning" size={20} className="shrink-0 text-brand-ink" />
-                Channel ในข้อมูลเดิมที่ยังไม่อยู่ใต้ Partner ไหน (ตอนนี้แสดงในกลุ่ม Other)
+                Channel ที่ยังไม่มี Partner (แสดงในกลุ่ม Other)
               </span>
               <div className="flex flex-wrap gap-2">
                 {orphans.map((o) => (
@@ -368,7 +365,6 @@ export function PartnersView() {
                 <Icon name="partner" size={20} />
                 <b>{form.name || "New partner"}</b>
               </div>
-              <div className="px-3.5 py-2.5 text-xs text-ink-soft">ตัวอย่างสีบน Timeline และ Analytics</div>
             </div>
             {clash && <span className="text-xs text-brand-ink">สีนี้ใกล้กับ Partner ที่มีอยู่ ลองเลือกสีที่ต่างกว่านี้</span>}
             <button type="button" onClick={addPartner} disabled={!form.name.trim() || !isHexColor(form.color)} className={`${cardButtonDark} justify-center`}>
@@ -376,7 +372,7 @@ export function PartnersView() {
               Add partner
             </button>
             <p className="text-xs text-ink-soft">
-              กด Save changes ด้านบนเพื่อบันทึก สีตั้งต้นมาจากโลโก้จริงของแต่ละ Partner (ค่าประมาณ) แก้ได้ทุกเมื่อ
+              กด Save changes ด้านบนเพื่อบันทึก
             </p>
           </section>
         )}

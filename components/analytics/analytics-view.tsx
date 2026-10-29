@@ -20,7 +20,7 @@ import {
   compareMonthKeys,
   checkIsProjectCompleted,
 } from "@/lib/timeline-data"
-import { Lock, Loader2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import Link from "next/link"
 import { toPng } from "html-to-image"
 
@@ -33,6 +33,7 @@ import {
   PageHero,
   card,
   cardButton,
+  cardButtonDark,
   heroButton,
   heroButtonSolid,
 } from "@/components/page-hero"
@@ -184,7 +185,7 @@ export function AnalyticsView() {
       }
 
       toast.success(
-        `อัปเดตรูปสรุปช่องทาง (${periodLabel}) แล้ว\nพิมพ์ "CD รูป" ในกลุ่ม LINE เพื่อดูรูปนี้`
+        `อัปเดตรูปสรุปช่องทาง (${periodLabel}) แล้ว`
       )
     } catch (err) {
       console.error("Send channel summary to LINE error:", err)
@@ -641,32 +642,18 @@ export function AnalyticsView() {
   if (!isAdmin) {
     return (
       <div className="flex min-h-[70vh] items-center justify-center px-4">
-        <div className="w-full max-w-md space-y-5 rounded-3xl border border-gray-200 bg-white p-8 text-center shadow-xl">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-red-100 bg-red-50 text-brand-ink shadow-xs">
-            <Lock className="h-8 w-8" />
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-lg font-black tracking-tight text-gray-900">
-              พื้นที่เฉพาะผู้ดูแลระบบ (Admin Only)
-            </h2>
-            <p className="text-xs leading-relaxed text-gray-500">
-              หน้านี้เป็นส่วนสรุปภาพรวมและวิเคราะห์สถิติโครงการของฝ่ายพัฒนาหลักสูตร
-              กรุณาเข้าสู่ระบบด้วยรหัสผ่านผู้ดูแลเพื่อเข้าถึงข้อมูล
-            </p>
-          </div>
-          <div className="flex flex-col gap-2.5 pt-2">
-            <button
-              type="button"
-              onClick={() => setIsLoginModalOpen(true)}
-              className="w-full rounded-xl bg-brand-fill px-4 py-2.5 text-xs font-bold text-white shadow-xs transition-all hover:bg-brand-hover"
-            >
-              เข้าสู่ระบบ Admin
+        <div className={`${card} flex w-full max-w-md flex-col items-center gap-3 px-6 py-10 text-center`}>
+          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-pru-red-soft text-brand-ink">
+            <Icon name="lock" size={28} />
+          </span>
+          <h2 className="text-lg font-bold">Admin only</h2>
+          <p className="text-sm text-ink-soft">เข้าสู่ระบบ Admin เพื่อดูหน้านี้</p>
+          <div className="flex flex-wrap justify-center gap-2.5 pt-1">
+            <button type="button" onClick={() => setIsLoginModalOpen(true)} className={cardButtonDark}>
+              Admin login
             </button>
-            <Link
-              href="/"
-              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-xs font-semibold text-gray-600 transition-all hover:bg-gray-100"
-            >
-              กลับหน้า Product Timeline
+            <Link href="/" className={cardButton}>
+              Back to Timeline
             </Link>
           </div>
 
@@ -765,7 +752,6 @@ export function AnalyticsView() {
                     {allTeamPausedCount} On hold
                   </span>
                 )}
-                {isAnnual && <span className="text-sm">นับ project ไม่ซ้ำข้ามเดือน</span>}
               </div>
             </div>
             <div>
@@ -850,7 +836,7 @@ export function AnalyticsView() {
           </div>
           <span className="text-[13px] text-gray-300">
             {pausedProjectsCount > 0 ? `${pausedProjectsCount} on hold · ` : ""}
-            {isAnnual ? "ไม่นับซ้ำข้ามเดือน" : "New Product + Enhancement"}
+            New Product + Enhancement
           </span>
         </section>
         <section className={`${kpiCard} lg:col-span-3`}>
@@ -897,7 +883,12 @@ export function AnalyticsView() {
               <Icon name="elearning" size={24} />
             </span>
           </div>
-          <span className="text-xs text-ink-soft">คอร์สอบรมออนไลน์บนระบบ</span>
+          <div className="h-2 rounded-full bg-surface">
+            <div className="h-2 rounded-full bg-ink-soft" style={{ width: `${totalProjects > 0 ? Math.min(100, (totalElearning / totalProjects) * 100) : 0}%` }} />
+          </div>
+          <span className="text-xs text-ink-soft">
+            {totalProjects > 0 ? Math.min(100, Math.round((totalElearning / totalProjects) * 100)) : 0}% of all projects
+          </span>
         </section>
 
         {/* Projects per month */}
@@ -946,7 +937,6 @@ export function AnalyticsView() {
               })}
             </div>
           </div>
-          <span className="text-xs text-ink-soft">กดแท่งเพื่อดูเดือนนั้น</span>
         </section>
 
         {/* Type filter */}
@@ -1100,8 +1090,7 @@ export function AnalyticsView() {
             <div className="flex items-start gap-2.5 rounded-xl bg-paper px-3 py-2.5 text-xs text-ink">
               <Icon name="info" size={18} className="shrink-0" />
               <span>
-                {totalMemberWorkload} มากกว่า {rawUniqueProjectsCount} เพราะมี {coOwnedProjectsCount} projects
-                ที่มีผู้รับผิดชอบร่วม 2 คน จึงนับให้ทั้งสองคน
+                project ที่มีผู้รับผิดชอบ 2 คน นับให้ทั้งสองคน
               </span>
             </div>
           )}

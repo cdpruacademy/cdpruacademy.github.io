@@ -67,7 +67,6 @@ export function AdminLoginModal({
             <h2 id="admin-login-title" className="mt-3.5 text-[22px] leading-tight font-bold">
               Admin sign in
             </h2>
-            <p className="mt-0.5 text-sm">สำหรับคนดูแลข้อมูลของทีม</p>
           </div>
           <button
             type="button"
@@ -118,17 +117,6 @@ export function AdminLoginModal({
               </span>
             )}
           </div>
-
-          <ul className="flex flex-col gap-1.5 rounded-[14px] bg-paper px-3.5 py-3 text-[13px] text-stone-700">
-            <li className="flex items-center gap-2">
-              <Icon name="check" size={15} strokeWidth={2.6} className="text-done" />
-              เพิ่ม แก้ไข ลบ Project
-            </li>
-            <li className="flex items-center gap-2">
-              <Icon name="check" size={15} strokeWidth={2.6} className="text-done" />
-              ส่งประกาศ และจัดการทีม / Partners
-            </li>
-          </ul>
 
           <button
             type="submit"

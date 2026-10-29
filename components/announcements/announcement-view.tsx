@@ -83,7 +83,7 @@ export function AnnouncementView() {
     setBroadcastingId(id)
     try {
       await broadcastNow(id)
-      toast.success("เข้าคิวแล้ว บอทจะส่งเข้ากลุ่ม LINE ภายใน 5 นาที")
+      toast.success("เข้าคิวแล้ว CODY จะส่งเข้ากลุ่มภายใน 5 นาที")
     } catch (err) {
       toast.error("เข้าคิวส่ง LINE ไม่สำเร็จ: " + (err instanceof Error ? err.message : String(err)))
     } finally {
@@ -110,9 +110,6 @@ export function AnnouncementView() {
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div>
             <h1 className="text-[34px] leading-tight font-bold sm:text-[44px]">Announcements</h1>
-            <p className="mt-2 text-base">
-              ข่าวถึงทีม ส่งเข้ากลุ่ม LINE ให้อัตโนมัติ · บอทส่งภายใน 5 นาทีหลังถึงเวลา · เก็บย้อนหลัง 1 ปี
-            </p>
           </div>
           <div className="flex items-end gap-7">
             <div>

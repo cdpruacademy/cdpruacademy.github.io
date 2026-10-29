@@ -530,9 +530,11 @@ export function TimelineHero({
                 ) : (
                   <span>{monthLabel(selectedMonth)} · {asOfText}</span>
                 )}
-                <span className="export-hide">
-                  <CloudStatusBadge isCloudConnected={isCloudConnected} isSyncing={isSyncing} />
-                </span>
+                {(!isCloudConnected || isSyncing) && (
+                  <span className="export-hide">
+                    <CloudStatusBadge isCloudConnected={isCloudConnected} isSyncing={isSyncing} />
+                  </span>
+                )}
               </span>
             </span>
           </div>

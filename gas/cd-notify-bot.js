@@ -880,7 +880,7 @@ function replyTimelineImages(replyToken) {
   const imgData = getLatestImagesFromSupabase();
 
   if (!imgData || !imgData.product_image_url) {
-    replyLineText(replyToken, "⚠️ ยังไม่พบภาพ Timeline ในระบบ\nเปิดเว็บ Dashboard แล้วกดปุ่ม [ 📤 ส่งรูปเข้า LINE ] ได้เลยครับ");
+    replyLineText(replyToken, "⚠️ ยังไม่พบภาพ Timeline ในระบบ\nเปิดเว็บ Dashboard แล้วกด Send to LINE ได้เลยครับ");
     return;
   }
 

@@ -16,8 +16,8 @@ export function CloudStatusBadge({
     <div
       title={
         isCloudConnected
-          ? "เชื่อมต่อฐานข้อมูล Cloud (Supabase) เรียบร้อยแล้ว ข้อมูลอัปเดตตรงกันทุกเครื่อง"
-          : "ทำงานในโหมดออฟไลน์ (Local Storage)"
+          ? "ข้อมูลตรงกันทุกเครื่อง"
+          : "ยังไม่ได้เชื่อมต่อ ข้อมูลอยู่ในเครื่องนี้เท่านั้น"
       }
       className={`inline-flex cursor-default items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all select-none ${
         isSyncing
@@ -30,7 +30,7 @@ export function CloudStatusBadge({
       {isSyncing ? (
         <>
           <RefreshCw className="h-3 w-3 animate-spin text-blue-600" />
-          <span>กำลังซิงค์...</span>
+          <span>กำลังบันทึก…</span>
         </>
       ) : isCloudConnected ? (
         <>

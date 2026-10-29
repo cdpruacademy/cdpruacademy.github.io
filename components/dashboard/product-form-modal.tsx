@@ -356,7 +356,7 @@ export function ProductFormModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const newErrors: { name?: string; owner?: string } = {}
-    if (!name.trim()) newErrors.name = "กรุณาระบุชื่องาน"
+    if (!name.trim()) newErrors.name = "ใส่ชื่อ project"
 
     const allOwners: string[] = [...selectedOwners]
     if (customOwner.trim()) {
@@ -364,7 +364,7 @@ export function ProductFormModal({
     }
     const finalOwner = allOwners.join(" / ")
 
-    if (!finalOwner) newErrors.owner = "กรุณาเลือกผู้รับผิดชอบอย่างน้อย 1 ท่าน"
+    if (!finalOwner) newErrors.owner = "เลือกผู้รับผิดชอบอย่างน้อย 1 คน"
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
@@ -486,9 +486,6 @@ export function ProductFormModal({
                     {selectedMonth}
                   </Badge>
                 </div>
-                <p className="mt-0.5 text-xs text-gray-500">
-                  กรอกข้อมูลกำหนดการและ Milestone เพื่อแสดงผลบน Dashboard
-                </p>
               </div>
             </div>
 
@@ -520,7 +517,7 @@ export function ProductFormModal({
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {/* Product Name -> ชื่องาน (Task Name) */}
                 <div className="space-y-1.5 md:col-span-2">
-                  <Label required>ชื่องาน (Task Name)</Label>
+                  <Label required>ชื่อ Project</Label>
                   <Input
                     placeholder="เช่น PRUWealth Max, Rider Cancer Plus"
                     value={name}
@@ -602,7 +599,7 @@ export function ProductFormModal({
 
                 {/* Owner Checklist (Multi-select) */}
                 <div className="space-y-2 md:col-span-2">
-                  <Label required>ผู้รับผิดชอบ (Responsible Persons)</Label>
+                  <Label required>ผู้รับผิดชอบ</Label>
                   <div className="grid grid-cols-1 gap-2 rounded-xl border border-gray-200 bg-gray-50/80 p-3 sm:grid-cols-2">
                     {teamOwnersList.map((t) => {
                       const isChecked = selectedOwners.includes(t.id)
@@ -640,7 +637,7 @@ export function ProductFormModal({
                   <div className="pt-1">
                     <Input
                       leftIcon={<User className="h-3.5 w-3.5 text-gray-500" />}
-                      placeholder="หรือระบุชื่อผู้รับผิดชอบเพิ่มเติม (เช่น บุคคลภายนอก)..."
+                      placeholder="หรือพิมพ์ชื่ออื่น"
                       value={customOwner}
                       onChange={(e) => setCustomOwner(e.target.value)}
                       size="sm"
@@ -717,10 +714,10 @@ export function ProductFormModal({
                   <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-pru-red-soft text-brand-ink">
                     <Icon name="timeline" size={16} />
                   </span>
-                  3. ความคืบหน้าแต่ละขั้น (Steps)
+                  3. ความคืบหน้าแต่ละขั้น
                 </h3>
                 <p className="pl-9 text-xs text-ink-soft">
-                  เปิดเฉพาะขั้นที่ project นี้ใช้ · เลือก Current ได้ทีละขั้น ขั้นก่อนหน้าจะเป็น Completed ให้เอง
+                  เปิดเฉพาะขั้นที่ใช้ · ขั้นก่อน Current จะเป็น Completed ให้เอง
                 </p>
               </div>
 

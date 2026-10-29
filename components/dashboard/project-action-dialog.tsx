@@ -55,11 +55,8 @@ export function ProjectActionDialog({
       body: (
         <>
           <p>
-            ตั้งแต่ <strong>{selectedMonth}</strong>{" "}
-            งานนี้จะไม่ถูกยกไปเดือนถัดไป และไม่นับเป็นงานที่กำลังทำ
-          </p>
-          <p>
-            เดือนก่อนหน้ายังแสดงตามเดิม และกด &ldquo;ทำต่อ&rdquo; ได้ทุกเมื่อ
+            ตั้งแต่ <strong>{selectedMonth}</strong> งานนี้จะไม่ถูกยกไปเดือนถัดไป
+            กด &ldquo;ทำต่อ&rdquo; ได้ทุกเมื่อ
           </p>
         </>
       ),

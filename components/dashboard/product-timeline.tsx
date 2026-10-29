@@ -133,7 +133,7 @@ export function ProductTimeline() {
 
         if (showUserAlert) {
           toast.success(
-            `อัปเดตรูปทั้ง 3 รูปของ ${selectedMonth} (${asOfText}) แล้ว\nพิมพ์ "CD รูป" ในกลุ่ม LINE เพื่อดูรูปชุดนี้`
+            `ส่งรูป ${selectedMonth} (${asOfText}) แล้ว พิมพ์ "CODY รูป" ในกลุ่ม LINE เพื่อดู`
           )
         } else {
           console.log("Auto-snapshot background sync completed successfully")
@@ -278,7 +278,7 @@ export function ProductTimeline() {
   const handleSendToLine = () => {
     if (!isViewingCurrentMonth) {
       toast.info(
-        `บอท LINE แสดงเฉพาะเดือนปัจจุบัน (${getSystemCurrentMonth()})\nกดปุ่ม "เดือนปัจจุบัน" ก่อน แล้วค่อยส่งรูปเข้า LINE`
+        `ส่งเข้า LINE ได้เฉพาะเดือนปัจจุบัน (${getSystemCurrentMonth()}) กด "This month" ก่อน`
       )
       return
     }
