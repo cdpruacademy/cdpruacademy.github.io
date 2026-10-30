@@ -19,9 +19,9 @@ import { getSupabaseClient, isCurrentUserAdmin } from "./supabase"
 export type Level = "high" | "medium" | "low"
 
 export const LEVEL_LABEL: Record<Level, string> = {
-  high: "สูง",
-  medium: "กลาง",
-  low: "น้อย",
+  high: "High",
+  medium: "Medium",
+  low: "Low",
 }
 export const LEVEL_HINT: Record<Level, string> = {
   high: "Unit link · Health · Index link",
@@ -37,6 +37,9 @@ export interface DifficultyWeights {
   elearning: number
   newContent: number
   refresher: number
+  /** Audit-type work: once for the coordination, then per old file revised */
+  audit: number
+  perFile: number
 }
 
 /** What the owner sets by hand for one project (keyed by project id) */
@@ -45,6 +48,8 @@ export interface ProjectFactors {
   /** Overrides the e-Learning read from the steps and the ttb rule */
   elearning?: boolean
   newContent?: boolean
+  /** Old files revised (Audit-type work); 0 or missing means none */
+  files?: number
   /** Manual nudge, -1 to +1 */
   adjust?: number
   /** Percent per owner name; missing means an equal split */
@@ -75,6 +80,8 @@ export const DEFAULT_WEIGHTS: DifficultyWeights = {
   elearning: 2,
   newContent: 2,
   refresher: 2,
+  audit: 2,
+  perFile: 1,
 }
 
 export const EMPTY_DIFFICULTY: DifficultyStore = { weights: DEFAULT_WEIGHTS, projects: {}, refreshers: [] }
@@ -127,6 +134,7 @@ export interface ScoreBreakdown {
   levelPoints: number
   elearning: number
   newContent: number
+  audit: number
   adjust: number
   total: number
 }
@@ -142,9 +150,10 @@ export function scoreProject(
     levelPoints: w[level],
     elearning: hasElearning(item, f) ? w.elearning : 0,
     newContent: f?.newContent ? w.newContent : 0,
+    audit: f?.files && f.files > 0 ? w.audit + f.files * w.perFile : 0,
     adjust: Math.max(-1, Math.min(1, f?.adjust ?? 0)),
   }
-  const total = Math.max(0, parts.levelPoints + parts.elearning + parts.newContent + parts.adjust)
+  const total = Math.max(0, parts.levelPoints + parts.elearning + parts.newContent + parts.audit + parts.adjust)
   return { level, ...parts, total }
 }
 

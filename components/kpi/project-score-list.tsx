@@ -17,10 +17,10 @@ export function ProjectRow({ project: p, onChange }: { project: ScoredProject; o
   const owners = ownersOf(p.item.owner).filter((o) => o !== "—")
   const split = sharesOf(p.item.owner, p.factors.shares)
   const status = p.completed
-    ? { label: `เสร็จ ${p.completedMonth ?? ""}`, cls: "bg-done-soft text-done" }
+    ? { label: `Completed ${p.completedMonth ?? ""}`, cls: "bg-done-soft text-done" }
     : p.isActiveNow
-      ? { label: "กำลังทำ", cls: "bg-pru-red-soft text-brand-ink" }
-      : { label: "ไม่อยู่ใน Timeline", cls: "bg-surface text-ink-soft" }
+      ? { label: "In progress", cls: "bg-pru-red-soft text-brand-ink" }
+      : { label: "Not on Timeline", cls: "bg-surface text-ink-soft" }
 
   const autoElearning = p.factors.elearning === undefined
   const elearningOn = p.score.elearning > 0
@@ -42,7 +42,7 @@ export function ProjectRow({ project: p, onChange }: { project: ScoredProject; o
         </div>
         <div className="shrink-0 text-right">
           <span className="text-[28px] leading-none font-bold tabular-nums">{fmt(p.score.total)}</span>
-          <span className="block text-[11px] text-ink-soft">คะแนน</span>
+          <span className="block text-[11px] text-ink-soft">pts</span>
         </div>
       </div>
 
@@ -63,9 +63,11 @@ export function ProjectRow({ project: p, onChange }: { project: ScoredProject; o
             ))}
           </div>
         ) : (
-          <span className="text-[13px] font-semibold text-ink-soft">หมวด{LEVEL_LABEL.low}</span>
+          <span className="inline-flex h-[38px] items-center rounded-full bg-surface px-4 text-[13px] font-semibold text-ink-soft">
+            {LEVEL_LABEL.low}
+          </span>
         )}
-        {isProduct && !p.factors.level && <span className="text-xs text-ink-soft">เดาจากชื่อ</span>}
+        {isProduct && !p.factors.level && <span className="text-xs text-ink-soft">เดาจากชื่อ ยังไม่ได้ยืนยัน</span>}
 
         <label className="inline-flex items-center gap-2 text-[13px] font-semibold">
           <input
@@ -85,8 +87,27 @@ export function ProjectRow({ project: p, onChange }: { project: ScoredProject; o
             onChange={(e) => onChange({ ...p.factors, newContent: e.target.checked || undefined })}
             className="h-4 w-4 accent-ink"
           />
-          เนื้อหาใหม่
+          New content
         </label>
+
+        {!isProduct && (
+          <label className="inline-flex items-center gap-2 text-[13px] font-semibold" title="งาน Audit: จำนวนไฟล์เก่าที่แก้">
+            <Icon name="folder" size={15} />
+            Audit files
+            <input
+              type="number"
+              min={0}
+              max={500}
+              value={p.factors.files ?? ""}
+              placeholder="0"
+              onChange={(e) => {
+                const v = Math.round(Number(e.target.value))
+                onChange({ ...p.factors, files: Number.isFinite(v) && v > 0 ? v : undefined })
+              }}
+              className="h-8 w-16 rounded-lg border-[1.5px] border-rule bg-white px-2 text-right tabular-nums focus:border-ink focus:outline-none"
+            />
+          </label>
+        )}
 
         <div role="group" aria-label="ปรับคะแนน" className="inline-flex items-center gap-0.5 rounded-full bg-surface p-[3px]">
           {ADJUST.map((v) => (

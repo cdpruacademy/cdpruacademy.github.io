@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useState } from "react"
 import { Icon } from "@/components/icon"
-import { card, cardButtonDark } from "@/components/page-hero"
+import { cardButtonDark } from "@/components/page-hero"
 import { PickMenu } from "@/components/ui/pick-menu"
 import { Refresher, ownersOf, sharesOf } from "@/lib/difficulty"
 import { fmt } from "@/lib/kpi-summary"
@@ -15,7 +15,7 @@ const input =
   "h-10 min-w-0 rounded-[12px] border-[1.5px] border-rule bg-white px-3 text-sm text-ink focus:border-transparent focus:ring-2 focus:ring-brand-ink focus:outline-none"
 
 /** ttb Refresher lessons by quarter: they count toward KPI but are not on the Timeline */
-export function RefresherTab({
+export function RefresherEditor({
   year,
   refreshers,
   teamMembers,
@@ -46,9 +46,9 @@ export function RefresherTab({
     onChange(refreshers.map((r) => (r.id === id ? { ...r, ...patch } : r)))
 
   return (
-    <div className="flex flex-col gap-5">
-      <section className={`${card} flex flex-col gap-3 p-5`}>
-        <h2 className="text-lg font-bold">เพิ่ม Refresher · {year}</h2>
+    <div className="flex flex-col gap-4 px-5 py-4 sm:px-7">
+      <section className="flex flex-col gap-3 rounded-[16px] bg-paper p-4">
+        <h3 className="text-sm font-bold">Add a lesson · {year}</h3>
         <div className="flex flex-wrap items-center gap-2.5">
           <PickMenu
             label="ไตรมาส"
@@ -66,7 +66,7 @@ export function RefresherTab({
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[13px] font-semibold">ผู้รับผิดชอบ</span>
+          <span className="text-[13px] font-semibold">Owner</span>
           {teamMembers.map((m) => {
             const on = people.includes(m)
             return (
@@ -75,7 +75,7 @@ export function RefresherTab({
                 type="button"
                 aria-pressed={on}
                 onClick={() => setPeople((prev) => (prev.includes(m) ? prev.filter((p) => p !== m) : [...prev, m]))}
-                className={`h-9 rounded-full px-3.5 text-sm font-semibold ${on ? "bg-ink text-white" : "bg-surface text-ink hover:bg-rule"}`}
+                className={`h-9 rounded-full px-3.5 text-sm font-semibold ${on ? "bg-ink text-white" : "bg-white text-ink hover:bg-rule"}`}
               >
                 {m}
               </button>
@@ -84,7 +84,7 @@ export function RefresherTab({
           <span className="flex-1" />
           <button type="button" onClick={add} disabled={people.length === 0} className={cardButtonDark}>
             <Icon name="plus" size={16} />
-            เพิ่ม
+            Add
           </button>
         </div>
       </section>
@@ -92,10 +92,10 @@ export function RefresherTab({
       {QUARTERS.map((q) => {
         const list = thisYear.filter((r) => r.quarter === q)
         return (
-          <section key={q} className={`${card} overflow-hidden`}>
+          <section key={q} className="overflow-hidden rounded-[16px] border border-rule">
             <h3 className="flex items-center justify-between px-5 pt-4 pb-3 text-base font-bold">
               Q{q} {year}
-              <span className="text-[13px] font-normal text-ink-soft">{list.length} บทเรียน</span>
+              <span className="text-[13px] font-normal text-ink-soft">{list.length} lessons</span>
             </h3>
             {list.length === 0 ? (
               <p className="border-t border-rule px-5 py-4 text-sm text-ink-soft">ยังไม่มี</p>
@@ -113,7 +113,7 @@ export function RefresherTab({
                             onChange={(e) => update(r.id, { done: e.target.checked })}
                             className="h-4 w-4 accent-ink"
                           />
-                          เสร็จแล้ว
+                          Done
                         </label>
                         <input
                           value={r.title}

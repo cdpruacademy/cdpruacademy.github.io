@@ -113,10 +113,12 @@ export async function downloadKpiExcel(
   title(rules, "วิธีคิดคะแนน", 3)
   header(rules, ["ปัจจัย", "คะแนน", "หมายเหตุ"])
   ;(["high", "medium", "low"] as const).forEach((l) =>
-    hair(rules.addRow([`หมวด${LEVEL_LABEL[l]}`, weights[l], LEVEL_HINT[l]]))
+    hair(rules.addRow([`หมวด ${LEVEL_LABEL[l]}`, weights[l], LEVEL_HINT[l]]))
   )
   hair(rules.addRow(["มี e-Learning", weights.elearning, "งานช่องทาง ttb มี e-Learning เสมอ"]))
   hair(rules.addRow(["เนื้อหาใหม่", weights.newContent, ""]))
+  hair(rules.addRow(["Audit: ประสานงาน", weights.audit, "งานที่แก้ไฟล์เก่า ได้ 1 ครั้งต่องาน"]))
+  hair(rules.addRow(["Audit: ต่อไฟล์", weights.perFile, "ต่อ 1 ไฟล์ที่แก้"]))
   hair(rules.addRow(["Refresher", weights.refresher, "ต่อ 1 บทเรียน"]))
   hair(rules.addRow(["ปรับมือ", "±1", ""]))
   hair(rules.addRow(["ทำหลายคน", "", "แบ่งตาม % ที่ตั้งไว้ ถ้าไม่ได้ตั้งแบ่งเท่ากัน"]))
