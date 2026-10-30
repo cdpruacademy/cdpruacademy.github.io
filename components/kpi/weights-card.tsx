@@ -2,14 +2,15 @@
 
 import * as React from "react"
 import { card } from "@/components/page-hero"
-import { DEFAULT_WEIGHTS, DifficultyWeights } from "@/lib/difficulty"
+import { DEFAULT_WEIGHTS, DifficultyWeights, LEVEL_HINT, LEVEL_LABEL } from "@/lib/difficulty"
 
-const FIELDS: { key: keyof DifficultyWeights; label: string }[] = [
-  { key: "product", label: "New Product" },
-  { key: "enhancement", label: "Enhancement" },
-  { key: "perExtraChannel", label: "Channel ที่เพิ่ม (ต่อ 1)" },
-  { key: "elearning", label: "มี e-Learning" },
+const FIELDS: { key: keyof DifficultyWeights; label: string; hint?: string }[] = [
+  { key: "high", label: `หมวด${LEVEL_LABEL.high}`, hint: LEVEL_HINT.high },
+  { key: "medium", label: `หมวด${LEVEL_LABEL.medium}`, hint: LEVEL_HINT.medium },
+  { key: "low", label: `หมวด${LEVEL_LABEL.low}`, hint: LEVEL_HINT.low },
+  { key: "elearning", label: "มี e-Learning", hint: "ช่องทาง ttb มีเสมอ" },
   { key: "newContent", label: "เนื้อหาใหม่" },
+  { key: "refresher", label: "Refresher", hint: "ต่อ 1 บทเรียน" },
 ]
 
 /** Points per factor */
@@ -22,9 +23,9 @@ export function WeightsCard({
 }) {
   const isDefault = FIELDS.every((f) => weights[f.key] === DEFAULT_WEIGHTS[f.key])
   return (
-    <section className={`${card} p-5`}>
+    <section className={`${card} max-w-xl p-5`}>
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-lg font-bold">Weights</h2>
+        <h2 className="text-lg font-bold">คะแนนของแต่ละปัจจัย</h2>
         {!isDefault && (
           <button
             type="button"
@@ -35,14 +36,17 @@ export function WeightsCard({
           </button>
         )}
       </div>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col divide-y divide-rule">
         {FIELDS.map((f) => (
-          <label key={f.key} className="flex items-center justify-between gap-3 text-sm">
-            <span>{f.label}</span>
+          <label key={f.key} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+            <span>
+              <span className="font-semibold">{f.label}</span>
+              {f.hint && <span className="block text-xs text-ink-soft">{f.hint}</span>}
+            </span>
             <input
               type="number"
               min={0}
-              max={10}
+              max={20}
               step={0.5}
               value={weights[f.key]}
               onChange={(e) => {
@@ -54,7 +58,7 @@ export function WeightsCard({
           </label>
         ))}
       </div>
-      <p className="mt-3 text-[13px] text-ink-soft">ปรับมือได้ ±1 ต่องาน</p>
+      <p className="mt-3 text-[13px] text-ink-soft">แต่ละงานปรับเพิ่มหรือลดได้อีก 1 คะแนน</p>
     </section>
   )
 }

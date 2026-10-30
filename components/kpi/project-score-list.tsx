@@ -2,79 +2,83 @@
 
 import * as React from "react"
 import { Icon } from "@/components/icon"
-import { card } from "@/components/page-hero"
-import { KpiProject, ProjectFactors, ScoreBreakdown, hasElearning } from "@/lib/difficulty"
+import { LEVEL_HINT, LEVEL_LABEL, Level, ProjectFactors, ownersOf, sharesOf } from "@/lib/difficulty"
+import { ScoredProject, fmt } from "@/lib/kpi-summary"
 
-export interface ScoredProject extends KpiProject {
-  score: ScoreBreakdown
-  factors: ProjectFactors
-  isActiveNow: boolean
-}
-
+const LEVELS: Level[] = ["high", "medium"]
 const ADJUST = [-1, 0, 1]
 
-/** Every project with its factors; the owner ticks new content, channels and ±1 here */
-export function ProjectScoreList({
-  projects,
-  onChange,
-  toolbar,
-}: {
-  projects: ScoredProject[]
-  onChange: (id: string, next: ProjectFactors) => void
-  toolbar: React.ReactNode
-}) {
-  return (
-    <section className={`${card} overflow-hidden`}>
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5 pb-3">
-        <h2 className="text-lg font-bold">Projects</h2>
-        {toolbar}
-      </div>
-      {projects.length === 0 ? (
-        <p className="px-5 pb-6 text-sm text-ink-soft">ไม่มีงาน</p>
-      ) : (
-        <ul className="divide-y divide-rule border-t border-rule">
-          {projects.map((p) => (
-            <ProjectRow key={p.id} project={p} onChange={(f) => onChange(p.id, f)} />
-          ))}
-        </ul>
-      )}
-    </section>
-  )
-}
+const segment = (on: boolean) =>
+  `h-8 min-w-11 rounded-full px-3 text-[13px] font-semibold ${on ? "bg-ink text-white" : "text-ink-soft hover:bg-rule"}`
 
-function ProjectRow({ project: p, onChange }: { project: ScoredProject; onChange: (f: ProjectFactors) => void }) {
+/** One project: level, e-Learning, new content, a ±1 nudge and the split between owners */
+export function ProjectRow({ project: p, onChange }: { project: ScoredProject; onChange: (f: ProjectFactors) => void }) {
   const isProduct = p.type === "product"
+  const owners = ownersOf(p.item.owner).filter((o) => o !== "—")
+  const split = sharesOf(p.item.owner, p.factors.shares)
   const status = p.completed
-    ? { label: `Completed ${p.completedMonth ?? ""}`, cls: "bg-done-soft text-done" }
+    ? { label: `เสร็จ ${p.completedMonth ?? ""}`, cls: "bg-done-soft text-done" }
     : p.isActiveNow
-      ? { label: "In progress", cls: "bg-pru-red-soft text-brand-ink" }
-      : { label: "Not on timeline", cls: "bg-surface text-ink-soft" }
+      ? { label: "กำลังทำ", cls: "bg-pru-red-soft text-brand-ink" }
+      : { label: "ไม่อยู่ใน Timeline", cls: "bg-surface text-ink-soft" }
+
+  const autoElearning = p.factors.elearning === undefined
+  const elearningOn = p.score.elearning > 0
 
   return (
-    <li className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
-          <span className={`rounded-full px-2 py-0.5 ${isProduct ? "bg-pru-red-soft text-brand-ink" : "bg-enh-soft text-enh"}`}>
-            {isProduct ? "New Product" : "Enhancement"}
-          </span>
-          <span className={`rounded-full px-2 py-0.5 ${status.cls}`}>{status.label}</span>
-          {hasElearning(p.item) && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-surface px-2 py-0.5 text-ink-soft">
-              <Icon name="elearning" size={13} strokeWidth={2} />
-              e-Learning
+    <li className="flex flex-col gap-3 px-5 py-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
+            <span className={`rounded-full px-2 py-0.5 ${isProduct ? "bg-pru-red-soft text-brand-ink" : "bg-enh-soft text-enh"}`}>
+              {isProduct ? "New Product" : "Enhancement"}
             </span>
-          )}
+            <span className={`rounded-full px-2 py-0.5 ${status.cls}`}>{status.label}</span>
+          </div>
+          <div className="mt-1 text-[15px] leading-snug font-semibold">{p.item.name.replace(/\n/g, " ")}</div>
+          <div className="text-[13px] text-ink-soft">
+            {p.item.broker} · {owners.join(" / ") || "ยังไม่มีผู้รับผิดชอบ"}
+          </div>
         </div>
-        <div className="mt-1 line-clamp-2 text-[15px] font-semibold" title={p.item.name}>
-          {p.item.name.replace(/\n/g, " ")}
-        </div>
-        <div className="text-[13px] text-ink-soft">
-          {p.item.broker} · {p.item.owner || "—"}
+        <div className="shrink-0 text-right">
+          <span className="text-[28px] leading-none font-bold tabular-nums">{fmt(p.score.total)}</span>
+          <span className="block text-[11px] text-ink-soft">คะแนน</span>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-[13px] font-semibold">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
+        {isProduct ? (
+          <div role="group" aria-label="หมวด" className="inline-flex items-center gap-0.5 rounded-full bg-surface p-[3px]">
+            {LEVELS.map((l) => (
+              <button
+                key={l}
+                type="button"
+                aria-pressed={p.score.level === l}
+                title={LEVEL_HINT[l]}
+                onClick={() => onChange({ ...p.factors, level: l })}
+                className={segment(p.score.level === l)}
+              >
+                {LEVEL_LABEL[l]}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span className="text-[13px] font-semibold text-ink-soft">หมวด{LEVEL_LABEL.low}</span>
+        )}
+        {isProduct && !p.factors.level && <span className="text-xs text-ink-soft">เดาจากชื่อ</span>}
+
+        <label className="inline-flex items-center gap-2 text-[13px] font-semibold">
+          <input
+            type="checkbox"
+            checked={elearningOn}
+            onChange={(e) => onChange({ ...p.factors, elearning: e.target.checked })}
+            className="h-4 w-4 accent-ink"
+          />
+          <Icon name="elearning" size={15} />
+          e-Learning
+        </label>
+
+        <label className="inline-flex items-center gap-2 text-[13px] font-semibold">
           <input
             type="checkbox"
             checked={Boolean(p.factors.newContent)}
@@ -84,55 +88,85 @@ function ProjectRow({ project: p, onChange }: { project: ScoredProject; onChange
           เนื้อหาใหม่
         </label>
 
-        <label className="flex items-center gap-1.5 text-[13px] font-semibold">
-          Channels
-          <input
-            type="number"
-            min={1}
-            max={20}
-            value={p.score.channelCount}
-            onChange={(e) => {
-              const v = Math.round(Number(e.target.value))
-              onChange({ ...p.factors, channels: Number.isFinite(v) && v >= 1 ? v : undefined })
-            }}
-            className="h-8 w-14 rounded-lg border-[1.5px] border-rule bg-white px-2 text-right text-sm tabular-nums focus:border-ink focus:outline-none"
-          />
-        </label>
-
-        <div role="group" aria-label="ปรับคะแนน" className="inline-flex gap-0.5 rounded-full bg-surface p-[3px]">
-          {ADJUST.map((v) => {
-            const on = (p.factors.adjust ?? 0) === v
-            return (
-              <button
-                key={v}
-                type="button"
-                aria-pressed={on}
-                onClick={() => onChange({ ...p.factors, adjust: v || undefined })}
-                className={`h-7 min-w-9 rounded-full px-2 text-[13px] font-semibold tabular-nums ${on ? "bg-ink text-white" : "text-ink-soft hover:bg-rule"}`}
-              >
-                {v > 0 ? "+1" : v < 0 ? "−1" : "0"}
-              </button>
-            )
-          })}
+        <div role="group" aria-label="ปรับคะแนน" className="inline-flex items-center gap-0.5 rounded-full bg-surface p-[3px]">
+          {ADJUST.map((v) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={(p.factors.adjust ?? 0) === v}
+              onClick={() => onChange({ ...p.factors, adjust: v || undefined })}
+              className={segment((p.factors.adjust ?? 0) === v)}
+            >
+              {v > 0 ? "+1" : v < 0 ? "−1" : "±0"}
+            </button>
+          ))}
         </div>
-
-        <div className="w-14 text-right" title={breakdownText(p.score)}>
-          <span className="text-2xl leading-none font-bold tabular-nums">{fmt(p.score.total)}</span>
-          <span className="block text-[11px] text-ink-soft">pts</span>
-        </div>
+        {!autoElearning && (
+          <button
+            type="button"
+            onClick={() => onChange({ ...p.factors, elearning: undefined })}
+            className="text-xs font-semibold text-ink-soft underline-offset-2 hover:underline"
+          >
+            e-Learning ตามระบบ
+          </button>
+        )}
       </div>
+
+      {owners.length > 1 && (
+        <SharesEditor
+          owners={owners}
+          split={split}
+          points={p.score.total}
+          onChange={(shares) => onChange({ ...p.factors, shares })}
+        />
+      )}
     </li>
   )
 }
 
-export const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1))
-
-function breakdownText(s: ScoreBreakdown) {
-  return [
-    `ประเภท ${fmt(s.type)}`,
-    `Channel ${fmt(s.channels)}`,
-    `e-Learning ${fmt(s.elearning)}`,
-    `เนื้อหาใหม่ ${fmt(s.newContent)}`,
-    `ปรับ ${s.adjust > 0 ? "+" : ""}${s.adjust}`,
-  ].join(" · ")
+/** Percent per owner of a shared piece of work; empty means an equal split */
+export function SharesEditor({
+  owners,
+  split,
+  points,
+  onChange,
+}: {
+  owners: string[]
+  split: Record<string, number>
+  points: number
+  onChange: (shares: Record<string, number> | undefined) => void
+}) {
+  const pct = (o: string) => Math.round((split[o] ?? 0) * 100)
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[14px] bg-paper px-3 py-2.5 text-[13px]">
+      <span className="font-semibold">แบ่งคะแนน</span>
+      {owners.map((o) => (
+        <label key={o} className="inline-flex items-center gap-1.5">
+          <span>{o}</span>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step={5}
+            value={pct(o)}
+            onChange={(e) => {
+              const v = Math.max(0, Math.min(100, Math.round(Number(e.target.value) || 0)))
+              // Two people: the other gets the rest, so the split always adds up to 100%
+              const next = Object.fromEntries(owners.map((n) => [n, n === o ? v : owners.length === 2 ? 100 - v : pct(n)]))
+              onChange(next)
+            }}
+            className="h-8 w-16 rounded-lg border-[1.5px] border-rule bg-white px-2 text-right tabular-nums focus:border-ink focus:outline-none"
+          />
+          <span className="text-ink-soft">% · {fmt(Math.round(points * (split[o] ?? 0) * 10) / 10)} คะแนน</span>
+        </label>
+      ))}
+      <button
+        type="button"
+        onClick={() => onChange(undefined)}
+        className="font-semibold text-ink-soft underline-offset-2 hover:text-ink hover:underline"
+      >
+        แบ่งเท่ากัน
+      </button>
+    </div>
+  )
 }

@@ -1,6 +1,6 @@
 import { KpiView } from "@/components/kpi/kpi-view"
 
-// Not in the menu; the owner opens /kpi directly
+// In the menu for admins only; viewers never see the tab
 export const metadata = {
   title: "KPI | Prudential Thailand",
   robots: { index: false, follow: false },

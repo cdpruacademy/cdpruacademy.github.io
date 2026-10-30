@@ -1,4 +1,5 @@
 import {
+  MONTH_NAMES,
   MonthlyStore,
   ProductItem,
   TimelineType,
@@ -11,85 +12,140 @@ import {
 } from "./timeline-data"
 import { getSupabaseClient, isCurrentUserAdmin } from "./supabase"
 
+/**
+ * How hard a New Product is. Enhancements are always "low".
+ * high: Unit link, Health, Index link · medium: Whole life, Saving
+ */
+export type Level = "high" | "medium" | "low"
+
+export const LEVEL_LABEL: Record<Level, string> = {
+  high: "สูง",
+  medium: "กลาง",
+  low: "น้อย",
+}
+export const LEVEL_HINT: Record<Level, string> = {
+  high: "Unit link · Health · Index link",
+  medium: "Whole life · Saving",
+  low: "Enhancement",
+}
+
 /** Points for each factor; the owner tunes these on /kpi */
 export interface DifficultyWeights {
-  product: number
-  enhancement: number
-  /** Added for each channel after the first */
-  perExtraChannel: number
+  high: number
+  medium: number
+  low: number
   elearning: number
   newContent: number
+  refresher: number
 }
 
 /** What the owner sets by hand for one project (keyed by project id) */
 export interface ProjectFactors {
-  /** Content written from scratch rather than adapted */
+  level?: Level
+  /** Overrides the e-Learning read from the steps and the ttb rule */
+  elearning?: boolean
   newContent?: boolean
-  /** Overrides the channel count read from `broker` */
-  channels?: number
   /** Manual nudge, -1 to +1 */
   adjust?: number
+  /** Percent per owner name; missing means an equal split */
+  shares?: Record<string, number>
+}
+
+/** A ttb Refresher lesson (quarterly e-Learning review); kept here only, not on the Timeline */
+export interface Refresher {
+  id: string
+  year: number
+  quarter: 1 | 2 | 3 | 4
+  title: string
+  owner: string
+  shares?: Record<string, number>
+  done: boolean
 }
 
 export interface DifficultyStore {
   weights: DifficultyWeights
   projects: Record<string, ProjectFactors>
+  refreshers: Refresher[]
 }
 
 export const DEFAULT_WEIGHTS: DifficultyWeights = {
-  product: 3,
-  enhancement: 1,
-  perExtraChannel: 1,
+  high: 5,
+  medium: 3,
+  low: 1,
   elearning: 2,
   newContent: 2,
+  refresher: 2,
 }
 
-export const EMPTY_DIFFICULTY: DifficultyStore = { weights: DEFAULT_WEIGHTS, projects: {} }
+export const EMPTY_DIFFICULTY: DifficultyStore = { weights: DEFAULT_WEIGHTS, projects: {}, refreshers: [] }
 
 const ROW_ID = "difficulty_scores"
 
-/** Channels named in `broker`, e.g. "ttb / ttb touch" is 2 */
-export function channelCount(broker?: string): number {
-  const parts = (broker || "").split(/\s*(?:\/|,|&|\+)\s*/).filter((s) => s.trim())
-  return Math.max(1, parts.length)
+/** First guess from the plan name; the owner corrects it on /kpi */
+export function guessLevel(item: ProductItem, type: TimelineType): Level {
+  if (type === "enhancement") return "low"
+  return /link|index|health|cancer|\bci\b|care\b|princip(al|le) protect|multi-asset/i.test(item.name)
+    ? "high"
+    : "medium"
 }
 
-export function hasElearning(item: ProductItem): boolean {
-  return Boolean(item.milestones?.["first-draft-elearning"] || item.milestones?.["final-elearning"])
+export function levelOf(item: ProductItem, type: TimelineType, f?: ProjectFactors): Level {
+  if (type === "enhancement") return "low"
+  return f?.level ?? guessLevel(item, type)
+}
+
+/** ttb (not ttb touch) always comes with an e-Learning lesson */
+export const isTtbChannel = (broker?: string) => (broker || "").trim().toLowerCase() === "ttb"
+
+export function hasElearning(item: ProductItem, f?: ProjectFactors): boolean {
+  if (f?.elearning !== undefined) return f.elearning
+  return (
+    isTtbChannel(item.broker) ||
+    Boolean(item.milestones?.["first-draft-elearning"] || item.milestones?.["final-elearning"])
+  )
 }
 
 /** People named in `owner`, e.g. "Nitikan B. / Surakit P." */
 export function ownersOf(owner?: string): string[] {
-  const names = (owner || "").split(/\s*(?:\/|,|&)\s*/).map((s) => s.trim()).filter(Boolean)
+  const names = (owner || "")
+    .split(/\s*(?:\/|,|&)\s*/)
+    .map((s) => s.trim())
+    .filter((s) => s && s.toUpperCase() !== "TBC")
   return names.length ? names : ["—"]
 }
 
+/** Each owner's share of the points (0–1), from the set percents or an equal split */
+export function sharesOf(owner: string | undefined, shares?: Record<string, number>): Record<string, number> {
+  const names = ownersOf(owner)
+  const set = names.map((n) => Math.max(0, shares?.[n] ?? 0))
+  const total = set.reduce((s, v) => s + v, 0)
+  return Object.fromEntries(names.map((n, i) => [n, total > 0 ? set[i] / total : 1 / names.length]))
+}
+
 export interface ScoreBreakdown {
-  type: number
-  channels: number
+  level: Level
+  levelPoints: number
   elearning: number
   newContent: number
   adjust: number
   total: number
-  channelCount: number
 }
 
 export function scoreProject(
   item: ProductItem,
   type: TimelineType,
-  factors: ProjectFactors | undefined,
+  f: ProjectFactors | undefined,
   w: DifficultyWeights
 ): ScoreBreakdown {
-  const count = factors?.channels ?? channelCount(item.broker)
+  const level = levelOf(item, type, f)
   const parts = {
-    type: type === "product" ? w.product : w.enhancement,
-    channels: Math.max(0, count - 1) * w.perExtraChannel,
-    elearning: hasElearning(item) ? w.elearning : 0,
-    newContent: factors?.newContent ? w.newContent : 0,
-    adjust: Math.max(-1, Math.min(1, factors?.adjust ?? 0)),
+    levelPoints: w[level],
+    elearning: hasElearning(item, f) ? w.elearning : 0,
+    newContent: f?.newContent ? w.newContent : 0,
+    adjust: Math.max(-1, Math.min(1, f?.adjust ?? 0)),
   }
-  const total = Math.max(0, parts.type + parts.channels + parts.elearning + parts.newContent + parts.adjust)
-  return { ...parts, total, channelCount: count }
+  const total = Math.max(0, parts.levelPoints + parts.elearning + parts.newContent + parts.adjust)
+  return { level, ...parts, total }
 }
 
 export interface KpiProject {
@@ -103,8 +159,7 @@ export interface KpiProject {
   months: string[]
 }
 
-const toMonthKey = (d: Date) =>
-  `${["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"][d.getMonth()]} ${d.getFullYear()}`
+const toMonthKey = (d: Date) => `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`
 
 /**
  * One entry per project id, from its latest saved copy. The id stays the same when a
@@ -163,6 +218,9 @@ function completionMonth(item: ProductItem, months: string[], asOfMonth: string)
   return last && parseMonthYear(last) ? last : asOfMonth
 }
 
+/** A Refresher counts in the last month of its quarter */
+export const refresherMonthIndex = (r: Refresher) => r.quarter * 3 - 1
+
 /** Reads the owner's scores (admin only; the row is not public) */
 export async function fetchDifficulty(): Promise<DifficultyStore | null> {
   const client = getSupabaseClient()
@@ -176,6 +234,7 @@ export async function fetchDifficulty(): Promise<DifficultyStore | null> {
   return {
     weights: { ...DEFAULT_WEIGHTS, ...(raw?.weights || {}) },
     projects: raw?.projects && typeof raw.projects === "object" ? raw.projects : {},
+    refreshers: Array.isArray(raw?.refreshers) ? raw.refreshers : [],
   }
 }
 

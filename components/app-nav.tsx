@@ -30,6 +30,7 @@ const NAV_ITEMS: NavItem[] = [
     adminOnly: true,
     hiddenForViewers: true,
   },
+  { href: "/kpi", label: "KPI", icon: "donut", adminOnly: true, hiddenForViewers: true },
 ]
 
 export function AppNav() {
