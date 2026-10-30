@@ -55,7 +55,13 @@ export function AppNav() {
     const content = (
       <>
         <Icon name={item.icon} size={variant === "top" ? 18 : 22} />
-        <span>{item.label}</span>
+        {/* Sized for the bold label, so picking a page does not move the items after it */}
+        <span className="inline-grid">
+          <span className="col-start-1 row-start-1">{item.label}</span>
+          <span aria-hidden="true" className="invisible col-start-1 row-start-1 font-bold">
+            {item.label}
+          </span>
+        </span>
         {locked && variant === "top" && <Icon name="lock" size={14} label="เฉพาะ Admin" />}
       </>
     )

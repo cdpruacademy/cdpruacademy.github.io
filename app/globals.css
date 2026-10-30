@@ -202,6 +202,8 @@
     }
   html {
     @apply font-sans;
+    /* Keep room for the scrollbar on every page, so short and long pages line up */
+    scrollbar-gutter: stable;
     }
   /* One visible keyboard focus ring for every control (3:1+ against white and tints) */
   :focus-visible {
