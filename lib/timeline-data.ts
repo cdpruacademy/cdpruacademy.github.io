@@ -503,9 +503,9 @@ export function getPausedItemsForMonth(
   return result.sort((a, b) => compareMonthKeys(b.pausedSince || "", a.pausedSince || ""));
 }
 
-// Shared by analytics and the phone timeline so both call a project "finished" the same way
-export const isDateInPastOrCurrent = (dateStr?: string, referenceMonth?: string): boolean => {
-  if (!dateStr || dateStr.toLowerCase().includes("tbc")) return false;
+/** Reads dates like "6 Nov 2026" or "4 June 2569"; null for TBC. No day means the 15th, no year this year. */
+export function parseTimelineDate(dateStr?: string): Date | null {
+  if (!dateStr || dateStr.toLowerCase().includes("tbc")) return null;
   const clean = dateStr.toLowerCase().trim();
 
   let monthIdx = -1;
@@ -516,7 +516,7 @@ export const isDateInPastOrCurrent = (dateStr?: string, referenceMonth?: string)
       break;
     }
   }
-  if (monthIdx === -1) return false;
+  if (monthIdx === -1) return null;
 
   const yMatch = clean.match(/\b(20\d{2}|25\d{2})\b/);
   const currentYear = new Date().getFullYear();
@@ -527,7 +527,13 @@ export const isDateInPastOrCurrent = (dateStr?: string, referenceMonth?: string)
   const dMatch = clean.match(/\b(\d{1,2})\b/);
   const day = dMatch ? parseInt(dMatch[0], 10) : 15;
 
-  const targetDate = new Date(year, monthIdx, day);
+  return new Date(year, monthIdx, day);
+}
+
+// Shared by analytics and the phone timeline so both call a project "finished" the same way
+export const isDateInPastOrCurrent = (dateStr?: string, referenceMonth?: string): boolean => {
+  const targetDate = parseTimelineDate(dateStr);
+  if (!targetDate) return false;
 
   if (referenceMonth && referenceMonth !== "ALL_YEAR") {
     const parsedRef = parseMonthYear(referenceMonth);

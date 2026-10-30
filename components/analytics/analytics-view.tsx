@@ -19,7 +19,11 @@ import {
   getSystemCurrentMonth,
   compareMonthKeys,
   checkIsProjectCompleted,
+  getDefaultAsOf,
 } from "@/lib/timeline-data"
+import { buildMonthlyReport, collectReportData, ReportImage } from "@/lib/report-slides"
+import { buildLaunchCalendar } from "@/lib/calendar"
+import { TimelineExportBoard } from "@/components/dashboard/timeline-export-board"
 import { Loader2 } from "lucide-react"
 import Link from "next/link"
 import { toPng } from "html-to-image"
@@ -41,6 +45,14 @@ import { updateChannelSummarySnapshot } from "@/lib/supabase"
 import { toast } from "@/lib/notify"
 import { useDialogA11y } from "@/hooks/use-dialog-a11y"
 import { ChannelSummaryExportBoard } from "./channel-summary-export-board"
+import {
+  getLaunchPlanStats,
+  getStepDurations,
+  getYearProjects,
+  YearProject,
+} from "@/lib/team-metrics"
+
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? ""
 
 interface AggregatedItem extends ProductItem {
   activeMonths?: string[]
@@ -195,6 +207,63 @@ export function AnalyticsView() {
       )
     } finally {
       setIsSendingLine(false)
+    }
+  }
+
+  // Monthly report slides: the selected month, or this month on the whole-year view
+  const thisMonth = getSystemCurrentMonth()
+  const reportMonth = isAnnual
+    ? yearMonths.includes(thisMonth)
+      ? thisMonth
+      : yearMonths[yearMonths.length - 1]
+    : selectedPeriod
+  const [slideMonth, setSlideMonth] = useState<string | null>(null)
+  const slideAsOf = slideMonth
+    ? monthlyStore?.[slideMonth]?.asOfText || getDefaultAsOf(slideMonth)
+    : ""
+  const slidePartnerRef = React.useRef<HTMLDivElement>(null)
+  const slideProductRef = React.useRef<HTMLDivElement>(null)
+  const slideEnhancementRef = React.useRef<HTMLDivElement>(null)
+
+  const handleMakeSlides = async () => {
+    if (!monthlyStore || !getItemsForMonth || slideMonth) return
+    const month = reportMonth
+    const asOfText = monthlyStore[month]?.asOfText || getDefaultAsOf(month)
+    try {
+      // Render the month's boards off-screen, then capture them like the LINE images
+      setSlideMonth(month)
+      await new Promise((resolve) => setTimeout(resolve, 400))
+      const shots: [HTMLDivElement | null, number, string][] = [
+        [slidePartnerRef.current, 1200, "สรุปตาม partner"],
+        [slideProductRef.current, 1280, "Timeline · New Product"],
+        [slideEnhancementRef.current, 1280, "Timeline · Enhancement"],
+      ]
+      const images: ReportImage[] = []
+      for (const [el, width, title] of shots) {
+        if (!el) continue
+        const dataUrl = await toPng(el, { cacheBust: true, pixelRatio: 2, backgroundColor: "#FFFFFF", width })
+        images.push({ dataUrl, width: el.offsetWidth, height: el.offsetHeight, title })
+      }
+      const logo = await fetch(`${BASE_PATH}/prudential-logo-th.png`)
+        .then((r) => r.blob())
+        .then(
+          (blob) =>
+            new Promise<string>((resolve, reject) => {
+              const reader = new FileReader()
+              reader.onload = () => resolve(String(reader.result))
+              reader.onerror = reject
+              reader.readAsDataURL(blob)
+            })
+        )
+      const data = collectReportData(monthlyStore, month, getItemsForMonth, asOfText)
+      await buildMonthlyReport({ ...data, images }, logo)
+    } catch (err) {
+      console.error("Monthly slides error:", err)
+      toast.error(
+        "สร้างสไลด์ไม่สำเร็จ: " + (err instanceof Error ? err.message : String(err))
+      )
+    } finally {
+      setSlideMonth(null)
     }
   }
 
@@ -414,6 +483,59 @@ export function AnalyticsView() {
   const itemsWithStatus = useMemo(() => {
     return activeItems.map(buildItemStatus)
   }, [activeItems])
+
+  // Team performance: follows the period, owner and type filters
+  const launchPlan = useMemo(() => {
+    if (!monthlyStore) return { tracked: 0, onPlan: 0, slipped: 0, avgSlipDays: 0 }
+    const months = isAnnual
+      ? yearMonths
+      : yearMonths.filter((m) => compareMonthKeys(m, selectedPeriod) <= 0)
+    return getLaunchPlanStats(monthlyStore, months, activeItems, selectedPeriod)
+  }, [monthlyStore, yearMonths, isAnnual, selectedPeriod, activeItems])
+
+  const stepDurations = useMemo(
+    () => getStepDurations(activeItems, selectedPeriod),
+    [activeItems, selectedPeriod]
+  )
+  const maxStepDays = Math.max(1, ...stepDurations.steps.map((s) => s.avgDays))
+
+  // Compared with the year before, on the whole year only
+  const yearCompare = useMemo(() => {
+    if (!monthlyStore || !isAnnual) return null
+    const keep = (p: YearProject) =>
+      (!selectedMember || isOwnerMatch(p.item.owner, selectedMember)) &&
+      (selectedTypeFilter === "all" || p.type === selectedTypeFilter)
+    const prev = getYearProjects(monthlyStore, activeYear - 1).filter(keep)
+    if (prev.length === 0) return null
+    const now = getYearProjects(monthlyStore, activeYear).filter(keep)
+    const count = (list: YearProject[]) => ({
+      total: list.length,
+      completed: list.filter((p) => p.completed).length,
+      product: list.filter((p) => p.type === "product").length,
+      enhancement: list.filter((p) => p.type === "enhancement").length,
+    })
+    return { now: count(now), prev: count(prev) }
+  }, [monthlyStore, isAnnual, activeYear, selectedMember, selectedTypeFilter])
+
+  // Launch and Internal Training dates as an .ics file for Outlook (follows the filters)
+  const handleDownloadCalendar = () => {
+    const typed = [
+      ...(selectedTypeFilter !== "enhancement" ? products.map((item) => ({ item, type: "product" as const })) : []),
+      ...(selectedTypeFilter !== "product" ? enhancements.map((item) => ({ item, type: "enhancement" as const })) : []),
+    ]
+    const period = isAnnual ? String(activeYear) : selectedPeriod
+    const { ics, count } = buildLaunchCalendar(typed, `CD Team · ${period}`)
+    if (count === 0) {
+      toast.error("ไม่มีวัน launch ในช่วงนี้")
+      return
+    }
+    const url = URL.createObjectURL(new Blob([ics], { type: "text/calendar;charset=utf-8" }))
+    const link = document.createElement("a")
+    link.download = `CD-Team-Launch_${period.replace(/\s+/g, "-")}.ics`
+    link.href = url
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
 
   // Total KPIs (paused projects still count: the team did work on them this year)
   const totalProjects = products.length + enhancements.length
@@ -715,6 +837,14 @@ export function AnalyticsView() {
                 <Icon name="team" size={18} />
                 Team ({teamMembers.length})
               </button>
+              <button type="button" onClick={handleDownloadCalendar} className={heroButton}>
+                <Icon name="calendar" size={18} />
+                Calendar
+              </button>
+              <button type="button" onClick={handleMakeSlides} disabled={!!slideMonth} className={heroButton}>
+                {slideMonth ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon name="download" size={18} />}
+                {slideMonth ? "Making slides…" : `Slides ${reportMonth}`}
+              </button>
               <button type="button" onClick={handleSendToLine} disabled={isSendingLine} className={heroButton}>
                 {isSendingLine ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon name="send" size={18} />}
                 {isSendingLine ? "Sending…" : "Send to LINE"}
@@ -890,6 +1020,100 @@ export function AnalyticsView() {
             {totalProjects > 0 ? Math.min(100, Math.round((totalElearning / totalProjects) * 100)) : 0}% of all projects
           </span>
         </section>
+
+        {/* Launch on plan */}
+        <section className={`${kpiCard} lg:col-span-4`}>
+          <div className="flex items-start justify-between gap-3">
+            <span>
+              <span className="text-sm font-semibold text-ink-soft">Launch on plan</span>
+              {launchPlan.tracked > 0 ? (
+                <span className="block text-[44px] leading-tight font-bold">
+                  {Math.round((launchPlan.onPlan / launchPlan.tracked) * 100)}%
+                </span>
+              ) : (
+                <span className="block py-3 text-sm text-ink-soft">No earlier plan yet</span>
+              )}
+            </span>
+            <span className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-done-soft text-done">
+              <Icon name="launch" size={24} />
+            </span>
+          </div>
+          {launchPlan.tracked > 0 && (
+            <>
+              <div className="flex h-2 gap-[3px] overflow-hidden rounded-full bg-surface">
+                <span className="bg-done" style={{ flex: launchPlan.onPlan || 0.001 }} />
+                <span className="bg-gray-300" style={{ flex: launchPlan.slipped || 0.001 }} />
+              </div>
+              <span className="text-xs text-ink-soft">
+                {launchPlan.onPlan} of {launchPlan.tracked} on plan
+                {launchPlan.slipped > 0 && ` · ${launchPlan.slipped} moved, avg +${launchPlan.avgSlipDays} days`}
+              </span>
+            </>
+          )}
+        </section>
+
+        {/* Days per step */}
+        <section className={`${kpiCard} ${yearCompare ? "lg:col-span-5" : "lg:col-span-8"}`}>
+          <div className="flex items-start justify-between gap-3">
+            <span>
+              <span className="text-sm font-semibold text-ink-soft">Average days per step</span>
+              <span className="block text-[13px] text-ink-soft">
+                Kick-off → Launch{" "}
+                <b className="text-base text-ink">
+                  {stepDurations.total.count > 0 ? `${stepDurations.total.avgDays} days` : "–"}
+                </b>
+              </span>
+            </span>
+            <span className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-surface text-ink-soft">
+              <Icon name="timeline" size={24} />
+            </span>
+          </div>
+          <div className="flex flex-col gap-2">
+            {stepDurations.steps.map((step) => (
+              <div key={step.label} className="grid grid-cols-[minmax(0,1fr)_70px] items-center gap-x-3 gap-y-1 sm:grid-cols-[230px_minmax(0,1fr)_70px]">
+                <span className="truncate text-[13px]">{step.label}</span>
+                <span className="order-last col-span-2 h-2 rounded-full bg-surface sm:order-none sm:col-span-1">
+                  <span
+                    className="block h-2 rounded-full bg-ink-soft"
+                    style={{ width: `${step.count > 0 ? (step.avgDays / maxStepDays) * 100 : 0}%` }}
+                  />
+                </span>
+                <b className="text-right text-sm">{step.count > 0 ? `${step.avgDays} d` : "–"}</b>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Compared with last year */}
+        {yearCompare && (
+          <section className={`${kpiCard} lg:col-span-3`}>
+            <span className="text-sm font-semibold text-ink-soft">
+              {activeYear} vs {activeYear - 1}
+            </span>
+            {([
+              ["Completed", "completed"],
+              ["All projects", "total"],
+              ["New Product", "product"],
+              ["Enhancement", "enhancement"],
+            ] as const).map(([label, key]) => {
+              const diff = yearCompare.now[key] - yearCompare.prev[key]
+              return (
+                <div key={key} className="flex items-baseline justify-between gap-2 border-b border-surface pb-1.5 text-sm">
+                  <span>{label}</span>
+                  <span className="flex items-baseline gap-2">
+                    <b className="text-base">{yearCompare.now[key]}</b>
+                    <span className="text-xs text-ink-soft">from {yearCompare.prev[key]}</span>
+                    {diff !== 0 && (
+                      <span className={`text-xs font-bold ${diff > 0 ? "text-done" : "text-brand-ink"}`}>
+                        {diff > 0 ? `+${diff}` : diff}
+                      </span>
+                    )}
+                  </span>
+                </div>
+              )
+            })}
+          </section>
+        )}
 
         {/* Projects per month */}
         <section className={`${card} flex flex-col gap-4 p-6 lg:col-span-12`}>
@@ -1429,6 +1653,35 @@ export function AnalyticsView() {
           enhancements={rawEnhancements}
           partners={partners}
         />
+        {/* Images for the monthly slides, only while they are being made */}
+        {slideMonth && getItemsForMonth && (
+          <>
+            <ChannelSummaryExportBoard
+              ref={slidePartnerRef}
+              selectedPeriod={slideMonth}
+              isAnnual={false}
+              products={getItemsForMonth(slideMonth, "product")}
+              enhancements={getItemsForMonth(slideMonth, "enhancement")}
+              partners={partners}
+            />
+            <TimelineExportBoard
+              ref={slideProductRef}
+              timelineType="product"
+              selectedMonth={slideMonth}
+              asOfText={slideAsOf}
+              items={getItemsForMonth(slideMonth, "product")}
+              partners={partners}
+            />
+            <TimelineExportBoard
+              ref={slideEnhancementRef}
+              timelineType="enhancement"
+              selectedMonth={slideMonth}
+              asOfText={slideAsOf}
+              items={getItemsForMonth(slideMonth, "enhancement")}
+              partners={partners}
+            />
+          </>
+        )}
       </div>
     </div>
   )

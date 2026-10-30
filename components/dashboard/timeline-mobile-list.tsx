@@ -2,10 +2,13 @@
 
 import * as React from "react"
 import { useState } from "react"
+import { createPortal } from "react-dom"
 import { ProductItem, TimelineType } from "@/lib/timeline-data"
 import { Icon, PHASE_ICONS } from "@/components/icon"
 import { Partner, partnerOf } from "@/lib/partners"
 import { PHASE_HEADINGS, formatShortDate, stepKinds } from "./timeline-row"
+import { useProjectLinks } from "@/hooks/use-project-links"
+import { ProjectLinksDialog } from "./project-links-dialog"
 
 interface TimelineMobileListProps {
   items: ProductItem[]
@@ -33,6 +36,8 @@ export function TimelineMobileList({
   onDelete,
 }: TimelineMobileListProps) {
   const [openId, setOpenId] = useState<string | null>(null)
+  const { links, saveLinks } = useProjectLinks(isAdmin)
+  const [linksFor, setLinksFor] = useState<ProductItem | null>(null)
   const actionButton =
     "touch-target flex-1 inline-flex items-center justify-center gap-1.5 h-11 rounded-full border border-rule bg-white text-sm font-semibold text-ink"
 
@@ -198,6 +203,14 @@ export function TimelineMobileList({
                     )}
                     <button
                       type="button"
+                      onClick={() => setLinksFor(item)}
+                      aria-label="Final files"
+                      className="inline-flex h-11 w-11 touch-target items-center justify-center rounded-full border border-rule bg-white text-ink-soft hover:text-ink"
+                    >
+                      <Icon name="folder" size={18} />
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => onDelete(item)}
                       aria-label="Delete project"
                       className="inline-flex h-11 w-11 touch-target items-center justify-center rounded-full border border-rule bg-white text-ink-soft hover:text-brand-ink"
@@ -206,11 +219,37 @@ export function TimelineMobileList({
                     </button>
                   </div>
                 )}
+                {isAdmin && (links[item.id] || []).length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {links[item.id].map((link, i) => (
+                      <a
+                        key={i}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex h-9 max-w-full items-center gap-1.5 rounded-full bg-surface px-3 text-[13px] font-semibold text-ink"
+                      >
+                        <Icon name="folder" size={14} />
+                        <span className="truncate">{link.label}</span>
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </li>
         )
       })}
+      {linksFor &&
+        createPortal(
+          <ProjectLinksDialog
+            product={linksFor}
+            links={links[linksFor.id] || []}
+            onSave={(next) => saveLinks(linksFor.id, next)}
+            onClose={() => setLinksFor(null)}
+          />,
+          document.body
+        )}
     </ul>
   )
 }
