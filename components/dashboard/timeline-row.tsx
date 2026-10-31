@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import { useRef, useState } from "react"
-import { createPortal } from "react-dom"
 import {
   ProductItem,
   PRODUCT_PHASES,
@@ -13,8 +12,6 @@ import {
 import { toPng } from "html-to-image"
 import { Icon, PHASE_ICONS } from "@/components/icon"
 import { Partner, inkOf, tintOf } from "@/lib/partners"
-import { useProjectLinks } from "@/hooks/use-project-links"
-import { ProjectLinksDialog } from "./project-links-dialog"
 
 interface TimelineRowProps {
   product: ProductItem
@@ -115,11 +112,6 @@ export function TimelineRow({
 }: TimelineRowProps) {
   const rowRef = useRef<HTMLDivElement>(null)
   const [isExportingThis, setIsExportingThis] = useState(false)
-  // Final-file links: admins only, never in the LINE image
-  const showLinks = isAdmin && !compact
-  const { links, saveLinks } = useProjectLinks(showLinks)
-  const fileLinks = links[product.id] || []
-  const [isLinksOpen, setIsLinksOpen] = useState(false)
   const { phases, kinds, current, isFinished, end, reach } = stepKinds(
     product,
     timelineType
@@ -179,11 +171,6 @@ export function TimelineRow({
             <Icon name="edit" size={17} />
           </button>
         )}
-        {showLinks && (
-          <button type="button" onClick={() => setIsLinksOpen(true)} className={actionButton} aria-label="Final files" title="Final files">
-            <Icon name="folder" size={17} />
-          </button>
-        )}
         <button
           type="button"
           onClick={handleExportRow}
@@ -237,33 +224,8 @@ export function TimelineRow({
               On hold
             </span>
           )}
-          {showLinks &&
-            fileLinks.map((link, i) => (
-              <a
-                key={i}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex max-w-[140px] items-center gap-1 rounded-full bg-surface px-2 py-0.5 font-semibold text-ink hover:bg-rule"
-                title={link.url}
-              >
-                <Icon name="folder" size={12} />
-                <span className="truncate">{link.label}</span>
-              </a>
-            ))}
         </span>
       </div>
-      {/* Outside the row, so an on-hold row's fade does not reach the dialog */}
-      {isLinksOpen &&
-        createPortal(
-          <ProjectLinksDialog
-            product={product}
-            links={fileLinks}
-            onSave={(next) => saveLinks(product.id, next)}
-            onClose={() => setIsLinksOpen(false)}
-          />,
-          document.body
-        )}
 
       {/* Steps */}
       {phases.map((phase, i) => {
