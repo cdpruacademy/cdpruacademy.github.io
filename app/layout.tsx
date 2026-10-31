@@ -1,20 +1,9 @@
 import type { Metadata } from "next";
-import { Noto_Sans_Thai, Geist_Mono } from "next/font/google";
+// Noto Sans Thai, one family for Thai, English and figures (see DESIGN.md), is bundled
+// through @font-face in globals.css, so the build needs no font download
 import "./globals.css";
 import { AppNav } from "@/components/app-nav";
 import { NotifyHost } from "@/components/notify-host";
-import { cn } from "@/lib/utils";
-
-// One family for Thai, English and figures (see DESIGN.md)
-const notoThai = Noto_Sans_Thai({
-  subsets: ["thai", "latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-noto-thai",
-});
-const fontMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-});
 
 export const metadata: Metadata = {
   title: "CD Team · ฝ่ายพัฒนาหลักสูตร",
@@ -29,7 +18,7 @@ export default function RootLayout({
   return (
     <html
       lang="th"
-      className={cn("antialiased", fontMono.variable, "font-sans", notoThai.variable)}
+      className="antialiased font-sans"
     >
       <body className="min-h-screen bg-paper text-ink flex flex-col pb-16 md:pb-0">
         <AppNav />
