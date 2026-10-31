@@ -6,113 +6,173 @@ import { card, cardButton } from "@/components/page-hero"
 import { DifficultyWeights, LEVEL_LABEL, Level } from "@/lib/difficulty"
 import { fmt } from "@/lib/kpi-summary"
 
-const LEVELS: { level: Level; icon: IconName; types: string; tone: string }[] = [
-  { level: "high", icon: "product", types: "Unit link · Health · Index link", tone: "bg-pru-red text-white" },
-  { level: "medium", icon: "product", types: "Whole life · Saving", tone: "bg-pru-red-soft text-brand-ink" },
-  { level: "low", icon: "wrench", types: "Enhancement", tone: "bg-surface text-ink" },
+const LEVELS: { level: Level; types: string; dot: string }[] = [
+  { level: "high", types: "Unit link · Health · Index link", dot: "bg-pru-red" },
+  { level: "medium", types: "Whole life · Saving", dot: "bg-[#F8B4BB]" },
+  { level: "low", types: "Enhancement", dot: "bg-stone-300" },
 ]
+
+/** A numbered list panel: name and Thai note on the left, points on the right */
+function Panel({ step, title, note, children }: { step: number; title: string; note: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col rounded-[16px] border border-rule">
+      <div className="flex items-center gap-3 border-b border-rule px-5 py-3.5">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink text-[13px] font-bold text-white">
+          {step}
+        </span>
+        <div>
+          <div className="text-[15px] font-bold">{title}</div>
+          <div className="text-[13px] text-ink-soft">{note}</div>
+        </div>
+      </div>
+      <ul className="divide-y divide-rule">{children}</ul>
+    </div>
+  )
+}
+
+function Row({ lead, title, note, points, sub }: { lead: React.ReactNode; title: string; note: string; points: string; sub?: string }) {
+  return (
+    <li className="flex items-center gap-3.5 px-5 py-3">
+      {lead}
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold">{title}</div>
+        <div className="text-[13px] leading-snug text-ink-soft">{note}</div>
+      </div>
+      <div className="shrink-0 text-right">
+        <div className="text-xl leading-tight font-bold tabular-nums">{points}</div>
+        {sub && <div className="text-xs text-ink-soft tabular-nums">{sub}</div>}
+      </div>
+    </li>
+  )
+}
+
+const iconLead = (name: IconName) => (
+  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-surface text-ink">
+    <Icon name={name} size={18} />
+  </span>
+)
 
 /** How the team's points are counted, written so the owner can walk the team through it */
 export function CriteriaSection({ weights: w, onEdit }: { weights: DifficultyWeights; onEdit: () => void }) {
-  const extras: { icon: IconName; title: string; points: string; note: string }[] = [
-    { icon: "elearning", title: "e-Learning", points: `+${fmt(w.elearning)}`, note: "งานช่องทาง ttb มี e-Learning เสมอ" },
-    { icon: "draft", title: "New content", points: `+${fmt(w.newContent)}`, note: "เขียนเนื้อหาใหม่ทั้งหมด ไม่ได้ปรับจากของเดิม" },
-    {
-      icon: "folder",
-      title: "Audit",
-      points: `+${fmt(w.audit)} และ +${fmt(w.perFile)}/ไฟล์`,
-      note: "งานแก้ไฟล์เก่า: คะแนนประสานงาน 1 ครั้ง บวกตามจำนวนไฟล์ที่แก้",
-    },
-    { icon: "training", title: "Refresher", points: `${fmt(w.refresher)}/บทเรียน`, note: "บทเรียนทบทวนรายไตรมาสของ ttb" },
-    { icon: "edit", title: "Adjust", points: "±1", note: "ปรับเพิ่มหรือลดได้ทีละงาน" },
+  const example = w.high + w.elearning
+  const formula: { label: string; note: string }[] = [
+    { label: "Type", note: "ประเภทของงาน" },
+    { label: "Extras", note: "งานที่ทำเพิ่ม" },
+    { label: "Project points", note: "คะแนนของงาน" },
   ]
-  const rules = [
-    "นับคะแนนเมื่องานเสร็จ เข้าเดือนที่งานเสร็จ",
-    "งานที่ยังไม่เสร็จนับแยกเป็น In progress เพื่อดูภาระงานตอนนี้",
-    "งานที่ทำหลายคน แบ่งคะแนนตาม % ที่ตั้งไว้ ถ้าไม่ได้ตั้งแบ่งเท่ากัน",
-    "งานที่ On hold ไม่นับจนกว่าจะทำต่อ",
+  const rules: { icon: IconName; text: string }[] = [
+    { icon: "completed", text: "นับเมื่องานเสร็จ ในเดือนที่เสร็จ" },
+    { icon: "inProgress", text: "งานที่ยังไม่เสร็จ แยกนับเป็น In progress" },
+    { icon: "team", text: "ทำหลายคน แบ่งตาม % ที่ตั้งไว้ (เริ่มต้นแบ่งเท่ากัน)" },
+    { icon: "onHold", text: "On hold ไม่นับ จนกว่าจะทำต่อ" },
   ]
-  const ttbExample = w.high + w.elearning
 
   return (
-    <section className={`${card} flex flex-col gap-6 p-5 sm:p-7`}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="flex items-center gap-2.5 text-[19px] font-bold">
-            <span className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] bg-pru-red-soft text-brand-ink">
-              <Icon name="info" size={18} />
-            </span>
-            How points work
-          </h2>
-          <p className="mt-1 text-sm text-ink-soft">คะแนนของแต่ละงาน = คะแนนตามประเภท + คะแนนเพิ่ม</p>
-        </div>
+    <section className={`${card} flex flex-col gap-5 p-5 sm:p-7`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2.5 text-[17px] font-bold">
+          <span className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] bg-pru-red-soft text-brand-ink">
+            <Icon name="info" size={18} />
+          </span>
+          How points work
+        </h2>
         <button type="button" onClick={onEdit} className={cardButton}>
           <Icon name="edit" size={16} />
           Edit points
         </button>
       </div>
 
-      <div>
-        <h3 className="mb-2.5 text-[13px] font-semibold text-ink-soft">1 · คะแนนตามประเภท</h3>
-        <div className="grid gap-3 sm:grid-cols-3">
+      {/* The whole rule in one line */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[16px] bg-paper px-5 py-4">
+        {formula.map((f, i) => (
+          <React.Fragment key={f.label}>
+            {i > 0 && <span className="text-2xl font-bold text-ink-soft">{i === 1 ? "+" : "="}</span>}
+            <span
+              className={`flex flex-col rounded-[12px] px-4 py-2 ${i === 2 ? "bg-pru-red text-white" : "bg-white shadow-[var(--shadow-card)]"}`}
+            >
+              <span className="text-sm font-bold">
+                {i < 2 && <span className="text-brand-ink">{i + 1} · </span>}
+                {f.label}
+              </span>
+              <span className={`text-xs ${i === 2 ? "text-white/85" : "text-ink-soft"}`}>{f.note}</span>
+            </span>
+          </React.Fragment>
+        ))}
+        <span className="text-[13px] text-ink-soft sm:ml-2">แล้วแบ่งให้ผู้รับผิดชอบตาม %</span>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel step={1} title="Type" note="เลือกได้ 1 ประเภทต่องาน">
           {LEVELS.map((l) => (
-            <div key={l.level} className={`flex items-center justify-between gap-3 rounded-[16px] px-5 py-4 ${l.tone}`}>
-              <div className="min-w-0">
-                <div className="text-sm font-bold">{LEVEL_LABEL[l.level]}</div>
-                <div className="text-[13px] opacity-85">{l.types}</div>
-              </div>
-              <div className="shrink-0 text-right">
-                <span className="text-[40px] leading-none font-bold tabular-nums">{fmt(w[l.level])}</span>
-                <span className="block text-xs opacity-85">pts</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <h3 className="mb-2.5 text-[13px] font-semibold text-ink-soft">2 · คะแนนเพิ่ม</h3>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {extras.map((e) => (
-            <div key={e.title} className="flex flex-col gap-2 rounded-[16px] border border-rule px-4 py-3.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-surface text-ink">
-                  <Icon name={e.icon} size={17} />
+            <Row
+              key={l.level}
+              lead={
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-surface">
+                  <span className={`h-3.5 w-3.5 rounded-full ${l.dot}`} />
                 </span>
-                <b className="text-sm tabular-nums">{e.points}</b>
-              </div>
-              <div className="text-sm font-bold">{e.title}</div>
-              <div className="text-[13px] leading-snug text-ink-soft">{e.note}</div>
-            </div>
+              }
+              title={LEVEL_LABEL[l.level]}
+              note={l.types}
+              points={fmt(w[l.level])}
+            />
           ))}
-        </div>
+        </Panel>
+
+        <Panel step={2} title="Extras" note="บวกเพิ่มได้หลายข้อ">
+          <Row lead={iconLead("elearning")} title="e-Learning" note="งานช่องทาง ttb มีเสมอ" points={`+${fmt(w.elearning)}`} />
+          <Row lead={iconLead("draft")} title="New content" note="เขียนใหม่ทั้งหมด ไม่ได้ปรับจากของเดิม" points={`+${fmt(w.newContent)}`} />
+          <Row
+            lead={iconLead("folder")}
+            title="Audit"
+            note="แก้ไฟล์เก่า: ประสานงาน 1 ครั้ง และตามจำนวนไฟล์"
+            points={`+${fmt(w.audit)}`}
+            sub={`+${fmt(w.perFile)} ต่อไฟล์`}
+          />
+          <Row lead={iconLead("edit")} title="Adjust" note="ปรับเพิ่มหรือลดทีละงาน" points="±1" />
+        </Panel>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div>
-          <h3 className="mb-2.5 text-[13px] font-semibold text-ink-soft">3 · วิธีนับ</h3>
-          <ul className="flex flex-col gap-2">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="flex flex-col gap-2.5 rounded-[16px] border border-rule px-5 py-4">
+          <div className="text-[15px] font-bold">How we count</div>
+          <ul className="grid gap-2.5 sm:grid-cols-2">
             {rules.map((r) => (
-              <li key={r} className="flex items-start gap-2.5 text-sm">
-                <span className="mt-0.5 text-done">
-                  <Icon name="check" size={16} strokeWidth={2.6} />
+              <li key={r.text} className="flex items-start gap-2.5 text-sm leading-snug">
+                <span className="mt-px shrink-0 text-ink-soft">
+                  <Icon name={r.icon} size={18} />
                 </span>
-                {r}
+                {r.text}
               </li>
             ))}
+            <li className="flex items-start gap-2.5 text-sm leading-snug sm:col-span-2">
+              <span className="mt-px shrink-0 text-ink-soft">
+                <Icon name="training" size={18} />
+              </span>
+              Refresher ของ ttb ได้บทเรียนละ {fmt(w.refresher)} คะแนน
+            </li>
           </ul>
         </div>
-        <div className="rounded-[16px] bg-paper px-5 py-4">
-          <div className="text-[13px] font-semibold text-ink-soft">ตัวอย่าง</div>
-          <div className="mt-1 text-sm">ttb Index link ทำ 2 คน แบ่ง 50/50</div>
-          <div className="mt-2 flex flex-wrap items-baseline gap-x-2 text-sm tabular-nums">
-            <span>High {fmt(w.high)}</span>
-            <span className="text-ink-soft">+</span>
-            <span>e-Learning {fmt(w.elearning)}</span>
-            <span className="text-ink-soft">=</span>
-            <b className="text-lg">{fmt(ttbExample)}</b>
+
+        <div className="flex flex-col gap-3 rounded-[16px] bg-paper px-5 py-4">
+          <div>
+            <div className="text-[15px] font-bold">Example</div>
+            <div className="text-[13px] text-ink-soft">งาน ttb แบบ Index link ทำ 2 คน แบ่ง 50/50</div>
           </div>
-          <div className="mt-1 text-[13px] text-ink-soft">ได้คนละ {fmt(ttbExample / 2)} คะแนน</div>
+          <div className="flex flex-wrap items-center gap-2 tabular-nums">
+            <span className="rounded-full bg-white px-3 py-1.5 text-sm font-semibold shadow-[var(--shadow-card)]">
+              High {fmt(w.high)}
+            </span>
+            <span className="font-bold text-ink-soft">+</span>
+            <span className="rounded-full bg-white px-3 py-1.5 text-sm font-semibold shadow-[var(--shadow-card)]">
+              e-Learning {fmt(w.elearning)}
+            </span>
+            <span className="font-bold text-ink-soft">=</span>
+            <span className="rounded-full bg-pru-red px-3.5 py-1.5 text-sm font-bold text-white">{fmt(example)} pts</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Icon name="team" size={17} />
+            ได้คนละ <b className="tabular-nums">{fmt(example / 2)}</b> คะแนน
+          </div>
         </div>
       </div>
     </section>
