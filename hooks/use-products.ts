@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   ProductItem,
   TimelineType,
@@ -27,7 +27,9 @@ import {
 import { toast, confirmAction } from "@/lib/notify";
 import {
   getStoredSupabaseConfig,
+  CloudTimelinePayload,
   fetchTimelineFromCloud,
+  fetchTimelineIfChanged,
   saveTimelineToCloud,
   subscribeToTimelineCloud,
 } from "@/lib/supabase";
@@ -35,6 +37,7 @@ import {
 const MONTHLY_STORAGE_KEY = "pru_dashboard_monthly_v3";
 const AVAILABLE_MONTHS_KEY = "pru_available_months_v3";
 const ACTIVE_MONTH_KEY = "pru_active_month_v3";
+const SAVE_RETRY_MS = 8000;
 
 export function useProducts() {
   const defaultCurrentMonth = getSystemCurrentMonth();
@@ -47,6 +50,12 @@ export function useProducts() {
   const [isSyncing, setIsSyncing] = useState(false);
   // Set when a save was refused because the cloud copy is newer than this tab's data
   const [syncConflict, setSyncConflict] = useState(false);
+  // Set while a save hasn't reached the server; it keeps retrying
+  const [saveFailed, setSaveFailed] = useState(false);
+  // The newest save that failed, and the pending retry
+  const unsavedRef = useRef<CloudTimelinePayload | null>(null);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sendSaveRef = useRef<(payload: CloudTimelinePayload) => void>(() => {});
 
   // Initialize strictly from Supabase Cloud DB (with cached data only as instant offline mirror)
   useEffect(() => {
@@ -205,26 +214,107 @@ export function useProducts() {
     };
   }, []);
 
-  // Listen to Supabase Realtime changes
+  // Show a timeline that came from the server
+  const applyCloudData = useCallback((cloudData: CloudTimelinePayload) => {
+    setMonthlyStore(cloudData.monthlyStore);
+    if (cloudData.availableMonths && cloudData.availableMonths.length > 0) {
+      setAvailableMonths(sortMonthsChronologically(cloudData.availableMonths));
+    }
+    try {
+      localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(cloudData.monthlyStore));
+    } catch (_) {}
+  }, []);
+
+  // Sends a save; a failed one retries by itself until it reaches the server
+  const sendSave = useCallback(
+    (payload: CloudTimelinePayload) => {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+      unsavedRef.current = payload;
+      setIsSyncing(true);
+      saveTimelineToCloud(payload)
+        .then((res) => {
+          setIsSyncing(false);
+          if (res.success) {
+            setIsCloudConnected(true);
+            setSyncConflict(false);
+            setSaveFailed(false);
+            if (unsavedRef.current === payload) unsavedRef.current = null;
+            if (res.merged) applyCloudData({ ...res.merged });
+            return;
+          }
+          // A newer edit has already taken over from this save
+          if (unsavedRef.current !== payload) return;
+          if (res.notAdmin) {
+            unsavedRef.current = null;
+          } else if (res.conflict) {
+            unsavedRef.current = null;
+            setSyncConflict(true);
+          } else {
+            setSaveFailed(true);
+            retryTimerRef.current = setTimeout(() => sendSaveRef.current(payload), SAVE_RETRY_MS);
+          }
+        })
+        .catch(() => {
+          setIsSyncing(false);
+        });
+    },
+    [applyCloudData]
+  );
+  useEffect(() => {
+    sendSaveRef.current = sendSave;
+  }, [sendSave]);
+
+  // Listen to Supabase Realtime changes, and catch up after sleep or a lost connection
   useEffect(() => {
     if (!isCloudConnected) return;
 
-    const unsubscribe = subscribeToTimelineCloud((cloudData) => {
-      if (cloudData && cloudData.monthlyStore) {
-        setMonthlyStore(cloudData.monthlyStore);
-        if (cloudData.availableMonths && cloudData.availableMonths.length > 0) {
-          setAvailableMonths(sortMonthsChronologically(cloudData.availableMonths));
-        }
-        try {
-          localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(cloudData.monthlyStore));
-        } catch (_) {}
+    const catchUp = () => {
+      if (unsavedRef.current) {
+        sendSaveRef.current(unsavedRef.current);
+        return;
       }
-    });
+      fetchTimelineIfChanged()
+        .then((cloudData) => {
+          if (cloudData?.monthlyStore && !unsavedRef.current) applyCloudData(cloudData);
+        })
+        .catch(() => {});
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") catchUp();
+    };
+
+    const unsubscribe = subscribeToTimelineCloud((cloudData) => {
+      if (cloudData && cloudData.monthlyStore && !unsavedRef.current) applyCloudData(cloudData);
+    }, catchUp);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", catchUp);
 
     return () => {
       if (unsubscribe) unsubscribe();
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", catchUp);
     };
-  }, [isCloudConnected]);
+  }, [isCloudConnected, applyCloudData]);
+
+  // Closing the page with an unsaved edit would lose it
+  useEffect(() => {
+    if (!saveFailed && !isSyncing) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      if (unsavedRef.current) e.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [saveFailed, isSyncing]);
+
+  useEffect(
+    () => () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    },
+    []
+  );
 
   // Unified save & cloud sync helper (persists store without redundant state setter)
   const syncStore = useCallback(
@@ -234,28 +324,15 @@ export function useProducts() {
       } catch (_) {}
 
       // Async sync to cloud if configured
-      const config = getStoredSupabaseConfig();
-      if (config) {
-        setIsSyncing(true);
-        saveTimelineToCloud({
+      if (getStoredSupabaseConfig()) {
+        sendSave({
           monthlyStore: updatedStore,
           availableMonths: customMonths || availableMonths,
           activeMonth: customActiveMonth || selectedMonth,
-        })
-          .then((res) => {
-            setIsSyncing(false);
-            if (res.success) {
-              setIsCloudConnected(true);
-            } else if (res.conflict) {
-              setSyncConflict(true);
-            }
-          })
-          .catch(() => {
-            setIsSyncing(false);
-          });
+        });
       }
     },
-    [availableMonths, selectedMonth]
+    [availableMonths, selectedMonth, sendSave]
   );
 
   // Switch active month
@@ -664,6 +741,8 @@ export function useProducts() {
         localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(cloudData.monthlyStore));
       } catch (_) {}
       setSyncConflict(false);
+      setSaveFailed(false);
+      unsavedRef.current = null;
     }
   }, []);
 
@@ -824,6 +903,7 @@ export function useProducts() {
     setIsCloudConnected,
     isSyncing,
     syncConflict,
+    saveFailed,
     reloadFromCloud,
     handleCloudDataLoaded,
   };

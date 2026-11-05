@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { fetchTeamFromCloud, saveTeamToCloud, subscribeToStoreRow } from "@/lib/supabase"
+import { toast } from "@/lib/notify"
 
 export const DEFAULT_TEAM_MEMBERS = [
   "Jirapat O.",
@@ -65,19 +67,42 @@ export function useTeamMembers() {
     })
   }, [])
 
+  // The shared list wins over what this browser remembers, and follows other people's edits
+  useEffect(() => {
+    let alive = true
+    const load = () => {
+      fetchTeamFromCloud().then((team) => {
+        if (!alive || !team) return
+        setTeamMembers(team.members)
+        setMemberColors({ ...DEFAULT_MEMBER_COLORS, ...team.colors })
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(team.members))
+          localStorage.setItem(MEMBER_COLORS_KEY, JSON.stringify(team.colors))
+        } catch (_) {}
+      })
+    }
+    load()
+    const unsubscribe = subscribeToStoreRow("team_members", load)
+    return () => {
+      alive = false
+      unsubscribe()
+    }
+  }, [])
+
   // Save helper
   const saveMembers = useCallback(
-    (newList: string[], newColors?: Record<string, string>) => {
+    (newList: string[], newColors: Record<string, string>) => {
       setTeamMembers(newList)
+      setMemberColors(newColors)
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(newList))
-        if (newColors) {
-          setMemberColors(newColors)
-          localStorage.setItem(MEMBER_COLORS_KEY, JSON.stringify(newColors))
-        }
+        localStorage.setItem(MEMBER_COLORS_KEY, JSON.stringify(newColors))
       } catch (err) {
         console.error("Failed to save team members", err)
       }
+      saveTeamToCloud({ members: newList, colors: newColors }).then((res) => {
+        if (!res.success) toast.error(res.error || "บันทึกรายชื่อทีมไม่สำเร็จ")
+      })
     },
     []
   )
@@ -85,15 +110,9 @@ export function useTeamMembers() {
   // Update a single member's color
   const updateMemberColor = useCallback(
     (name: string, color: string) => {
-      const updated = { ...memberColors, [name]: color }
-      setMemberColors(updated)
-      try {
-        localStorage.setItem(MEMBER_COLORS_KEY, JSON.stringify(updated))
-      } catch (err) {
-        console.error("Failed to save member color", err)
-      }
+      saveMembers(teamMembers, { ...memberColors, [name]: color })
     },
-    [memberColors]
+    [teamMembers, memberColors, saveMembers]
   )
 
   // Add Member

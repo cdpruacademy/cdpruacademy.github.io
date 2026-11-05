@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import type { Partner } from "./partners";
 import { MonthlyStore, getSystemCurrentMonth } from "./timeline-data";
+import { mergeStores } from "./timeline-merge";
 import { AnnouncementItem, filterWithinOneYear, mergeBotResults } from "./announcement-data";
 
 /** Message from anything thrown: an Error, a Supabase error object or a string */
@@ -228,7 +229,11 @@ export async function fetchTimelineFromCloud(): Promise<CloudTimelinePayload | n
       return null;
     }
 
-    knownTimelineVersion = data.updated_at || null;
+    // A save in flight owns these; its own conflict check picks up anything newer
+    if (pendingSaves === 0) {
+      knownTimelineVersion = data.updated_at || null;
+      confirmedStore = data.data;
+    }
 
     return {
       monthlyStore: data.data,
@@ -251,11 +256,27 @@ export async function fetchTimelineFromCloud(): Promise<CloudTimelinePayload | n
 let knownTimelineVersion: string | null = null;
 const ownTimelineVersions = new Set<string>();
 let timelineSaveQueue: Promise<unknown> = Promise.resolve();
+// What this tab last had from the server: the base of a merge when two saves collide
+let confirmedStore: MonthlyStore | null = null;
+let pendingSaves = 0;
+// The latest merge in this tab. Saves queued before it finished are rebased onto its result.
+let mergeGeneration = 0;
+let lastMerge: { from: MonthlyStore; to: MonthlyStore } | null = null;
 
-export const TIMELINE_CONFLICT_ERROR =
-  "มีคนอื่นบันทึกข้อมูลไปก่อนหน้า การแก้ไขล่าสุดของคุณยังไม่ได้บันทึก กรุณาโหลดข้อมูลล่าสุดแล้วแก้อีกครั้ง";
+const MERGE_ATTEMPTS = 4;
 
-type TimelineSaveResult = { success: boolean; conflict?: boolean; error?: string };
+const normalizeVersion = (v: string) => new Date(v).toISOString();
+
+export const TIMELINE_CONFLICT_ERROR = "บันทึกไม่สำเร็จ กรุณาโหลดข้อมูลล่าสุดแล้วแก้อีกครั้ง";
+
+export type TimelineSaveResult = {
+  success: boolean;
+  conflict?: boolean;
+  notAdmin?: boolean;
+  error?: string;
+  /** Set when other people's saves were merged in: what the server now holds */
+  merged?: { monthlyStore: MonthlyStore; availableMonths: string[] };
+};
 
 export async function saveTimelineToCloud(payload: CloudTimelinePayload): Promise<TimelineSaveResult> {
   // Captured synchronously at call time: the version this change was based on.
@@ -264,8 +285,10 @@ export async function saveTimelineToCloud(payload: CloudTimelinePayload): Promis
   const newVersion = new Date().toISOString();
   knownTimelineVersion = newVersion;
   ownTimelineVersions.add(newVersion);
+  const generation = mergeGeneration;
+  pendingSaves += 1;
 
-  const run = async (): Promise<TimelineSaveResult> => {
+  const attempt = async (): Promise<TimelineSaveResult> => {
     const client = getSupabaseClient();
     if (!client) {
       knownTimelineVersion = baseVersion;
@@ -274,51 +297,100 @@ export async function saveTimelineToCloud(payload: CloudTimelinePayload): Promis
 
     if (!(await isCurrentUserAdmin())) {
       knownTimelineVersion = baseVersion;
-      return { success: false, error: NOT_ADMIN_ERROR };
+      return { success: false, notAdmin: true, error: NOT_ADMIN_ERROR };
     }
 
+    let store = payload.monthlyStore;
+    let months = payload.availableMonths;
+    let didMerge = false;
+    if (generation !== mergeGeneration && lastMerge) {
+      store = mergeStores(lastMerge.from, store, lastMerge.to);
+      didMerge = true;
+    }
+    const mine = store;
+    // Only becomes the new confirmed copy if this save lands; a failed one retries from the old base
+    let base = confirmedStore;
+    let expected = baseVersion;
+
     try {
-      const row = {
-        id: "current",
-        data: payload.monthlyStore,
-        available_months: payload.availableMonths,
-        active_month: payload.activeMonth || getSystemCurrentMonth(),
-        updated_at: newVersion,
-        updated_by: "pru_admin",
-      };
+      for (let i = 0; i < MERGE_ATTEMPTS; i++) {
+        const row = {
+          id: "current",
+          data: store,
+          available_months: months,
+          active_month: payload.activeMonth || getSystemCurrentMonth(),
+          updated_at: newVersion,
+          updated_by: "pru_admin",
+        };
 
-      if (baseVersion) {
-        const { data, error } = await client
-          .from("timeline_store")
-          .update(row)
-          .eq("id", "current")
-          .eq("updated_at", baseVersion)
-          .select("updated_at");
-
-        if (error) {
-          console.error("Cloud DB save error:", error);
-          return { success: false, error: error.message };
-        }
-        if (!data || data.length === 0) {
-          return { success: false, conflict: true, error: TIMELINE_CONFLICT_ERROR };
-        }
-      } else {
-        // Nothing loaded yet: only create the row, never replace an existing one
-        const { error } = await client.from("timeline_store").insert(row);
-        if (error) {
-          if (error.code === "23505") {
-            return { success: false, conflict: true, error: TIMELINE_CONFLICT_ERROR };
+        let collided = false;
+        if (expected) {
+          const { data, error } = await client
+            .from("timeline_store")
+            .update(row)
+            .eq("id", "current")
+            .eq("updated_at", expected)
+            .select("updated_at");
+          if (error) {
+            console.error("Cloud DB save error:", error);
+            return { success: false, error: error.message };
           }
-          console.error("Cloud DB save error:", error);
-          return { success: false, error: error.message };
+          collided = !data || data.length === 0;
+        } else {
+          // Nothing loaded yet: only create the row, never replace an existing one
+          const { error } = await client.from("timeline_store").insert(row);
+          if (error && error.code !== "23505") {
+            console.error("Cloud DB save error:", error);
+            return { success: false, error: error.message };
+          }
+          collided = Boolean(error);
         }
-      }
 
-      return { success: true };
+        if (!collided) {
+          confirmedStore = store;
+          if (store !== mine) {
+            // Published only now, so a save made during this merge still gets rebased
+            lastMerge = { from: mine, to: store };
+            mergeGeneration += 1;
+          }
+          return {
+            success: true,
+            merged: didMerge ? { monthlyStore: store, availableMonths: months } : undefined,
+          };
+        }
+
+        // Someone saved first. Without a base there is nothing safe to merge.
+        if (!base) break;
+        const { data: latest, error: readError } = await client
+          .from("timeline_store")
+          .select("data, available_months, updated_at")
+          .eq("id", "current")
+          .maybeSingle();
+        if (readError || !latest?.data) {
+          return { success: false, error: readError?.message || "อ่านข้อมูลล่าสุดไม่สำเร็จ" };
+        }
+
+        store = mergeStores(base, store, latest.data);
+        base = latest.data;
+        months = Array.from(new Set([...months, ...(latest.available_months || [])]));
+        expected = latest.updated_at;
+        // Already included here: its realtime event must not put the screen back
+        ownTimelineVersions.add(normalizeVersion(latest.updated_at));
+        didMerge = true;
+      }
+      return { success: false, conflict: true, error: TIMELINE_CONFLICT_ERROR };
     } catch (err) {
       console.error("Cloud DB save exception:", err);
       return { success: false, error: errorMessage(err, "บันทึกข้อมูลไม่สำเร็จ") };
     }
+  };
+
+  const run = async () => {
+    const res = await attempt();
+    pendingSaves -= 1;
+    // A later save still queued carries this merge forward and reports it
+    if (res.merged && pendingSaves > 0) return { ...res, merged: undefined };
+    return res;
   };
 
   const result = timelineSaveQueue.then(run, run);
@@ -326,11 +398,48 @@ export async function saveTimelineToCloud(payload: CloudTimelinePayload): Promis
   return result;
 }
 
+/** Latest timeline when the server has something this tab hasn't seen; null otherwise */
+export async function fetchTimelineIfChanged(): Promise<CloudTimelinePayload | null> {
+  const client = getSupabaseClient();
+  if (!client || pendingSaves > 0) return null;
+  const { data, error } = await client
+    .from("timeline_store")
+    .select("updated_at")
+    .eq("id", "current")
+    .maybeSingle();
+  if (error || !data?.updated_at) return null;
+  if (knownTimelineVersion && normalizeVersion(data.updated_at) === normalizeVersion(knownTimelineVersion)) {
+    return null;
+  }
+  return fetchTimelineFromCloud();
+}
+
+let rowChannelCount = 0;
+
+/** Calls back when a timeline_store row changes. RLS decides whether this user receives it. */
+export function subscribeToStoreRow(id: string, onChange: () => void): () => void {
+  const client = getSupabaseClient();
+  if (!client) return () => {};
+  rowChannelCount += 1;
+  const channel = client
+    .channel(`store_row_${id}_${rowChannelCount}`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "timeline_store", filter: `id=eq.${id}` },
+      () => onChange()
+    )
+    .subscribe();
+  return () => {
+    client.removeChannel(channel);
+  };
+}
+
 /**
  * Subscribe to real-time changes on timeline_store table
  */
 export function subscribeToTimelineCloud(
-  onUpdate: (payload: CloudTimelinePayload) => void
+  onUpdate: (payload: CloudTimelinePayload) => void,
+  onReconnect?: () => void
 ): (() => void) | null {
   const client = getSupabaseClient();
   if (!client) return null;
@@ -355,10 +464,18 @@ export function subscribeToTimelineCloud(
             active_month?: Update["activeMonth"];
             updated_at: string;
           };
-          if (!row || row.id !== "current" || !row.data) return;
+          if (!row || row.id !== "current") return;
           // Echo of this tab's own save: nothing new to apply
-          if (ownTimelineVersions.has(new Date(row.updated_at).toISOString())) return;
+          if (ownTimelineVersions.has(normalizeVersion(row.updated_at))) return;
+          // A save in flight will collide with this one and merge it
+          if (pendingSaves > 0) return;
+          // Too big for a realtime message: the row arrives without its data
+          if (!row.data) {
+            onReconnect?.();
+            return;
+          }
           knownTimelineVersion = row.updated_at;
+          confirmedStore = row.data;
 
           onUpdate({
             monthlyStore: row.data,
@@ -368,7 +485,10 @@ export function subscribeToTimelineCloud(
           });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        // Changes made while the connection was down never arrive as events
+        if (status === "SUBSCRIBED") onReconnect?.();
+      });
 
     return () => {
       client.removeChannel(channel);
@@ -843,4 +963,33 @@ export async function savePartnersToCloud(
       error: err instanceof Error ? err.message : "บันทึก Partner ไม่สำเร็จ",
     };
   }
+}
+
+const TEAM_ROW_ID = "team_members";
+
+export interface TeamStore {
+  members: string[];
+  colors: Record<string, string>;
+}
+
+/** The shared team list; only admins can read it, so everyone else keeps the built-in list */
+export async function fetchTeamFromCloud(): Promise<TeamStore | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+  const { data, error } = await client.from("timeline_store").select("data").eq("id", TEAM_ROW_ID).maybeSingle();
+  if (error || !data?.data) return null;
+  const raw = data.data as Partial<TeamStore>;
+  if (!Array.isArray(raw.members) || raw.members.length === 0) return null;
+  return { members: raw.members, colors: raw.colors && typeof raw.colors === "object" ? raw.colors : {} };
+}
+
+export async function saveTeamToCloud(team: TeamStore): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" };
+  if (!(await isCurrentUserAdmin())) return { success: false, error: NOT_ADMIN_ERROR };
+  const now = new Date().toISOString();
+  const { error } = await client
+    .from("timeline_store")
+    .upsert({ id: TEAM_ROW_ID, data: team, updated_at: now, updated_by: "pru_admin" }, { onConflict: "id" });
+  return error ? { success: false, error: error.message } : { success: true };
 }

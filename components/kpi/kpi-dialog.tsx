@@ -10,6 +10,7 @@ export function KpiDialog({
   title,
   subtitle,
   icon,
+  leading,
   wide = false,
   onClose,
   footer,
@@ -19,6 +20,8 @@ export function KpiDialog({
   title: string
   subtitle?: string
   icon: IconName
+  /** Takes the place of the icon */
+  leading?: React.ReactNode
   wide?: boolean
   onClose: () => void
   footer?: React.ReactNode
@@ -38,9 +41,11 @@ export function KpiDialog({
         className={`relative z-10 flex max-h-[92vh] w-full flex-col overflow-hidden rounded-[28px] bg-white shadow-[0_24px_64px_-16px_rgba(28,25,23,0.45)] ${wide ? "max-w-[960px]" : "max-w-[640px]"}`}
       >
         <header className="flex items-center gap-3.5 px-5 pt-5 pb-4 sm:px-7">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-pru-red text-white">
-            <Icon name={icon} size={22} />
-          </span>
+          {leading ?? (
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-pru-red text-white">
+              <Icon name={icon} size={22} />
+            </span>
+          )}
           <div className="min-w-0 flex-1">
             <h2 id="kpi-dialog-title" className="text-lg leading-tight font-bold text-ink sm:text-[22px]">
               {title}

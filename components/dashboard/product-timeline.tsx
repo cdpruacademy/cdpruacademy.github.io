@@ -59,6 +59,7 @@ export function ProductTimeline() {
     isCloudConnected,
     isSyncing,
     syncConflict,
+    saveFailed,
     reloadFromCloud,
   } = useProducts()
   const [isReloading, setIsReloading] = useState(false)
@@ -316,6 +317,15 @@ export function ProductTimeline() {
           isSyncing={isSyncing}
         />
 
+        {saveFailed && !syncConflict && (
+          <div role="alert" className={`${card} flex items-center gap-2.5 px-5 py-4 text-sm text-ink`}>
+            <Loader2 className="h-5 w-5 shrink-0 animate-spin text-brand-ink" />
+            <span>
+              <strong>ยังบันทึกไม่สำเร็จ</strong> กำลังลองใหม่ อย่าเพิ่งปิดหน้านี้
+            </span>
+          </div>
+        )}
+
         {syncConflict && (
           <div
             role="alert"
@@ -328,9 +338,7 @@ export function ProductTimeline() {
                 className="mt-0.5 shrink-0 text-brand-ink"
               />
               <span>
-                มีคนอื่นบันทึกข้อมูลไปก่อนหน้า การแก้ไขล่าสุดของคุณ
-                <strong>ยังไม่ได้บันทึก</strong> กรุณาโหลดข้อมูลล่าสุด
-                แล้วแก้อีกครั้ง
+                การแก้ไขล่าสุด<strong>ยังไม่ได้บันทึก</strong> กรุณาโหลดข้อมูลล่าสุดแล้วแก้อีกครั้ง
               </span>
             </div>
             <button

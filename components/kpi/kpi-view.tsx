@@ -12,6 +12,7 @@ import { PickMenu } from "@/components/ui/pick-menu"
 import { PageBody, PageHero, card, cardButton, cardButtonDark, heroButton, heroButtonSolid } from "@/components/page-hero"
 import { CriteriaSection } from "@/components/kpi/criteria-section"
 import { KpiDialog } from "@/components/kpi/kpi-dialog"
+import { TeamMetricsSection } from "@/components/kpi/team-metrics-section"
 import { ProjectRow } from "@/components/kpi/project-score-list"
 import { WeightsForm } from "@/components/kpi/weights-card"
 import {
@@ -281,6 +282,8 @@ export function KpiView() {
                 </div>
               )}
             </section>
+
+            <TeamMetricsSection store={monthlyStore} year={year} />
 
             <CriteriaSection weights={base.weights} onEdit={() => setEditor("points")} />
           </>
