@@ -98,10 +98,11 @@ const NOT_ADMIN_ERROR = "ต้องเข้าสู่ระบบก่อ�
 let roleCache: { userId: string; result: Promise<Role | null> } | null = null;
 
 /**
- * The role of the signed-in person from public.user_roles, or null.
- * Writes are enforced by RLS on the server; this only drives the UI and skips doomed writes.
+ * The role of the signed-in person from public.user_roles, or null when they have none.
+ * Throws when the check itself failed, so a network blip is not mistaken for signing out.
+ * The server enforces roles with RLS; this only drives the UI and skips doomed writes.
  */
-export async function getCurrentRole(): Promise<Role | null> {
+export async function fetchRole(): Promise<Role | null> {
   const client = getSupabaseClient();
   if (!client) return null;
 
@@ -118,14 +119,40 @@ export async function getCurrentRole(): Promise<Role | null> {
       result: (async () => {
         const { data: role, error } = await client.rpc("my_role");
         if (error) {
-          console.warn("my_role check failed:", error.message);
-          return null;
+          roleCache = null;
+          throw new Error(error.message);
         }
         return (role as Role | null) ?? null;
       })(),
     };
   }
   return roleCache.result;
+}
+
+/** The role, or null when there is none or the check failed */
+export async function getCurrentRole(): Promise<Role | null> {
+  try {
+    return await fetchRole();
+  } catch (err) {
+    console.warn("my_role check failed:", err);
+    return null;
+  }
+}
+
+/** Removes the copies of team data this browser keeps; used once nobody is signed in */
+export function clearLocalData(): void {
+  try {
+    [
+      "pru_dashboard_monthly_v3",
+      "pru_available_months_v3",
+      "pru_active_month_v3",
+      "pru_announcements_cache_v1",
+      "pru_partners_v1",
+      "pru_team_members_v1",
+      "pru_member_colors_v1",
+    ].forEach((key) => localStorage.removeItem(key));
+    sessionStorage.removeItem("pru_active_month_v3");
+  } catch (_) {}
 }
 
 /** True for anyone who can edit: superadmin or editor */
@@ -171,20 +198,6 @@ export async function signOutAdmin(): Promise<void> {
   const client = getSupabaseClient();
   roleCache = null;
   if (client) await client.auth.signOut();
-}
-
-/** Checks the current password first, so an open browser alone cannot change it */
-export async function changeMyPassword(
-  current: string,
-  next: string
-): Promise<{ success: boolean; error?: string }> {
-  const client = getSupabaseClient();
-  const email = await getCurrentEmail();
-  if (!client || !email) return { success: false, error: "ต้องเข้าสู่ระบบก่อน" };
-  const check = await client.auth.signInWithPassword({ email, password: current });
-  if (check.error) return { success: false, error: "รหัสผ่านปัจจุบันไม่ถูกต้อง" };
-  const { error } = await client.auth.updateUser({ password: next });
-  return error ? { success: false, error: "เปลี่ยนรหัสผ่านไม่สำเร็จ ลองใช้รหัสอื่น" } : { success: true };
 }
 
 export interface ManagedUser {

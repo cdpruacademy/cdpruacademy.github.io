@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { DEFAULT_TAB_ACCESS, Role, TabAccess, canViewTab } from "@/lib/access";
 import {
+  fetchRole,
   fetchTabAccess,
   getCurrentRole,
   getSupabaseClient,
@@ -16,6 +17,7 @@ export function useAdminAuth() {
   const [signedInRole, setRole] = useState<Role | null>(null);
   const [tabs, setTabs] = useState<TabAccess>(DEFAULT_TAB_ACCESS);
   const [isAuthLoaded, setIsAuthLoaded] = useState(false);
+  const [authFailed, setAuthFailed] = useState(false);
   const role = signedInRole;
 
   useEffect(() => {
@@ -23,14 +25,21 @@ export function useAdminAuth() {
     const client = getSupabaseClient();
 
     const refresh = () => {
-      getCurrentRole()
+      fetchRole()
         .then((next) => {
-          if (isMounted) setRole(next);
+          if (isMounted) {
+            setRole(next);
+            setAuthFailed(false);
+          }
           if (next && next !== "superadmin") {
             fetchTabAccess().then((t) => {
               if (isMounted && t) setTabs(t);
             });
           }
+        })
+        // Keep the role we have: a failed check is not a sign-out
+        .catch(() => {
+          if (isMounted) setAuthFailed(true);
         })
         .finally(() => {
           if (isMounted) setIsAuthLoaded(true);
@@ -81,6 +90,7 @@ export function useAdminAuth() {
     isSuperadmin: role === "superadmin",
     canView,
     isAuthLoaded,
+    authFailed,
     login,
     logout,
   };

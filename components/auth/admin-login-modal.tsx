@@ -14,21 +14,21 @@ interface AdminLoginModalProps {
   loginFn: (email: string, pwd: string) => Promise<{ success: boolean; error?: string }>
 }
 
-export function AdminLoginModal({
-  isOpen,
+/** The heading and form, inside the dialog or on the login page */
+export function LoginPanel({
   onClose,
   onSuccess,
   loginFn,
-}: AdminLoginModalProps) {
+}: {
+  onClose?: () => void
+  onSuccess?: () => void
+  loginFn: AdminLoginModalProps["loginFn"]
+}) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-
-  const dialogRef = useDialogA11y(isOpen, onClose)
-
-  if (!isOpen) return null
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,8 +39,8 @@ export function AdminLoginModal({
       if (res.success) {
         setError(null)
         setPassword("")
-        onSuccess()
-        onClose()
+        onSuccess?.()
+        onClose?.()
       } else {
         setError(res.error || "อีเมลหรือรหัสผ่านไม่ถูกต้อง")
       }
@@ -49,17 +49,8 @@ export function AdminLoginModal({
     }
   }
 
-  // Portal to <body>: the nav bar that opens this dialog would otherwise trap a fixed overlay
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 animate-in bg-ink/40 fade-in" onClick={onClose} />
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="admin-login-title"
-        className="relative z-10 w-full max-w-[400px] animate-in overflow-hidden rounded-3xl bg-white shadow-[0_24px_64px_-16px_rgba(28,25,23,0.45)] duration-200 zoom-in-95"
-      >
+  return (
+    <>
         <div className="flex items-start justify-between bg-pru-red px-6 pt-5 pb-6 text-white">
           <div>
             <span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-white/20">
@@ -69,14 +60,16 @@ export function AdminLoginModal({
               Log in
             </h2>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="ปิด"
-            className="touch-target -mr-2 flex h-10 w-10 items-center justify-center rounded-full text-white hover:bg-white/15"
-          >
-            <Icon name="close" size={20} strokeWidth={2} />
-          </button>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="ปิด"
+              className="touch-target -mr-2 flex h-10 w-10 items-center justify-center rounded-full text-white hover:bg-white/15"
+            >
+              <Icon name="close" size={20} strokeWidth={2} />
+            </button>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-6 pt-5 pb-6">
@@ -146,6 +139,27 @@ export function AdminLoginModal({
             {isSubmitting ? "Logging in…" : "Log in"}
           </button>
         </form>
+    </>
+  )
+}
+
+export function AdminLoginModal({ isOpen, onClose, onSuccess, loginFn }: AdminLoginModalProps) {
+  const dialogRef = useDialogA11y(isOpen, onClose)
+
+  if (!isOpen) return null
+
+  // Portal to <body>: a parent could otherwise trap a fixed overlay
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 animate-in bg-ink/40 fade-in" onClick={onClose} />
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-login-title"
+        className="relative z-10 w-full max-w-[400px] animate-in overflow-hidden rounded-3xl bg-white shadow-[0_24px_64px_-16px_rgba(28,25,23,0.45)] duration-200 zoom-in-95"
+      >
+        <LoginPanel onClose={onClose} onSuccess={onSuccess} loginFn={loginFn} />
       </div>
     </div>,
     document.body

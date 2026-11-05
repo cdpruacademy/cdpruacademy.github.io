@@ -4,11 +4,8 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   ProductItem,
   TimelineType,
-  INITIAL_PRODUCTS,
-  INITIAL_ENHANCEMENTS,
   AVAILABLE_MONTHS,
   MonthlyStore,
-  INITIAL_MONTHLY_STORE,
   DEFAULT_AS_OF_BY_MONTH,
   getDefaultAsOf,
   getSystemCurrentMonth,

@@ -1,13 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useAdminAuth } from "@/hooks/use-admin-auth"
 import { ROLE_LABEL } from "@/lib/access"
-import { AdminLoginModal } from "./auth/admin-login-modal"
-import { ChangePasswordDialog } from "./auth/change-password-dialog"
 import { Icon, IconName } from "./icon"
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? ""
@@ -18,38 +15,26 @@ interface NavItem {
   /** Shorter label for the phone menu */
   shortLabel?: string
   icon: IconName
-  adminOnly?: boolean
-  /** Hidden from people who are signed out, instead of locked */
-  hiddenForViewers?: boolean
 }
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Timeline", icon: "timeline" },
-  { href: "/analytics", label: "Analytics", icon: "chart", adminOnly: true },
+  { href: "/analytics", label: "Analytics", icon: "chart" },
   { href: "/announcements", label: "Announcements", shortLabel: "Announce", icon: "megaphone" },
-  {
-    href: "/partners",
-    label: "Partners",
-    icon: "partner",
-    adminOnly: true,
-    hiddenForViewers: true,
-  },
-  { href: "/kpi", label: "KPI", icon: "donut", adminOnly: true, hiddenForViewers: true },
-  { href: "/users", label: "Users", icon: "team", adminOnly: true, hiddenForViewers: true },
+  { href: "/partners", label: "Partners", icon: "partner" },
+  { href: "/kpi", label: "KPI", icon: "donut" },
+  { href: "/users", label: "Users", icon: "team" },
 ]
 
 export function AppNav() {
   const pathname = usePathname()
-  const { role, canView, login, logout } = useAdminAuth()
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
-  const [isPasswordOpen, setIsPasswordOpen] = useState(false)
-  const items = NAV_ITEMS.filter((i) => (role ? canView(i.href) : !i.hiddenForViewers))
+  const { role, canView, logout } = useAdminAuth()
+  // Signed out: only the logo, with the login page under it
+  const items = role ? NAV_ITEMS.filter((i) => canView(i.href)) : []
 
-  // Locked items open the login dialog for people who are signed out
   const renderItem = (item: NavItem, variant: "top" | "bottom") => {
     const isActive =
       item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
-    const locked = item.adminOnly && !role
     const top =
       "touch-target inline-flex h-[64px] items-center gap-2 px-2.5 text-[15px] lg:px-4 whitespace-nowrap transition-colors md:h-[72px] " +
       (isActive
@@ -72,23 +57,9 @@ export function AppNav() {
             {label}
           </span>
         </span>
-        {locked && variant === "top" && <Icon name="lock" size={14} label="ต้องเข้าสู่ระบบ" />}
       </>
     )
 
-    if (locked) {
-      return (
-        <button
-          key={item.href}
-          type="button"
-          onClick={() => setIsLoginModalOpen(true)}
-          className={variant === "top" ? top : bottom}
-          title="เข้าสู่ระบบเพื่อดูหน้านี้"
-        >
-          {content}
-        </button>
-      )
-    }
     return (
       <Link
         key={item.href}
@@ -120,17 +91,12 @@ export function AppNav() {
           </div>
 
           <div className="flex items-center gap-2">
-            {role ? (
+            {role && (
               <>
-                <button
-                  type="button"
-                  onClick={() => setIsPasswordOpen(true)}
-                  title="เปลี่ยนรหัสผ่าน"
-                  className="touch-target inline-flex h-10 items-center gap-1.5 rounded-full bg-surface px-3 text-[13px] font-semibold hover:bg-rule"
-                >
+                <span className="inline-flex h-10 items-center gap-1.5 rounded-full bg-surface px-3 text-[13px] font-semibold">
                   <Icon name="lock" size={14} />
                   {ROLE_LABEL[role]}
-                </button>
+                </span>
                 <button
                   type="button"
                   onClick={() => void logout()}
@@ -141,15 +107,6 @@ export function AppNav() {
                   <Icon name="logout" size={18} />
                 </button>
               </>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setIsLoginModalOpen(true)}
-                className="inline-flex h-10 touch-target items-center gap-2 rounded-full border border-rule px-4 text-sm font-semibold text-ink hover:bg-surface"
-              >
-                <Icon name="lock" size={16} />
-                <span>Log in</span>
-              </button>
             )}
           </div>
         </div>
@@ -159,19 +116,10 @@ export function AppNav() {
       <nav
         aria-label="เมนูหลัก"
         className="fixed inset-x-0 bottom-0 z-40 grid h-16 border-t border-rule bg-white pb-[env(safe-area-inset-bottom)] lg:hidden"
-        style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+        style={{ display: items.length ? undefined : "none", gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
       >
         {items.map((item) => renderItem(item, "bottom"))}
       </nav>
-
-      {isPasswordOpen && <ChangePasswordDialog onClose={() => setIsPasswordOpen(false)} />}
-
-      <AdminLoginModal
-        isOpen={isLoginModalOpen}
-        onClose={() => setIsLoginModalOpen(false)}
-        onSuccess={() => {}}
-        loginFn={login}
-      />
     </>
   )
 }

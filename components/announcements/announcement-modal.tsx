@@ -267,7 +267,7 @@ export function AnnouncementModal({
                 value={title}
                 maxLength={TITLE_MAX}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="เช่น ttb CI protect พร้อมเปิดใน LMS แล้ว"
+                placeholder="เช่น ชื่อหลักสูตร พร้อมเปิดใน LMS แล้ว"
                 className={`${fieldClass} h-[46px]`}
               />
             </Section>

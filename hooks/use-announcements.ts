@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   AnnouncementItem,
-  INITIAL_ANNOUNCEMENTS,
   filterWithinOneYear,
 } from "@/lib/announcement-data";
 import {
@@ -45,14 +44,6 @@ export function useAnnouncements() {
             setAnnouncements(validItems);
             try {
               localStorage.setItem(ANNOUNCEMENTS_STORAGE_KEY, JSON.stringify(validItems));
-            } catch (_) {}
-          } else {
-            // First time seeding with initial sample data
-            const initial = filterWithinOneYear(INITIAL_ANNOUNCEMENTS);
-            setAnnouncements(initial);
-            await saveAnnouncementsToCloud(initial);
-            try {
-              localStorage.setItem(ANNOUNCEMENTS_STORAGE_KEY, JSON.stringify(initial));
             } catch (_) {}
           }
         }
