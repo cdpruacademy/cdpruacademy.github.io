@@ -145,10 +145,9 @@ export function PartnersView() {
                 <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-pru-red-soft text-brand-ink">
                   <Icon name="lock" size={28} />
                 </span>
-                <h2 className="text-lg font-bold">Admin only</h2>
-                <p className="text-sm text-ink-soft">เข้าสู่ระบบ Admin เพื่อดูหน้านี้</p>
+                <h2 className="text-lg font-bold">เข้าสู่ระบบเพื่อดูหน้านี้</h2>
                 <button type="button" onClick={() => setIsLoginOpen(true)} className={cardButtonDark}>
-                  Admin login
+                  Log in
                 </button>
               </>
             ) : (

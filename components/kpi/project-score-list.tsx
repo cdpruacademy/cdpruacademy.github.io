@@ -154,7 +154,8 @@ export function SharesEditor({
 }: {
   owners: string[]
   split: Record<string, number>
-  points: number
+  /** Left out where the person may not see scores */
+  points?: number
   onChange: (shares: Record<string, number> | undefined) => void
 }) {
   const pct = (o: string) => Math.round((split[o] ?? 0) * 100)
@@ -178,7 +179,9 @@ export function SharesEditor({
             }}
             className="h-8 w-16 rounded-lg border-[1.5px] border-rule bg-white px-2 text-right tabular-nums focus:border-ink focus:outline-none"
           />
-          <span className="text-ink-soft">% · {fmt(Math.round(points * (split[o] ?? 0) * 10) / 10)} คะแนน</span>
+          <span className="text-ink-soft">
+            %{points !== undefined && ` · ${fmt(Math.round(points * (split[o] ?? 0) * 10) / 10)} คะแนน`}
+          </span>
         </label>
       ))}
       <button

@@ -10,7 +10,7 @@ import {
   parseTimelineDate,
   sortMonthsChronologically,
 } from "./timeline-data"
-import { getSupabaseClient, isCurrentUserAdmin } from "./supabase"
+import { getCurrentRole, getSupabaseClient, isCurrentUserAdmin } from "./supabase"
 
 /**
  * How hard a New Product is. Enhancements are always "low".
@@ -56,7 +56,7 @@ export interface ProjectFactors {
   shares?: Record<string, number>
 }
 
-/** A ttb Refresher lesson (quarterly e-Learning review); kept here only, not on the Timeline */
+/** A ttb Refresher lesson (quarterly e-Learning review); in its own row, not on the Timeline */
 export interface Refresher {
   id: string
   year: number
@@ -87,6 +87,7 @@ export const DEFAULT_WEIGHTS: DifficultyWeights = {
 export const EMPTY_DIFFICULTY: DifficultyStore = { weights: DEFAULT_WEIGHTS, projects: {}, refreshers: [] }
 
 const ROW_ID = "difficulty_scores"
+const REFRESHER_ROW_ID = "refreshers"
 
 /** First guess from the plan name; the owner corrects it on /kpi */
 export function guessLevel(item: ProductItem, type: TimelineType): Level {
@@ -230,30 +231,64 @@ function completionMonth(item: ProductItem, months: string[], asOfMonth: string)
 /** A Refresher counts in the last month of its quarter */
 export const refresherMonthIndex = (r: Refresher) => r.quarter * 3 - 1
 
-/** Reads the owner's scores (admin only; the row is not public) */
+/** Refresher lessons: anyone signed in can read them; superadmins and editors save them */
+export async function fetchRefreshers(): Promise<Refresher[] | null> {
+  const client = getSupabaseClient()
+  if (!client) return null
+  const { data, error } = await client.from("timeline_store").select("data").eq("id", REFRESHER_ROW_ID).maybeSingle()
+  if (error) {
+    console.warn("fetchRefreshers error:", error.message)
+    return null
+  }
+  const items = (data?.data as { items?: Refresher[] } | undefined)?.items
+  return Array.isArray(items) ? items : []
+}
+
+export async function saveRefreshers(items: Refresher[]): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient()
+  if (!client) return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" }
+  if (!(await isCurrentUserAdmin())) return { success: false, error: "ต้องเข้าสู่ระบบก่อน" }
+  const now = new Date().toISOString()
+  const { error } = await client.from("timeline_store").upsert(
+    { id: REFRESHER_ROW_ID, data: { items, updated_at: now }, updated_at: now, updated_by: "pru_admin" },
+    { onConflict: "id" }
+  )
+  return error ? { success: false, error: error.message } : { success: true }
+}
+
+/** Reads the owner's scores (superadmin only; the row is not public) with the Refresher lessons */
 export async function fetchDifficulty(): Promise<DifficultyStore | null> {
   const client = getSupabaseClient()
   if (!client) return null
-  const { data, error } = await client.from("timeline_store").select("data").eq("id", ROW_ID).maybeSingle()
-  if (error) {
-    console.warn("fetchDifficulty error:", error.message)
+  const [{ data, error }, refreshers] = await Promise.all([
+    client.from("timeline_store").select("data").eq("id", ROW_ID).maybeSingle(),
+    fetchRefreshers(),
+  ])
+  if (error || !refreshers) {
+    console.warn("fetchDifficulty error:", error?.message ?? "no refreshers")
     return null
   }
   const raw = data?.data as Partial<DifficultyStore> | undefined
   return {
     weights: { ...DEFAULT_WEIGHTS, ...(raw?.weights || {}) },
     projects: raw?.projects && typeof raw.projects === "object" ? raw.projects : {},
-    refreshers: Array.isArray(raw?.refreshers) ? raw.refreshers : [],
+    refreshers,
   }
 }
 
+/** Saves the scores and weights; Refresher lessons are saved by saveRefreshers */
 export async function saveDifficulty(next: DifficultyStore): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient()
   if (!client) return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" }
-  if (!(await isCurrentUserAdmin())) return { success: false, error: "ต้องเข้าสู่ระบบ Admin" }
+  if ((await getCurrentRole()) !== "superadmin") return { success: false, error: "เฉพาะ Superadmin" }
   const now = new Date().toISOString()
   const { error } = await client.from("timeline_store").upsert(
-    { id: ROW_ID, data: { ...next, updated_at: now }, updated_at: now, updated_by: "pru_admin" },
+    {
+      id: ROW_ID,
+      data: { weights: next.weights, projects: next.projects, updated_at: now },
+      updated_at: now,
+      updated_by: "pru_admin",
+    },
     { onConflict: "id" }
   )
   return error ? { success: false, error: error.message } : { success: true }

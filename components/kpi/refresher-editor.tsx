@@ -6,7 +6,6 @@ import { Icon } from "@/components/icon"
 import { cardButtonDark } from "@/components/page-hero"
 import { PickMenu } from "@/components/ui/pick-menu"
 import { Refresher, ownersOf, sharesOf } from "@/lib/difficulty"
-import { fmt } from "@/lib/kpi-summary"
 import { SharesEditor } from "./project-score-list"
 
 const QUARTERS = [1, 2, 3, 4] as const
@@ -19,13 +18,11 @@ export function RefresherEditor({
   year,
   refreshers,
   teamMembers,
-  points,
   onChange,
 }: {
   year: number
   refreshers: Refresher[]
   teamMembers: string[]
-  points: number
   onChange: (next: Refresher[]) => void
 }) {
   const thisYear = refreshers.filter((r) => r.year === year)
@@ -123,7 +120,6 @@ export function RefresherEditor({
                           className={`${input} flex-1`}
                         />
                         <span className="text-[13px] text-ink-soft">{r.owner}</span>
-                        <b className="w-12 text-right tabular-nums">{fmt(points)}</b>
                         <button
                           type="button"
                           onClick={() => onChange(refreshers.filter((x) => x.id !== r.id))}
@@ -137,7 +133,6 @@ export function RefresherEditor({
                         <SharesEditor
                           owners={owners}
                           split={sharesOf(r.owner, r.shares)}
-                          points={points}
                           onChange={(shares) => update(r.id, { shares })}
                         />
                       )}

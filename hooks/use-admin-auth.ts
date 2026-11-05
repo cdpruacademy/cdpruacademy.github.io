@@ -1,27 +1,36 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { DEFAULT_TAB_ACCESS, Role, TabAccess, canViewTab } from "@/lib/access";
 import {
+  fetchTabAccess,
+  getCurrentRole,
   getSupabaseClient,
-  isCurrentUserAdmin,
   signInAdmin,
   signOutAdmin,
 } from "@/lib/supabase";
 
-// Admin status comes from a real Supabase Auth session checked against public.admin_users.
+// The role comes from a real Supabase Auth session checked against public.user_roles.
 // The server enforces it with RLS; this hook only decides what the UI shows.
 export function useAdminAuth() {
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [signedInRole, setRole] = useState<Role | null>(null);
+  const [tabs, setTabs] = useState<TabAccess>(DEFAULT_TAB_ACCESS);
   const [isAuthLoaded, setIsAuthLoaded] = useState(false);
+  const role = signedInRole;
 
   useEffect(() => {
     let isMounted = true;
     const client = getSupabaseClient();
 
     const refresh = () => {
-      isCurrentUserAdmin()
-        .then((ok) => {
-          if (isMounted) setIsAdmin(ok);
+      getCurrentRole()
+        .then((next) => {
+          if (isMounted) setRole(next);
+          if (next && next !== "superadmin") {
+            fetchTabAccess().then((t) => {
+              if (isMounted && t) setTabs(t);
+            });
+          }
         })
         .finally(() => {
           if (isMounted) setIsAuthLoaded(true);
@@ -47,9 +56,9 @@ export function useAdminAuth() {
   }, []);
 
   const login = useCallback(
-    async (password: string): Promise<{ success: boolean; error?: string }> => {
-      const res = await signInAdmin(password);
-      if (res.success) setIsAdmin(true);
+    async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+      const res = await signInAdmin(email, password);
+      if (res.success) setRole(await getCurrentRole());
       return res;
     },
     []
@@ -57,11 +66,20 @@ export function useAdminAuth() {
 
   const logout = useCallback(async () => {
     await signOutAdmin();
-    setIsAdmin(false);
+    setRole(null);
   }, []);
 
+  const canView = useCallback(
+    (href: string) => (role ? canViewTab(href, role, tabs) : false),
+    [role, tabs]
+  );
+
   return {
-    isAdmin,
+    role,
+    /** Can edit: superadmin or editor */
+    isAdmin: role === "superadmin" || role === "editor",
+    isSuperadmin: role === "superadmin",
+    canView,
     isAuthLoaded,
     login,
     logout,

@@ -11,7 +11,7 @@ interface AdminLoginModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
-  loginFn: (pwd: string) => Promise<{ success: boolean; error?: string }>
+  loginFn: (email: string, pwd: string) => Promise<{ success: boolean; error?: string }>
 }
 
 export function AdminLoginModal({
@@ -20,6 +20,7 @@ export function AdminLoginModal({
   onSuccess,
   loginFn,
 }: AdminLoginModalProps) {
+  const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -34,14 +35,14 @@ export function AdminLoginModal({
     if (isSubmitting) return
     setIsSubmitting(true)
     try {
-      const res = await loginFn(password)
+      const res = await loginFn(email, password)
       if (res.success) {
         setError(null)
         setPassword("")
         onSuccess()
         onClose()
       } else {
-        setError(res.error || "รหัสผ่านไม่ถูกต้อง ลองใหม่อีกครั้ง")
+        setError(res.error || "อีเมลหรือรหัสผ่านไม่ถูกต้อง")
       }
     } finally {
       setIsSubmitting(false)
@@ -65,7 +66,7 @@ export function AdminLoginModal({
               <Icon name="lock" size={22} strokeWidth={1.9} />
             </span>
             <h2 id="admin-login-title" className="mt-3.5 text-[22px] leading-tight font-bold">
-              Admin sign in
+              Log in
             </h2>
           </div>
           <button
@@ -80,6 +81,25 @@ export function AdminLoginModal({
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-6 pt-5 pb-6">
           <div className="flex flex-col gap-1.5">
+            <label htmlFor="admin-email" className="text-[13px] font-bold text-stone-700">
+              Email
+            </label>
+            <input
+              id="admin-email"
+              type="email"
+              autoComplete="username"
+              autoFocus
+              required
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value)
+                setError(null)
+              }}
+              className="h-[46px] w-full rounded-[14px] border-[1.5px] border-rule bg-white px-3.5 text-[15px] text-ink focus:border-transparent focus:ring-2 focus:ring-brand-ink focus:outline-none"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
             <label htmlFor="admin-password" className="text-[13px] font-bold text-stone-700">
               Password
             </label>
@@ -88,7 +108,6 @@ export function AdminLoginModal({
                 id="admin-password"
                 type={showPassword ? "text" : "password"}
                 autoComplete="current-password"
-                autoFocus
                 required
                 value={password}
                 onChange={(e) => {
@@ -124,7 +143,7 @@ export function AdminLoginModal({
             className="touch-target inline-flex h-12 items-center justify-center gap-2 rounded-full bg-ink text-[15px] font-semibold text-white transition-colors hover:bg-brand-hover disabled:cursor-wait disabled:opacity-60"
           >
             {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            {isSubmitting ? "Signing in…" : "Sign in"}
+            {isSubmitting ? "Logging in…" : "Log in"}
           </button>
         </form>
       </div>

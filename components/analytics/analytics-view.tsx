@@ -49,9 +49,8 @@ import {
   YearProject,
 } from "@/lib/team-metrics"
 import {
-  DifficultyStore,
   Refresher,
-  fetchDifficulty,
+  fetchRefreshers,
   refresherMonthIndex,
 } from "@/lib/difficulty"
 
@@ -82,7 +81,7 @@ const isOwnerMatch = (itemOwner: string | undefined, memberName: string) => {
 // Helper to check if a date string is in the past or current relative to reference month
 
 export function AnalyticsView() {
-  const { isAdmin, login } = useAdminAuth()
+  const { role, isAdmin, login } = useAdminAuth()
   const {
     monthlyStore,
     availableMonths,
@@ -117,26 +116,27 @@ export function AnalyticsView() {
     "all" | "product" | "enhancement" | "refresher"
   >("all")
 
-  // KPI data (admin only): Refresher lessons and the e-Learning set per project
-  const [difficulty, setDifficulty] = useState<DifficultyStore | null>(null)
-  const [difficultyFailed, setDifficultyFailed] = useState(false)
+  // Refresher lessons are not on the Timeline; anyone signed in can read them
+  const signedIn = role !== null
+  const [refreshers, setRefreshers] = useState<Refresher[]>([])
+  const [refreshersFailed, setRefreshersFailed] = useState(false)
   useEffect(() => {
-    if (!isAdmin) return
+    if (!signedIn) return
     let alive = true
     const load = () => {
-      fetchDifficulty().then((d) => {
+      fetchRefreshers().then((list) => {
         if (!alive) return
-        setDifficulty(d)
-        setDifficultyFailed(d === null)
+        if (list) setRefreshers(list)
+        setRefreshersFailed(list === null)
       })
     }
     load()
-    const unsubscribe = subscribeToStoreRow("difficulty_scores", load)
+    const unsubscribe = subscribeToStoreRow("refreshers", load)
     return () => {
       alive = false
       unsubscribe()
     }
-  }, [isAdmin])
+  }, [signedIn])
 
   // The owner box whose popup is open; member null is the whole team
   const [ownerPopup, setOwnerPopup] = useState<{ member: string | null } | null>(null)
@@ -328,20 +328,20 @@ export function AnalyticsView() {
 
   // A Refresher counts in the last month of its quarter, as it does on the KPI page
   const refreshersOfMonth = (monthIndex: number) =>
-    (difficulty?.refreshers || []).filter(
+    refreshers.filter(
       (r) => r.year === activeYear && refresherMonthIndex(r) === monthIndex
     )
 
   const rawRefreshers = useMemo<AggregatedItem[]>(() => {
     const period = isAnnual ? null : parseMonthYear(selectedPeriod)
-    return (difficulty?.refreshers || [])
+    return refreshers
       .filter(
         (r) =>
           r.year === activeYear &&
           (!period || refresherMonthIndex(r) === period.monthIndex)
       )
       .map(refresherToItem)
-  }, [difficulty, activeYear, isAnnual, selectedPeriod])
+  }, [refreshers, activeYear, isAnnual, selectedPeriod])
 
   // Total Unique Projects in this scope (Unfiltered by member)
   const rawUniqueProjectsCount =
@@ -386,7 +386,7 @@ export function AnalyticsView() {
       }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [monthlyStore, yearMonths, getItemsForMonth, difficulty])
+  }, [monthlyStore, yearMonths, getItemsForMonth, refreshers])
 
   // 3. Filtered by type (Product vs Enhancement vs All)
   const activeItems = useMemo(() => {
@@ -449,7 +449,7 @@ export function AnalyticsView() {
     const keep = (p: YearProject) => selectedTypeFilter === "all" || p.type === selectedTypeFilter
     const ofYear = (year: number): YearProject[] => [
       ...getYearProjects(monthlyStore, year),
-      ...(difficulty?.refreshers || [])
+      ...refreshers
         .filter((r) => r.year === year)
         .map((r) => ({
           item: refresherToItem(r),
@@ -469,7 +469,7 @@ export function AnalyticsView() {
       refresher: list.filter((p) => p.type === "refresher").length,
     })
     return { now: count(now), prev: count(prev) }
-  }, [monthlyStore, isAnnual, activeYear, selectedTypeFilter, difficulty])
+  }, [monthlyStore, isAnnual, activeYear, selectedTypeFilter, refreshers])
 
   // Launch and Internal Training dates as an .ics file for Outlook (follows the filters)
   const handleDownloadCalendar = () => {
@@ -632,19 +632,18 @@ export function AnalyticsView() {
     (s) => s.label === hoveredMember
   )
   const displayMemberVal = activeHoveredMember?.value ?? totalMemberWorkload
-  // If Not Admin, render Security Lock Gate
-  if (!isAdmin) {
+  // Signed out: ask to log in
+  if (!signedIn) {
     return (
       <div className="flex min-h-[70vh] items-center justify-center px-4">
         <div className={`${card} flex w-full max-w-md flex-col items-center gap-3 px-6 py-10 text-center`}>
           <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-pru-red-soft text-brand-ink">
             <Icon name="lock" size={28} />
           </span>
-          <h2 className="text-lg font-bold">Admin only</h2>
-          <p className="text-sm text-ink-soft">เข้าสู่ระบบ Admin เพื่อดูหน้านี้</p>
+          <h2 className="text-lg font-bold">เข้าสู่ระบบเพื่อดูหน้านี้</h2>
           <div className="flex flex-wrap justify-center gap-2.5 pt-1">
             <button type="button" onClick={() => setIsLoginModalOpen(true)} className={cardButtonDark}>
-              Admin login
+              Log in
             </button>
             <Link href="/" className={cardButton}>
               Back to Timeline
@@ -705,10 +704,12 @@ export function AnalyticsView() {
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <button type="button" onClick={() => setIsTeamModalOpen(true)} className={heroButton}>
-                <Icon name="team" size={18} />
-                Team ({teamMembers.length})
-              </button>
+              {isAdmin && (
+                <button type="button" onClick={() => setIsTeamModalOpen(true)} className={heroButton}>
+                  <Icon name="team" size={18} />
+                  Team ({teamMembers.length})
+                </button>
+              )}
               <button type="button" onClick={handleDownloadCalendar} className={heroButton}>
                 <Icon name="calendar" size={18} />
                 Calendar
@@ -717,10 +718,12 @@ export function AnalyticsView() {
                 {slideMonth ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon name="download" size={18} />}
                 {slideMonth ? "Making slides…" : `Slides ${reportMonth}`}
               </button>
-              <button type="button" onClick={handleSendToLine} disabled={isSendingLine} className={heroButton}>
-                {isSendingLine ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon name="send" size={18} />}
-                {isSendingLine ? "Sending…" : "Send to LINE"}
-              </button>
+              {isAdmin && (
+                <button type="button" onClick={handleSendToLine} disabled={isSendingLine} className={heroButton}>
+                  {isSendingLine ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon name="send" size={18} />}
+                  {isSendingLine ? "Sending…" : "Send to LINE"}
+                </button>
+              )}
               <button type="button" onClick={handleExportImage} disabled={isExporting} className={heroButtonSolid}>
                 {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon name="download" size={18} />}
                 {isExporting ? "Saving…" : "Save image"}
@@ -820,7 +823,7 @@ export function AnalyticsView() {
           })}
         </section>
 
-        {difficultyFailed && (
+        {refreshersFailed && (
           <div role="alert" className="flex items-center gap-2.5 rounded-xl bg-pru-red-soft px-4 py-3 text-sm font-semibold text-brand-ink lg:col-span-12">
             <Icon name="info" size={18} className="shrink-0" />
             อ่านข้อมูล Refresher ไม่สำเร็จ ตัวเลขในหน้านี้ยังไม่รวม Refresher กรุณารีโหลดหน้า

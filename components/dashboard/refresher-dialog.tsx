@@ -7,12 +7,12 @@ import { Icon } from "@/components/icon"
 import { cardButton, cardButtonDark } from "@/components/page-hero"
 import { KpiDialog } from "@/components/kpi/kpi-dialog"
 import { RefresherEditor } from "@/components/kpi/refresher-editor"
-import { DifficultyStore, Refresher, fetchDifficulty, saveDifficulty } from "@/lib/difficulty"
+import { Refresher, fetchRefreshers, saveRefreshers } from "@/lib/difficulty"
 import { toast } from "@/lib/notify"
 
 /**
- * Admins enter Refresher lessons from the Timeline page. They are saved with the KPI data
- * (admin only), so they never reach the Timeline table, the LINE images or the bot.
+ * Superadmins and editors enter Refresher lessons from the Timeline page. They are saved in
+ * their own row, so they never reach the Timeline table, the LINE images or the bot.
  */
 export function RefresherDialog({
   year,
@@ -23,17 +23,17 @@ export function RefresherDialog({
   teamMembers: string[]
   onClose: () => void
 }) {
-  const [store, setStore] = useState<DifficultyStore | null>(null)
+  const [saved, setSaved] = useState<Refresher[] | null>(null)
   const [draft, setDraft] = useState<Refresher[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     let alive = true
-    fetchDifficulty().then((d) => {
+    fetchRefreshers().then((list) => {
       if (!alive) return
-      setStore(d)
-      setFailed(d === null)
+      setSaved(list)
+      setFailed(list === null)
     })
     return () => {
       alive = false
@@ -43,11 +43,7 @@ export function RefresherDialog({
   const save = async () => {
     if (!draft) return onClose()
     setIsSaving(true)
-    // Read again so scores changed on the KPI page since this opened are kept
-    const latest = await fetchDifficulty()
-    const res = latest
-      ? await saveDifficulty({ ...latest, refreshers: draft })
-      : { success: false, error: "อ่านข้อมูลล่าสุดไม่สำเร็จ" }
+    const res = await saveRefreshers(draft)
     setIsSaving(false)
     if (res.success) {
       toast.success("บันทึกแล้ว")
@@ -75,12 +71,11 @@ export function RefresherDialog({
         </>
       }
     >
-      {store ? (
+      {saved ? (
         <RefresherEditor
           year={year}
-          refreshers={draft ?? store.refreshers}
+          refreshers={draft ?? saved}
           teamMembers={teamMembers}
-          points={store.weights.refresher}
           onChange={setDraft}
         />
       ) : failed ? (

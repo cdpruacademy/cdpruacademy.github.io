@@ -380,7 +380,7 @@ export function ProductTimeline() {
             <p className="text-sm text-ink-soft">
               {isAdmin
                 ? "เพิ่ม project แรกของเดือนนี้ได้เลย"
-                : "เข้าสู่ระบบ Admin เพื่อเพิ่ม project ในเดือนนี้"}
+                : "เข้าสู่ระบบเพื่อเพิ่ม project ในเดือนนี้"}
             </p>
             {isAdmin && (
               <button type="button" onClick={handleOpenAdd} className={cardButton}>
@@ -502,7 +502,7 @@ export function ProductTimeline() {
         )}
 
         <footer className="flex items-center justify-between pt-2 text-xs text-ink-soft">
-          <span>{isAdmin ? "Admin mode" : "View only"}</span>
+          <span>{isAdmin ? "Edit mode" : "View only"}</span>
           <span>Prudential Thailand · ฝ่ายพัฒนาหลักสูตร</span>
         </footer>
       </div>

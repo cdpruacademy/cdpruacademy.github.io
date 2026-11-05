@@ -32,9 +32,9 @@ import { toast } from "@/lib/notify"
 type Editor = "projects" | "points"
 type Filter = "active" | "done" | "all"
 
-/** KPI for admins: one summary page; scoring and points open as dialogs (Refresher is entered on the Timeline page) */
+/** KPI for superadmins: one summary page; scoring and points open as dialogs (Refresher is entered on the Timeline page) */
 export function KpiView() {
-  const { isAdmin, isAuthLoaded, login } = useAdminAuth()
+  const { isSuperadmin, isAuthLoaded, login } = useAdminAuth()
   const { monthlyStore, getItemsForMonth, isLoaded } = useProducts()
   const { memberColors } = useTeamMembers()
   const [saved, setSaved] = useState<DifficultyStore | null>(null)
@@ -50,7 +50,7 @@ export function KpiView() {
   const [query, setQuery] = useState("")
 
   useEffect(() => {
-    if (!isAdmin) return
+    if (!isSuperadmin) return
     let alive = true
     fetchDifficulty().then((d) => {
       if (alive) setSaved(d ?? EMPTY_DIFFICULTY)
@@ -58,7 +58,7 @@ export function KpiView() {
     return () => {
       alive = false
     }
-  }, [isAdmin])
+  }, [isSuperadmin])
 
   // The page shows saved numbers; an open editor shows its draft
   const base = saved ?? EMPTY_DIFFICULTY
@@ -142,7 +142,7 @@ export function KpiView() {
     }
   }
 
-  if (!isAdmin) {
+  if (!isSuperadmin) {
     return (
       <div>
         <PageHero>
@@ -155,9 +155,9 @@ export function KpiView() {
                 <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-pru-red-soft text-brand-ink">
                   <Icon name="lock" size={28} />
                 </span>
-                <h2 className="text-lg font-bold">Admin only</h2>
+                <h2 className="text-lg font-bold">Superadmin only</h2>
                 <button type="button" onClick={() => setIsLoginOpen(true)} className={cardButtonDark}>
-                  Admin login
+                  Log in
                 </button>
               </>
             ) : (

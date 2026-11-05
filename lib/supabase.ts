@@ -1,3 +1,4 @@
+import { DEFAULT_TAB_ACCESS, Role, TabAccess } from "./access";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import type { Partner } from "./partners";
 import { MonthlyStore, getSystemCurrentMonth } from "./timeline-data";
@@ -83,7 +84,7 @@ export function getSupabaseClient(): SupabaseClient | null {
     });
     currentClientUrl = config.url;
     currentClientKey = config.anonKey;
-    adminCheckCache = null;
+    roleCache = null;
     return cachedClient;
   } catch (err) {
     console.error("Failed to initialize Supabase client", err);
@@ -91,46 +92,57 @@ export function getSupabaseClient(): SupabaseClient | null {
   }
 }
 
-// One shared team account (Supabase > Authentication > Users). Only the password is secret.
-export const TEAM_ADMIN_EMAIL = "cdpruacademy@gmail.com";
+const NOT_ADMIN_ERROR = "ต้องเข้าสู่ระบบก่อนบันทึกข้อมูล";
 
-const NOT_ADMIN_ERROR = "ต้องเข้าสู่ระบบ Admin ก่อนบันทึกข้อมูล";
-
-// Admin check result cached per signed-in user so every hook instance shares one RPC call
-let adminCheckCache: { userId: string; result: Promise<boolean> } | null = null;
+// Role cached per signed-in user so every hook instance shares one RPC call
+let roleCache: { userId: string; result: Promise<Role | null> } | null = null;
 
 /**
- * True when the current Supabase session belongs to an email listed in public.admin_users.
+ * The role of the signed-in person from public.user_roles, or null.
  * Writes are enforced by RLS on the server; this only drives the UI and skips doomed writes.
  */
-export async function isCurrentUserAdmin(): Promise<boolean> {
+export async function getCurrentRole(): Promise<Role | null> {
   const client = getSupabaseClient();
-  if (!client) return false;
+  if (!client) return null;
 
   const { data } = await client.auth.getSession();
   const userId = data.session?.user.id;
   if (!userId) {
-    adminCheckCache = null;
-    return false;
+    roleCache = null;
+    return null;
   }
 
-  if (!adminCheckCache || adminCheckCache.userId !== userId) {
-    adminCheckCache = {
+  if (!roleCache || roleCache.userId !== userId) {
+    roleCache = {
       userId,
       result: (async () => {
-        const { data: isAdmin, error } = await client.rpc("is_admin");
+        const { data: role, error } = await client.rpc("my_role");
         if (error) {
-          console.warn("is_admin check failed:", error.message);
-          return false;
+          console.warn("my_role check failed:", error.message);
+          return null;
         }
-        return isAdmin === true;
+        return (role as Role | null) ?? null;
       })(),
     };
   }
-  return adminCheckCache.result;
+  return roleCache.result;
+}
+
+/** True for anyone who can edit: superadmin or editor */
+export async function isCurrentUserAdmin(): Promise<boolean> {
+  const role = await getCurrentRole();
+  return role === "superadmin" || role === "editor";
+}
+
+export async function getCurrentEmail(): Promise<string | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+  const { data } = await client.auth.getSession();
+  return data.session?.user.email?.toLowerCase() ?? null;
 }
 
 export async function signInAdmin(
+  email: string,
   password: string
 ): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient();
@@ -139,25 +151,96 @@ export async function signInAdmin(
   }
 
   const { error } = await client.auth.signInWithPassword({
-    email: TEAM_ADMIN_EMAIL,
+    email: email.trim().toLowerCase(),
     password,
   });
   if (error) {
-    return { success: false, error: "รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง" };
+    return { success: false, error: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" };
   }
 
-  adminCheckCache = null;
-  if (!(await isCurrentUserAdmin())) {
+  roleCache = null;
+  if (!(await getCurrentRole())) {
     await client.auth.signOut();
-    return { success: false, error: "บัญชีนี้ไม่มีสิทธิ์ Admin กรุณาติดต่อผู้ดูแลระบบ" };
+    roleCache = null;
+    return { success: false, error: "บัญชีนี้ยังไม่มีสิทธิ์ กรุณาติดต่อ Superadmin" };
   }
   return { success: true };
 }
 
 export async function signOutAdmin(): Promise<void> {
   const client = getSupabaseClient();
-  adminCheckCache = null;
+  roleCache = null;
   if (client) await client.auth.signOut();
+}
+
+/** Checks the current password first, so an open browser alone cannot change it */
+export async function changeMyPassword(
+  current: string,
+  next: string
+): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  const email = await getCurrentEmail();
+  if (!client || !email) return { success: false, error: "ต้องเข้าสู่ระบบก่อน" };
+  const check = await client.auth.signInWithPassword({ email, password: current });
+  if (check.error) return { success: false, error: "รหัสผ่านปัจจุบันไม่ถูกต้อง" };
+  const { error } = await client.auth.updateUser({ password: next });
+  return error ? { success: false, error: "เปลี่ยนรหัสผ่านไม่สำเร็จ ลองใช้รหัสอื่น" } : { success: true };
+}
+
+export interface ManagedUser {
+  email: string;
+  role: Role;
+  has_account: boolean;
+  last_sign_in_at: string | null;
+}
+
+export async function listUsers(): Promise<ManagedUser[] | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+  const { data, error } = await client.rpc("list_user_roles");
+  if (error) {
+    console.warn("list_user_roles failed:", error.message);
+    return null;
+  }
+  return data as ManagedUser[];
+}
+
+export async function setUserRole(email: string, role: Role): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" };
+  const { error } = await client.from("user_roles").upsert({ email, role }, { onConflict: "email" });
+  return error ? { success: false, error: error.message } : { success: true };
+}
+
+export async function removeUserRole(email: string): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" };
+  const { error } = await client.from("user_roles").delete().eq("email", email);
+  return error ? { success: false, error: error.message } : { success: true };
+}
+
+export async function fetchTabAccess(): Promise<TabAccess | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+  const { data, error } = await client.from("timeline_store").select("data").eq("id", "tab_access").maybeSingle();
+  if (error || !data) return null;
+  const raw = data.data as Partial<TabAccess>;
+  return {
+    editor: Array.isArray(raw.editor) ? raw.editor : DEFAULT_TAB_ACCESS.editor,
+    viewer: Array.isArray(raw.viewer) ? raw.viewer : DEFAULT_TAB_ACCESS.viewer,
+  };
+}
+
+export async function saveTabAccess(next: TabAccess): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" };
+  const { error } = await client
+    .from("timeline_store")
+    .upsert(
+      { id: "tab_access", data: next, updated_at: new Date().toISOString(), updated_by: "pru_admin" },
+      { onConflict: "id" }
+    );
+  return error ? { success: false, error: error.message } : { success: true };
 }
 
 /**
