@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react"
 import { useAdminAuth } from "@/hooks/use-admin-auth"
 import { usePartners } from "@/hooks/use-partners"
 import { useProducts } from "@/hooks/use-products"
+import { sortMonthsChronologically } from "@/lib/timeline-data"
 import { AdminLoginModal } from "@/components/auth/admin-login-modal"
 import { Icon } from "@/components/icon"
 import { PickMenu } from "@/components/ui/pick-menu"
@@ -53,19 +54,18 @@ export function PartnersView() {
   // Channels used by saved projects, and how many projects each partner has
   const { usedChannels, counts } = useMemo(() => {
     const used: string[] = []
-    const seen = new Set<string>()
-    Object.values(monthlyStore || {}).forEach((m) => {
-      ;[...(m.products || []), ...(m.enhancements || [])].forEach((p) => {
+    // One entry per project id, so a renamed project counts once; its latest channel wins
+    const channelById = new Map<string, string>()
+    const store = monthlyStore || {}
+    sortMonthsChronologically(Object.keys(store)).forEach((month) => {
+      ;[...(store[month].products || []), ...(store[month].enhancements || [])].forEach((p) => {
         if (!p.broker) return
         used.push(p.broker)
-        const key = `${p.name.trim().toLowerCase()}__${p.broker.trim().toLowerCase()}`
-        seen.add(key)
+        if (!p.isDeleted) channelById.set(p.id, p.broker)
       })
     })
-    const projectKeys = Array.from(seen)
     const c: Record<string, number> = {}
-    projectKeys.forEach((key) => {
-      const broker = key.split("__")[1]
+    channelById.forEach((broker) => {
       const id = partnerOf(broker, list).id
       c[id] = (c[id] || 0) + 1
     })

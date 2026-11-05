@@ -73,6 +73,7 @@ interface TimelineHeroProps {
   onAsOfChange: (asOf: string) => void
   counts?: { total: number; completed: number; inProgress: number; onHold: number }
   onAddClick: () => void
+  onRefresherClick?: () => void
   onExportAllClick: () => void
   onSendLineClick?: () => void
   isSendingLine?: boolean
@@ -126,6 +127,7 @@ export function TimelineHero({
   onAsOfChange,
   counts,
   onAddClick,
+  onRefresherClick,
   onExportAllClick,
   onSendLineClick,
   isSendingLine = false,
@@ -261,6 +263,12 @@ export function TimelineHero({
                 </p>
                 {(
                   [
+                    isAdmin && onRefresherClick && {
+                      icon: "training",
+                      label: "Refresher",
+                      hint: "กรอกบทเรียน ไม่แสดงใน Timeline",
+                      onClick: onRefresherClick,
+                    },
                     onSendLineClick && {
                       icon: "send",
                       label: isSendingLine ? "Sending…" : "Send to LINE",
@@ -456,6 +464,12 @@ export function TimelineHero({
           {selectedMonth !== systemMonth && (
             <button type="button" onClick={goToCurrent} className="touch-target h-10 px-2 text-sm font-semibold text-ink underline underline-offset-4">
               This month
+            </button>
+          )}
+          {isAdmin && onRefresherClick && (
+            <button type="button" onClick={onRefresherClick} className={cardButton}>
+              <Icon name="training" size={18} />
+              Refresher
             </button>
           )}
           <button type="button" onClick={onExportAllClick} disabled={isExporting} className={cardButton}>

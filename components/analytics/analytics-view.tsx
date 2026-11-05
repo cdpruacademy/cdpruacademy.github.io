@@ -48,15 +48,22 @@ import {
   getLaunchPlanStats,
   getStepDurations,
   getYearProjects,
-  groupRefreshersByOwner,
+  refresherToItem,
   YearProject,
 } from "@/lib/team-metrics"
-import { Refresher, fetchDifficulty } from "@/lib/difficulty"
+import {
+  DifficultyStore,
+  Refresher,
+  fetchDifficulty,
+  hasElearning,
+  refresherMonthIndex,
+} from "@/lib/difficulty"
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? ""
 
 interface AggregatedItem extends ProductItem {
   activeMonths?: string[]
+  refresher?: Refresher
 }
 
 // Helper to check if an item is co-owned (multiple persons assigned)
@@ -114,8 +121,24 @@ export function AnalyticsView() {
 
   // Type filter: All vs New Product vs Enhancement
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<
-    "all" | "product" | "enhancement"
+    "all" | "product" | "enhancement" | "refresher"
   >("all")
+
+  // KPI data (admin only): Refresher lessons and the e-Learning set per project
+  const [difficulty, setDifficulty] = useState<DifficultyStore | null>(null)
+  const [difficultyFailed, setDifficultyFailed] = useState(false)
+  useEffect(() => {
+    if (!isAdmin) return
+    let alive = true
+    fetchDifficulty().then((d) => {
+      if (!alive) return
+      setDifficulty(d)
+      setDifficultyFailed(d === null)
+    })
+    return () => {
+      alive = false
+    }
+  }, [isAdmin])
 
   // Delivery Status Popup Modal State (User Request: เปิดเป็น Popup ไม่ต้องเลื่อนจอ)
   const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false)
@@ -313,15 +336,33 @@ export function AnalyticsView() {
     }
   }, [monthlyStore, activeYear, isAnnual, selectedPeriod])
 
+  // A Refresher counts in the last month of its quarter, as it does on the KPI page
+  const refreshersOfMonth = (monthIndex: number) =>
+    (difficulty?.refreshers || []).filter(
+      (r) => r.year === activeYear && refresherMonthIndex(r) === monthIndex
+    )
+
+  const rawRefreshers = useMemo<AggregatedItem[]>(() => {
+    const period = isAnnual ? null : parseMonthYear(selectedPeriod)
+    return (difficulty?.refreshers || [])
+      .filter(
+        (r) =>
+          r.year === activeYear &&
+          (!period || refresherMonthIndex(r) === period.monthIndex)
+      )
+      .map(refresherToItem)
+  }, [difficulty, activeYear, isAnnual, selectedPeriod])
+
   // Total Unique Projects in this scope (Unfiltered by member)
-  const rawUniqueProjectsCount = rawProducts.length + rawEnhancements.length
+  const rawUniqueProjectsCount =
+    rawProducts.length + rawEnhancements.length + rawRefreshers.length
 
   // Count co-owned projects
   const coOwnedProjectsCount = useMemo(() => {
-    return [...rawProducts, ...rawEnhancements].filter((i) =>
+    return [...rawProducts, ...rawEnhancements, ...rawRefreshers].filter((i) =>
       isItemCoOwned(i.owner)
     ).length
-  }, [rawProducts, rawEnhancements])
+  }, [rawProducts, rawEnhancements, rawRefreshers])
 
   // 2. Global Filter by selectedMember (แบบที่ 1)
   const products = useMemo(() => {
@@ -334,10 +375,15 @@ export function AnalyticsView() {
     return rawEnhancements.filter((e) => isOwnerMatch(e.owner, selectedMember))
   }, [rawEnhancements, selectedMember])
 
+  const refresherItems = useMemo(() => {
+    if (!selectedMember) return rawRefreshers
+    return rawRefreshers.filter((r) => isOwnerMatch(r.owner, selectedMember))
+  }, [rawRefreshers, selectedMember])
+
   // Monthly stats for the Trend Bar (strictly 12 months of activeYear, reflects selectedMember and includes cross-month carryovers)
   const monthlyStats = useMemo(() => {
     if (!monthlyStore) return []
-    return yearMonths.map((m) => {
+    return yearMonths.map((m, monthIndex) => {
       const pItems = getItemsForMonth
         ? getItemsForMonth(m, "product")
         : monthlyStore[m]?.products || []
@@ -355,22 +401,28 @@ export function AnalyticsView() {
       const pausedCount = [...pList, ...eList].filter((i) => i.isPaused).length
       const productsCount = pList.filter((i) => !i.isPaused).length
       const enhancementsCount = eList.filter((i) => !i.isPaused).length
+      const refreshersCount = refreshersOfMonth(monthIndex).filter(
+        (r) => !selectedMember || isOwnerMatch(r.owner, selectedMember)
+      ).length
       return {
         month: m,
         productsCount,
         enhancementsCount,
+        refreshersCount,
         pausedCount,
-        totalCount: productsCount + enhancementsCount + pausedCount,
+        totalCount: productsCount + enhancementsCount + refreshersCount + pausedCount,
       }
     })
-  }, [monthlyStore, yearMonths, selectedMember, getItemsForMonth])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [monthlyStore, yearMonths, selectedMember, getItemsForMonth, difficulty])
 
   // 3. Filtered by type (Product vs Enhancement vs All)
   const activeItems = useMemo(() => {
     if (selectedTypeFilter === "product") return products
     if (selectedTypeFilter === "enhancement") return enhancements
-    return [...products, ...enhancements]
-  }, [products, enhancements, selectedTypeFilter])
+    if (selectedTypeFilter === "refresher") return refresherItems
+    return [...products, ...enhancements, ...refresherItems]
+  }, [products, enhancements, refresherItems, selectedTypeFilter])
 
   // Helper to build status detail for each item
   const buildItemStatus = (item: AggregatedItem) => {
@@ -381,6 +433,9 @@ export function AnalyticsView() {
     let currentPhaseKey = isCompleted ? "launch" : "kick-off"
     if (isPaused) {
       currentPhaseLabel = item.pausedSince ? `On hold since ${item.pausedSince}` : "On hold"
+    } else if (!isCompleted && item.refresher) {
+      currentPhaseLabel = "In progress"
+      currentPhaseKey = "refresher"
     } else if (!isCompleted) {
       const phases: { key: PhaseKey; label: string }[] = [
         { key: "kick-off", label: "Kick-off" },
@@ -442,23 +497,35 @@ export function AnalyticsView() {
     const keep = (p: YearProject) =>
       (!selectedMember || isOwnerMatch(p.item.owner, selectedMember)) &&
       (selectedTypeFilter === "all" || p.type === selectedTypeFilter)
-    const prev = getYearProjects(monthlyStore, activeYear - 1).filter(keep)
+    const ofYear = (year: number): YearProject[] => [
+      ...getYearProjects(monthlyStore, year),
+      ...(difficulty?.refreshers || [])
+        .filter((r) => r.year === year)
+        .map((r) => ({
+          item: refresherToItem(r),
+          type: "refresher" as const,
+          completed: r.done,
+          months: [],
+        })),
+    ]
+    const prev = ofYear(activeYear - 1).filter(keep)
     if (prev.length === 0) return null
-    const now = getYearProjects(monthlyStore, activeYear).filter(keep)
+    const now = ofYear(activeYear).filter(keep)
     const count = (list: YearProject[]) => ({
       total: list.length,
       completed: list.filter((p) => p.completed).length,
       product: list.filter((p) => p.type === "product").length,
       enhancement: list.filter((p) => p.type === "enhancement").length,
+      refresher: list.filter((p) => p.type === "refresher").length,
     })
     return { now: count(now), prev: count(prev) }
-  }, [monthlyStore, isAnnual, activeYear, selectedMember, selectedTypeFilter])
+  }, [monthlyStore, isAnnual, activeYear, selectedMember, selectedTypeFilter, difficulty])
 
   // Launch and Internal Training dates as an .ics file for Outlook (follows the filters)
   const handleDownloadCalendar = () => {
     const typed = [
-      ...(selectedTypeFilter !== "enhancement" ? products.map((item) => ({ item, type: "product" as const })) : []),
-      ...(selectedTypeFilter !== "product" ? enhancements.map((item) => ({ item, type: "enhancement" as const })) : []),
+      ...(selectedTypeFilter === "all" || selectedTypeFilter === "product" ? products.map((item) => ({ item, type: "product" as const })) : []),
+      ...(selectedTypeFilter === "all" || selectedTypeFilter === "enhancement" ? enhancements.map((item) => ({ item, type: "enhancement" as const })) : []),
     ]
     const period = isAnnual ? String(activeYear) : selectedPeriod
     const { ics, count } = buildLaunchCalendar(typed, `CD Team · ${period}`)
@@ -475,16 +542,15 @@ export function AnalyticsView() {
   }
 
   // Total KPIs (paused projects still count: the team did work on them this year)
-  const totalProjects = products.length + enhancements.length
+  const totalProjects = products.length + enhancements.length + refresherItems.length
   const pausedProjectsCount = itemsWithStatus.filter((i) => i.isPaused).length
   const newProductCount = products.length
   const enhancementCount = enhancements.length
-  const totalElearning = [...products, ...enhancements].filter((i) =>
-    Boolean(
-      i.milestones?.["first-draft-elearning"] ||
-      i.milestones?.["final-elearning"]
-    )
-  ).length
+  const refresherCount = refresherItems.length
+  // The same rule as KPI scoring; every Refresher is an e-Learning lesson
+  const totalElearning =
+    [...products, ...enhancements].filter((i) => hasElearning(i, difficulty?.projects[i.id])).length +
+    refresherCount
 
   // 5. Channel Breakdown Segments
   const channelCounts = useMemo(() => {
@@ -537,9 +603,9 @@ export function AnalyticsView() {
 
   // 6. Team Member Workload Breakdown (Unfiltered by member to calculate team-wide stats)
   const allTeamItemsWithStatus = useMemo(() => {
-    const all = [...rawProducts, ...rawEnhancements]
+    const all = [...rawProducts, ...rawEnhancements, ...rawRefreshers]
     return all.map(buildItemStatus)
-  }, [rawProducts, rawEnhancements])
+  }, [rawProducts, rawEnhancements, rawRefreshers])
 
   const allTeamPendingCount = useMemo(
     () =>
@@ -641,42 +707,6 @@ export function AnalyticsView() {
     const matched = teamMembers.find((m) => isOwnerMatch(ownerName, m))
     return matched ? memberColors[matched] || "#ED1B2E" : "#64748B"
   }
-
-  // Refresher lessons live with the KPI data (admin only); null hides the card if they can't be read
-  const [refreshers, setRefreshers] = useState<Refresher[] | null>(null)
-  useEffect(() => {
-    if (!isAdmin) return
-    let alive = true
-    fetchDifficulty().then((d) => {
-      if (alive) setRefreshers(d ? d.refreshers : null)
-    })
-    return () => {
-      alive = false
-    }
-  }, [isAdmin])
-
-  // A single month shows the lessons of its quarter
-  const periodMonth = isAnnual ? null : parseMonthYear(selectedPeriod)
-  const refresherQuarter = periodMonth ? Math.floor(periodMonth.monthIndex / 3) + 1 : null
-  const scopedRefreshers = useMemo(
-    () =>
-      (refreshers || []).filter(
-        (r) =>
-          r.year === activeYear &&
-          (refresherQuarter === null || r.quarter === refresherQuarter) &&
-          (!selectedMember || isOwnerMatch(r.owner, selectedMember))
-      ),
-    [refreshers, activeYear, refresherQuarter, selectedMember]
-  )
-  const refreshersByOwner = useMemo(() => {
-    const rank = (name: string) => {
-      const i = teamMembers.indexOf(name)
-      return i === -1 ? teamMembers.length : i
-    }
-    return groupRefreshersByOwner(scopedRefreshers)
-      .filter((g) => !selectedMember || isOwnerMatch(g.owner, selectedMember))
-      .sort((a, b) => rank(a.owner) - rank(b.owner))
-  }, [scopedRefreshers, selectedMember, teamMembers])
 
   // Helper to open Delivery Status Modal for a specific member or all team
   const handleOpenDeliveryModal = (member: string | null) => {
@@ -926,8 +956,16 @@ export function AnalyticsView() {
           </button>
         </section>
 
+        {difficultyFailed && (
+          <div role="alert" className="flex items-center gap-2.5 rounded-xl bg-pru-red-soft px-4 py-3 text-sm font-semibold text-brand-ink lg:col-span-12">
+            <Icon name="info" size={18} className="shrink-0" />
+            อ่านข้อมูล Refresher ไม่สำเร็จ ตัวเลขในหน้านี้ยังไม่รวม Refresher กรุณารีโหลดหน้า
+          </div>
+        )}
+
         {/* KPI cards */}
-        <section className="flex flex-col gap-3 rounded-[20px] bg-ink p-5 text-white shadow-[var(--shadow-card)] lg:col-span-3">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:col-span-12 lg:grid-cols-5">
+        <section className="flex flex-col gap-3 rounded-[20px] bg-ink p-5 text-white shadow-[var(--shadow-card)]">
           <div className="flex items-start justify-between gap-3">
             <span>
               <span className="text-sm">{selectedMember ? `Projects of ${selectedMember}` : isAnnual ? "Projects this year" : `Projects in ${selectedPeriod}`}</span>
@@ -939,10 +977,10 @@ export function AnalyticsView() {
           </div>
           <span className="text-[13px] text-gray-300">
             {pausedProjectsCount > 0 ? `${pausedProjectsCount} on hold · ` : ""}
-            New Product + Enhancement
+            New Product + Enhancement + Refresher
           </span>
         </section>
-        <section className={`${kpiCard} lg:col-span-3`}>
+        <section className={kpiCard}>
           <div className="flex items-start justify-between gap-3">
             <span>
               <span className="text-sm font-semibold text-brand-ink">New Product</span>
@@ -959,7 +997,7 @@ export function AnalyticsView() {
             {totalProjects > 0 ? Math.round((newProductCount / totalProjects) * 100) : 0}% of all projects
           </span>
         </section>
-        <section className={`${kpiCard} lg:col-span-3`}>
+        <section className={kpiCard}>
           <div className="flex items-start justify-between gap-3">
             <span>
               <span className="text-sm font-semibold text-ink-soft">Enhancement</span>
@@ -976,7 +1014,24 @@ export function AnalyticsView() {
             {totalProjects > 0 ? Math.round((enhancementCount / totalProjects) * 100) : 0}% of all projects
           </span>
         </section>
-        <section className={`${kpiCard} lg:col-span-3`}>
+        <section className={kpiCard}>
+          <div className="flex items-start justify-between gap-3">
+            <span>
+              <span className="text-sm font-semibold text-ink-soft">Refresher</span>
+              <span className="block text-[44px] leading-tight font-bold">{refresherCount}</span>
+            </span>
+            <span className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-surface text-ink-soft">
+              <Icon name="training" size={24} />
+            </span>
+          </div>
+          <div className="h-2 rounded-full bg-surface">
+            <div className="h-2 rounded-full bg-ink" style={{ width: `${totalProjects > 0 ? (refresherCount / totalProjects) * 100 : 0}%` }} />
+          </div>
+          <span className="text-xs text-ink-soft">
+            {totalProjects > 0 ? Math.round((refresherCount / totalProjects) * 100) : 0}% of all projects
+          </span>
+        </section>
+        <section className={kpiCard}>
           <div className="flex items-start justify-between gap-3">
             <span>
               <span className="text-sm font-semibold text-ink-soft">With e-learning</span>
@@ -993,6 +1048,7 @@ export function AnalyticsView() {
             {totalProjects > 0 ? Math.min(100, Math.round((totalElearning / totalProjects) * 100)) : 0}% of all projects
           </span>
         </section>
+        </div>
 
         {/* Launch on plan */}
         <section className={`${kpiCard} lg:col-span-4`}>
@@ -1068,6 +1124,7 @@ export function AnalyticsView() {
               ["All projects", "total"],
               ["New Product", "product"],
               ["Enhancement", "enhancement"],
+              ["Refresher", "refresher"],
             ] as const).map(([label, key]) => {
               const diff = yearCompare.now[key] - yearCompare.prev[key]
               return (
@@ -1104,6 +1161,7 @@ export function AnalyticsView() {
             <span className="flex gap-4 text-[13px]">
               <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] bg-pru-red" />New Product</span>
               <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] bg-enhancement" />Enhancement</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] bg-ink" />Refresher</span>
               <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] bg-gray-300" />On hold</span>
             </span>
           </div>
@@ -1126,6 +1184,7 @@ export function AnalyticsView() {
                       <span className="flex flex-col overflow-hidden rounded-t-[10px] rounded-b-[4px]">
                         <span className="bg-pru-red" style={{ height: h(stat.productsCount) }} />
                         <span className="bg-enhancement" style={{ height: h(stat.enhancementsCount) }} />
+                        <span className="bg-ink" style={{ height: h(stat.refreshersCount) }} />
                         <span className="bg-gray-300" style={{ height: h(stat.pausedCount) }} />
                       </span>
                     </span>
@@ -1145,6 +1204,7 @@ export function AnalyticsView() {
             { v: "all" as const, label: `All (${totalProjects})`, dot: "" },
             { v: "product" as const, label: `New Product (${newProductCount})`, dot: "bg-pru-red" },
             { v: "enhancement" as const, label: `Enhancement (${enhancementCount})`, dot: "bg-enhancement" },
+            { v: "refresher" as const, label: `Refresher (${refresherCount})`, dot: "bg-ink" },
           ].map((o) => (
             <button
               key={o.v}
@@ -1295,73 +1355,6 @@ export function AnalyticsView() {
             </div>
           )}
         </section>
-
-        {/* Refresher lessons by person */}
-        {refreshers && (
-          <section className={`${card} flex flex-col gap-4 p-6 lg:col-span-12`}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h2 className="flex items-center gap-2.5 text-[17px] font-bold">
-                  <span className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] bg-surface text-ink">
-                    <Icon name="elearning" size={18} />
-                  </span>
-                  Refresher
-                  <span className="text-xs font-normal text-ink-soft">
-                    {refresherQuarter ? `Q${refresherQuarter} ${activeYear}` : `All year ${activeYear}`}
-                  </span>
-                  {selectedMember && <span className="text-brand-ink">· {selectedMember}</span>}
-                </h2>
-                <p className="mt-1 text-xs text-ink-soft">ไม่นับรวมใน projects ด้านบน</p>
-              </div>
-              {scopedRefreshers.length > 0 && (
-                <span className="text-sm font-semibold">
-                  {scopedRefreshers.filter((r) => r.done).length} of {scopedRefreshers.length} done
-                </span>
-              )}
-            </div>
-            {refreshersByOwner.length === 0 ? (
-              <p className="rounded-xl bg-paper px-4 py-6 text-center text-sm text-ink-soft">ยังไม่มี Refresher ในช่วงนี้</p>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {refreshersByOwner.map((group) => (
-                  <div key={group.owner} className="rounded-2xl border border-rule p-4">
-                    <div className="flex items-center gap-2.5">
-                      <span
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                        style={{ background: getOwnerColor(group.owner) }}
-                      >
-                        {group.owner.split(" ").map((w) => w[0]).join("")}
-                      </span>
-                      <b className="min-w-0 flex-1 truncate">{group.owner}</b>
-                      <span className="text-[13px] text-ink-soft">
-                        {group.done} of {group.lessons.length} done
-                      </span>
-                    </div>
-                    <ul className="mt-3">
-                      {group.lessons.map((lesson) => (
-                        <li key={lesson.id} className="flex items-center gap-2.5 border-t border-surface py-2 text-sm">
-                          <span
-                            role="img"
-                            aria-label={lesson.done ? "Done" : "In progress"}
-                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white ${lesson.done ? "bg-done" : "bg-pru-red"}`}
-                          >
-                            <Icon name={lesson.done ? "check" : "inProgress"} size={13} strokeWidth={2} />
-                          </span>
-                          <span className="min-w-0 flex-1 truncate" title={lesson.title}>
-                            {lesson.title || `Refresher Q${lesson.quarter}`}
-                          </span>
-                          <span className="shrink-0 rounded-full bg-surface px-2 py-0.5 text-xs font-semibold text-ink-soft">
-                            Q{lesson.quarter}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
       </PageBody>
 
       {/* 7. Delivery Status Modal (POPUP WINDOW - REPLACES BOTTOM SECTION) */}
@@ -1565,6 +1558,7 @@ export function AnalyticsView() {
                           const launch = item.commercialDate || item.customRightLabel || ""
                           const [day, mon] = launch.split(/\s+/)
                           const hasDate = Boolean(day && mon && /^\d/.test(day))
+                          const dated = hasDate || Boolean(item.refresher)
                           const tone = item.isCompleted ? "done" : item.isPaused ? "hold" : "now"
                           return (
                             <li
@@ -1583,6 +1577,9 @@ export function AnalyticsView() {
                                   {partner.name} · {item.broker}
                                   {isAnnual && item.activeMonths && item.activeMonths.length > 0 && (
                                     <span className="font-medium text-ink-soft">· {item.activeMonths.join(", ")}</span>
+                                  )}
+                                  {item.refresher && (
+                                    <span className="font-medium text-ink-soft">· Q{item.refresher.quarter} {item.refresher.year}</span>
                                   )}
                                 </span>
                               </span>
@@ -1619,18 +1616,18 @@ export function AnalyticsView() {
                               </span>
                               <span
                                 className={`col-start-2 row-start-1 w-16 justify-self-center overflow-hidden rounded-xl border-[1.5px] text-center md:col-start-auto md:row-start-auto ${
-                                  !hasDate ? "border-rule" : item.isCompleted ? "border-[#bbe3ca]" : "border-pru-red-line"
+                                  !dated ? "border-rule" : item.isCompleted ? "border-[#bbe3ca]" : "border-pru-red-line"
                                 }`}
                               >
                                 <span
                                   className={`block py-0.5 text-[10px] font-bold text-white uppercase ${
-                                    !hasDate ? "bg-stone-400" : item.isCompleted ? "bg-done" : "bg-pru-red"
+                                    !dated ? "bg-stone-400" : item.isCompleted ? "bg-done" : "bg-pru-red"
                                   }`}
                                 >
-                                  {hasDate ? mon : "Launch"}
+                                  {hasDate ? mon : item.refresher ? "Refresher" : "Launch"}
                                 </span>
                                 <span className="block py-0.5 text-[17px] font-bold text-ink tabular-nums">
-                                  {hasDate ? day : "TBC"}
+                                  {hasDate ? day : item.refresher ? `Q${item.refresher.quarter}` : "TBC"}
                                 </span>
                               </span>
                             </li>

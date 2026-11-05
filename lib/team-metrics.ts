@@ -10,7 +10,7 @@ import {
   getSystemCurrentMonth,
   parseTimelineDate,
 } from "@/lib/timeline-data"
-import { Refresher, ownersOf } from "@/lib/difficulty"
+import type { Refresher } from "@/lib/difficulty"
 
 const DAY_MS = 86_400_000
 const daysBetween = (a: Date, b: Date) =>
@@ -128,28 +128,25 @@ export function getStepDurations(
   }
 }
 
-export interface OwnerRefreshers {
-  owner: string
-  lessons: Refresher[]
-  done: number
+/** A Refresher as a row of the Analytics lists; the row itself is saved with the KPI data, never on the Timeline */
+export interface RefresherItem extends ProductItem {
+  refresher: Refresher
 }
 
-/** Refresher lessons per person, oldest quarter first; a shared lesson shows under each owner */
-export function groupRefreshersByOwner(refreshers: Refresher[]): OwnerRefreshers[] {
-  const byOwner = new Map<string, Refresher[]>()
-  refreshers.forEach((r) =>
-    ownersOf(r.owner).forEach((owner) => byOwner.set(owner, [...(byOwner.get(owner) || []), r]))
-  )
-  return Array.from(byOwner.entries()).map(([owner, list]) => ({
-    owner,
-    lessons: [...list].sort((a, b) => a.quarter - b.quarter),
-    done: list.filter((r) => r.done).length,
-  }))
+export function refresherToItem(r: Refresher): RefresherItem {
+  return {
+    id: r.id,
+    broker: "ttb",
+    name: r.title || `Refresher Q${r.quarter}`,
+    owner: r.owner,
+    milestones: { launch: { phase: "launch", status: r.done ? "completed" : "pending" } },
+    refresher: r,
+  }
 }
 
 export interface YearProject {
   item: ProductItem
-  type: TimelineType
+  type: TimelineType | "refresher"
   completed: boolean
   /** Months of the year with a saved copy, oldest first */
   months: string[]

@@ -6,9 +6,9 @@ import { useProducts } from "@/hooks/use-products"
 import { useAdminAuth } from "@/hooks/use-admin-auth"
 import {
   ProductItem,
-  getMonthsForYear,
   getSystemCurrentMonth,
 } from "@/lib/timeline-data"
+import { getYearProjects } from "@/lib/team-metrics"
 import { TimelineHero } from "./timeline-header"
 import { getProgress } from "./timeline-row"
 import { TimelineTable, groupByPartner } from "./timeline-summary"
@@ -19,6 +19,7 @@ import { NO_FILTERS, TimelineFilters, applyFilters } from "./timeline-filters"
 import { TimelineExportBoard } from "./timeline-export-board"
 import { ChannelSummaryExportBoard } from "@/components/analytics/channel-summary-export-board"
 import { ProductFormModal } from "./product-form-modal"
+import { RefresherDialog } from "./refresher-dialog"
 import { ProjectActionDialog, ProjectAction } from "./project-action-dialog"
 import { useTeamMembers } from "@/hooks/use-team-members"
 import { usePartners } from "@/hooks/use-partners"
@@ -61,6 +62,7 @@ export function ProductTimeline() {
     reloadFromCloud,
   } = useProducts()
   const [isReloading, setIsReloading] = useState(false)
+  const [isRefresherOpen, setIsRefresherOpen] = useState(false)
 
   const { isAdmin } = useAdminAuth()
   const {
@@ -154,32 +156,10 @@ export function ProductTimeline() {
   const { annualProducts, annualEnhancements } = React.useMemo(() => {
     if (!monthlyStore) return { annualProducts: [], annualEnhancements: [] }
 
-    const yearMonths = getMonthsForYear(selectedYear)
-    const productMap = new Map<string, ProductItem>()
-    const enhancementMap = new Map<string, ProductItem>()
-
-    yearMonths.forEach((m) => {
-      const mData = monthlyStore[m]
-      if (!mData) return
-
-      ;(mData.products || []).forEach((p) => {
-        const key = `${p.name.trim().toLowerCase()}___${(p.broker || "").trim().toLowerCase()}`
-        if (!productMap.has(key)) {
-          productMap.set(key, p)
-        }
-      })
-
-      ;(mData.enhancements || []).forEach((e) => {
-        const key = `${e.name.trim().toLowerCase()}___${(e.broker || "").trim().toLowerCase()}`
-        if (!enhancementMap.has(key)) {
-          enhancementMap.set(key, e)
-        }
-      })
-    })
-
+    const projects = getYearProjects(monthlyStore, selectedYear)
     return {
-      annualProducts: Array.from(productMap.values()),
-      annualEnhancements: Array.from(enhancementMap.values()),
+      annualProducts: projects.filter((p) => p.type === "product").map((p) => p.item),
+      annualEnhancements: projects.filter((p) => p.type === "enhancement").map((p) => p.item),
     }
   }, [monthlyStore, selectedYear])
 
@@ -326,6 +306,7 @@ export function ProductTimeline() {
               : undefined
           }
           onAddClick={handleOpenAdd}
+          onRefresherClick={() => setIsRefresherOpen(true)}
           onExportAllClick={handleExportAll}
           onSendLineClick={handleSendToLine}
           isSendingLine={isSendingLine}
@@ -537,6 +518,14 @@ export function ProductTimeline() {
           onDelete={handleDeleteFromForm}
           teamMembers={teamMembers}
           partners={partners}
+        />
+      )}
+
+      {isRefresherOpen && isAdmin && (
+        <RefresherDialog
+          year={selectedYear}
+          teamMembers={teamMembers}
+          onClose={() => setIsRefresherOpen(false)}
         />
       )}
 

@@ -13,7 +13,6 @@ import { PageBody, PageHero, card, cardButton, cardButtonDark, heroButton, heroB
 import { CriteriaSection } from "@/components/kpi/criteria-section"
 import { KpiDialog } from "@/components/kpi/kpi-dialog"
 import { ProjectRow } from "@/components/kpi/project-score-list"
-import { RefresherEditor } from "@/components/kpi/refresher-editor"
 import { WeightsForm } from "@/components/kpi/weights-card"
 import {
   DifficultyStore,
@@ -29,14 +28,14 @@ import { downloadKpiExcel } from "@/lib/kpi-excel"
 import { checkIsProjectCompleted, getAvailableYears, getSystemCurrentMonth, parseMonthYear } from "@/lib/timeline-data"
 import { toast } from "@/lib/notify"
 
-type Editor = "projects" | "refresher" | "points"
+type Editor = "projects" | "points"
 type Filter = "active" | "done" | "all"
 
-/** KPI for admins: one summary page; scoring, Refresher and points open as dialogs */
+/** KPI for admins: one summary page; scoring and points open as dialogs (Refresher is entered on the Timeline page) */
 export function KpiView() {
   const { isAdmin, isAuthLoaded, login } = useAdminAuth()
   const { monthlyStore, getItemsForMonth, isLoaded } = useProducts()
-  const { teamMembers, memberColors } = useTeamMembers()
+  const { memberColors } = useTeamMembers()
   const [saved, setSaved] = useState<DifficultyStore | null>(null)
   const [draft, setDraft] = useState<DifficultyStore | null>(null)
   const [editor, setEditor] = useState<Editor | null>(null)
@@ -207,10 +206,6 @@ export function KpiView() {
               className="h-10 rounded-full border-[1.5px] border-white/55 px-4 text-sm font-semibold text-white hover:bg-white/15"
             />
             <div className="flex flex-wrap items-center gap-2">
-              <button type="button" onClick={() => setEditor("refresher")} disabled={loading} className={heroButton}>
-                <Icon name="training" size={18} />
-                Refresher
-              </button>
               <button type="button" onClick={exportExcel} disabled={loading || isExporting} className={heroButton}>
                 {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon name="download" size={18} />}
                 Excel
@@ -343,24 +338,6 @@ export function KpiView() {
               ))}
             </ul>
           )}
-        </KpiDialog>
-      )}
-
-      {editor === "refresher" && (
-        <KpiDialog
-          icon="training"
-          title={`Refresher · ${year}`}
-          subtitle="บทเรียนทบทวนรายไตรมาสของ ttb นับคะแนนใน KPI แต่ไม่แสดงใน Timeline"
-          onClose={closeEditor}
-          footer={editorFooter}
-        >
-          <RefresherEditor
-            year={year}
-            refreshers={data.refreshers}
-            teamMembers={teamMembers}
-            points={data.weights.refresher}
-            onChange={(refreshers) => setDraft({ ...data, refreshers })}
-          />
         </KpiDialog>
       )}
 
