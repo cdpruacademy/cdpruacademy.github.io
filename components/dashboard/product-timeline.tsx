@@ -309,7 +309,7 @@ export function ProductTimeline() {
           onAddClick={handleOpenAdd}
           onRefresherClick={() => setIsRefresherOpen(true)}
           onExportAllClick={handleExportAll}
-          onSendLineClick={handleSendToLine}
+          onSendLineClick={isAdmin ? handleSendToLine : undefined}
           isSendingLine={isSendingLine}
           isExporting={isExportingAll}
           isAdmin={isAdmin}
