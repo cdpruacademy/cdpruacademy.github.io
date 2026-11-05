@@ -15,7 +15,6 @@ import {
   getMonthsForYear,
   MONTH_NAMES,
   parseMonthYear,
-  getPauseInfo,
   getSystemCurrentMonth,
   compareMonthKeys,
   checkIsProjectCompleted,
@@ -299,82 +298,18 @@ export function AnalyticsView() {
       }
     }
 
-    // Annual Scope: Aggregate all months of activeYear and deduplicate distinct projects
-    // Taking the latest month's progress and merging completed milestones chronologically
-    const productMap = new Map<string, AggregatedItem>()
-    const enhancementMap = new Map<string, AggregatedItem>()
-
-    const mergeItem = (
-      map: Map<string, AggregatedItem>,
-      item: ProductItem,
-      month: string
-    ) => {
-      const key = `${item.name.trim().toLowerCase()}___${(item.broker || "").trim().toLowerCase()}`
-      if (!map.has(key)) {
-        map.set(key, { ...item, activeMonths: [month] })
-      } else {
-        const existing = map.get(key)!
-        const months = existing.activeMonths || []
-        if (!months.includes(month)) {
-          months.push(month)
-        }
-
-        // Merge milestones so that any completed milestone in any month is retained
-        const mergedMilestones = {
-          ...(existing.milestones || {}),
-          ...(item.milestones || {}),
-        }
-        Object.entries(existing.milestones || {}).forEach(([mKey, mVal]) => {
-          if (
-            mVal?.status === "completed" &&
-            (!mergedMilestones[mKey as PhaseKey] ||
-              mergedMilestones[mKey as PhaseKey]?.status !== "completed")
-          ) {
-            mergedMilestones[mKey as PhaseKey] = mVal
-          }
-        })
-
-        // The iteration runs chronologically (JAN -> DEC), so the latest month's dates, labels, and owner take precedence
-        map.set(key, {
-          ...existing,
-          ...item,
-          milestones: mergedMilestones,
-          activeMonths: months,
-        })
-      }
-    }
-
-    yearMonths.forEach((m) => {
-      const mData = monthlyStore[m]
-      if (!mData) return
-
-      ;(mData.products || []).forEach(
-        (p) => !p.isDeleted && mergeItem(productMap, p, m)
-      )
-      ;(mData.enhancements || []).forEach(
-        (e) => !e.isDeleted && mergeItem(enhancementMap, e, m)
-      )
-    })
-
-    // Latest status of the year: as of December, or this month for the current year
-    const lastMonthOfYear = yearMonths[yearMonths.length - 1]
-    const currentMonth = getSystemCurrentMonth()
-    const statusMonth =
-      compareMonthKeys(currentMonth, lastMonthOfYear) < 0
-        ? currentMonth
-        : lastMonthOfYear
-    const withPause = (item: AggregatedItem): AggregatedItem => {
-      const info = getPauseInfo(monthlyStore, item.id, statusMonth)
-      return info.paused
-        ? { ...item, isPaused: true, pausedSince: info.since }
-        : { ...item, isPaused: false, pausedSince: undefined }
-    }
+    // Annual Scope: one entry per project id, the same list the year comparison uses
+    const yearProjects = getYearProjects(monthlyStore, activeYear)
+    const ofType = (type: YearProject["type"]): AggregatedItem[] =>
+      yearProjects
+        .filter((p) => p.type === type)
+        .map((p) => ({ ...p.item, activeMonths: p.months }))
 
     return {
-      rawProducts: Array.from(productMap.values()).map(withPause),
-      rawEnhancements: Array.from(enhancementMap.values()).map(withPause),
+      rawProducts: ofType("product"),
+      rawEnhancements: ofType("enhancement"),
     }
-  }, [monthlyStore, yearMonths, isAnnual, selectedPeriod])
+  }, [monthlyStore, activeYear, isAnnual, selectedPeriod])
 
   // Total Unique Projects in this scope (Unfiltered by member)
   const rawUniqueProjectsCount = rawProducts.length + rawEnhancements.length
@@ -1118,13 +1053,16 @@ export function AnalyticsView() {
         {/* Projects per month */}
         <section className={`${card} flex flex-col gap-4 p-6 lg:col-span-12`}>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="flex items-center gap-2.5 text-[17px] font-bold">
-              <span className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] bg-pru-red-soft text-brand-ink">
-                <Icon name="chart" size={18} />
-              </span>
-              Projects per month · {activeYear}
-              {selectedMember && <span className="text-brand-ink">· {selectedMember}</span>}
-            </h2>
+            <div>
+              <h2 className="flex items-center gap-2.5 text-[17px] font-bold">
+                <span className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] bg-pru-red-soft text-brand-ink">
+                  <Icon name="chart" size={18} />
+                </span>
+                Projects per month · {activeYear}
+                {selectedMember && <span className="text-brand-ink">· {selectedMember}</span>}
+              </h2>
+              <p className="mt-1 text-xs text-ink-soft">project ที่ทำข้ามเดือน นับทุกเดือน</p>
+            </div>
             <span className="flex gap-4 text-[13px]">
               <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] bg-pru-red" />New Product</span>
               <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] bg-enhancement" />Enhancement</span>
@@ -1603,6 +1541,7 @@ export function AnalyticsView() {
               <footer className="flex shrink-0 items-center justify-between border-t border-rule px-4 pt-3.5 pb-4 sm:px-7">
                 <span className="text-sm text-ink-soft">
                   แสดง {modalDisplayedItems.length} จาก {modalItems.length} projects
+                  {coOwnedProjectsCount > 0 && " · project ที่มีผู้รับผิดชอบ 2 คน นับให้ทั้งสองคน"}
                 </span>
                 <button
                   type="button"

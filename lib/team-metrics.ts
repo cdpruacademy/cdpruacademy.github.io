@@ -6,6 +6,7 @@ import {
   checkIsProjectCompleted,
   compareMonthKeys,
   getMonthsForYear,
+  getPauseInfo,
   getSystemCurrentMonth,
   parseTimelineDate,
 } from "@/lib/timeline-data"
@@ -130,29 +131,40 @@ export interface YearProject {
   item: ProductItem
   type: TimelineType
   completed: boolean
+  /** Months of the year with a saved copy, oldest first */
+  months: string[]
 }
 
-/** Every project of a year, by id, as its latest saved copy, with whether it finished */
+/**
+ * Every project of a year, one entry per id, as its latest saved copy. The id stays the
+ * same when a project is renamed or edited in a later month, so a name can't split it in two.
+ */
 export function getYearProjects(store: MonthlyStore, year: number): YearProject[] {
-  const months = getMonthsForYear(year)
-  const latest = new Map<string, { item: ProductItem; type: TimelineType }>()
-  months.forEach((month) => {
+  const yearMonths = getMonthsForYear(year)
+  const latest = new Map<string, { item: ProductItem; type: TimelineType; months: string[] }>()
+  const add = (p: ProductItem, type: TimelineType, month: string) => {
+    if (p.isDeleted) return
+    const months = latest.get(p.id)?.months || []
+    if (!months.includes(month)) months.push(month)
+    latest.set(p.id, { item: p, type, months })
+  }
+  yearMonths.forEach((month) => {
     const data = store[month]
     if (!data) return
-    ;(data.products || []).forEach(
-      (p) => !p.isDeleted && latest.set(p.id, { item: p, type: "product" })
-    )
-    ;(data.enhancements || []).forEach(
-      (e) => !e.isDeleted && latest.set(e.id, { item: e, type: "enhancement" })
-    )
+    ;(data.products || []).forEach((p) => add(p, "product", month))
+    ;(data.enhancements || []).forEach((e) => add(e, "enhancement", month))
   })
-  // Status as of December, or this month for the current year
-  const lastMonth = months[months.length - 1]
+  // On hold as of December, or this month for the current year
+  const lastMonth = yearMonths[yearMonths.length - 1]
   const thisMonth = getSystemCurrentMonth()
   const statusMonth = compareMonthKeys(thisMonth, lastMonth) < 0 ? thisMonth : lastMonth
-  return Array.from(latest.values()).map(({ item, type }) => ({
-    item,
-    type,
-    completed: checkIsProjectCompleted(item, statusMonth),
-  }))
+  return Array.from(latest.entries()).map(([id, { item, type, months }]) => {
+    const pause = getPauseInfo(store, id, statusMonth)
+    return {
+      item: { ...item, isPaused: pause.paused, pausedSince: pause.since },
+      type,
+      months,
+      completed: checkIsProjectCompleted(item, "ALL_YEAR"),
+    }
+  })
 }
