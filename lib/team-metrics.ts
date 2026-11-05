@@ -10,6 +10,7 @@ import {
   getSystemCurrentMonth,
   parseTimelineDate,
 } from "@/lib/timeline-data"
+import { Refresher, ownersOf } from "@/lib/difficulty"
 
 const DAY_MS = 86_400_000
 const daysBetween = (a: Date, b: Date) =>
@@ -125,6 +126,25 @@ export function getStepDurations(
     })),
     total: { label: "Kick-off → Launch", avgDays: avg(total), count: total.count },
   }
+}
+
+export interface OwnerRefreshers {
+  owner: string
+  lessons: Refresher[]
+  done: number
+}
+
+/** Refresher lessons per person, oldest quarter first; a shared lesson shows under each owner */
+export function groupRefreshersByOwner(refreshers: Refresher[]): OwnerRefreshers[] {
+  const byOwner = new Map<string, Refresher[]>()
+  refreshers.forEach((r) =>
+    ownersOf(r.owner).forEach((owner) => byOwner.set(owner, [...(byOwner.get(owner) || []), r]))
+  )
+  return Array.from(byOwner.entries()).map(([owner, list]) => ({
+    owner,
+    lessons: [...list].sort((a, b) => a.quarter - b.quarter),
+    done: list.filter((r) => r.done).length,
+  }))
 }
 
 export interface YearProject {

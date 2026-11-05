@@ -48,8 +48,10 @@ import {
   getLaunchPlanStats,
   getStepDurations,
   getYearProjects,
+  groupRefreshersByOwner,
   YearProject,
 } from "@/lib/team-metrics"
+import { Refresher, fetchDifficulty } from "@/lib/difficulty"
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? ""
 
@@ -639,6 +641,42 @@ export function AnalyticsView() {
     const matched = teamMembers.find((m) => isOwnerMatch(ownerName, m))
     return matched ? memberColors[matched] || "#ED1B2E" : "#64748B"
   }
+
+  // Refresher lessons live with the KPI data (admin only); null hides the card if they can't be read
+  const [refreshers, setRefreshers] = useState<Refresher[] | null>(null)
+  useEffect(() => {
+    if (!isAdmin) return
+    let alive = true
+    fetchDifficulty().then((d) => {
+      if (alive) setRefreshers(d ? d.refreshers : null)
+    })
+    return () => {
+      alive = false
+    }
+  }, [isAdmin])
+
+  // A single month shows the lessons of its quarter
+  const periodMonth = isAnnual ? null : parseMonthYear(selectedPeriod)
+  const refresherQuarter = periodMonth ? Math.floor(periodMonth.monthIndex / 3) + 1 : null
+  const scopedRefreshers = useMemo(
+    () =>
+      (refreshers || []).filter(
+        (r) =>
+          r.year === activeYear &&
+          (refresherQuarter === null || r.quarter === refresherQuarter) &&
+          (!selectedMember || isOwnerMatch(r.owner, selectedMember))
+      ),
+    [refreshers, activeYear, refresherQuarter, selectedMember]
+  )
+  const refreshersByOwner = useMemo(() => {
+    const rank = (name: string) => {
+      const i = teamMembers.indexOf(name)
+      return i === -1 ? teamMembers.length : i
+    }
+    return groupRefreshersByOwner(scopedRefreshers)
+      .filter((g) => !selectedMember || isOwnerMatch(g.owner, selectedMember))
+      .sort((a, b) => rank(a.owner) - rank(b.owner))
+  }, [scopedRefreshers, selectedMember, teamMembers])
 
   // Helper to open Delivery Status Modal for a specific member or all team
   const handleOpenDeliveryModal = (member: string | null) => {
@@ -1257,6 +1295,73 @@ export function AnalyticsView() {
             </div>
           )}
         </section>
+
+        {/* Refresher lessons by person */}
+        {refreshers && (
+          <section className={`${card} flex flex-col gap-4 p-6 lg:col-span-12`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="flex items-center gap-2.5 text-[17px] font-bold">
+                  <span className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] bg-surface text-ink">
+                    <Icon name="elearning" size={18} />
+                  </span>
+                  Refresher
+                  <span className="text-xs font-normal text-ink-soft">
+                    {refresherQuarter ? `Q${refresherQuarter} ${activeYear}` : `All year ${activeYear}`}
+                  </span>
+                  {selectedMember && <span className="text-brand-ink">· {selectedMember}</span>}
+                </h2>
+                <p className="mt-1 text-xs text-ink-soft">ไม่นับรวมใน projects ด้านบน</p>
+              </div>
+              {scopedRefreshers.length > 0 && (
+                <span className="text-sm font-semibold">
+                  {scopedRefreshers.filter((r) => r.done).length} of {scopedRefreshers.length} done
+                </span>
+              )}
+            </div>
+            {refreshersByOwner.length === 0 ? (
+              <p className="rounded-xl bg-paper px-4 py-6 text-center text-sm text-ink-soft">ยังไม่มี Refresher ในช่วงนี้</p>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {refreshersByOwner.map((group) => (
+                  <div key={group.owner} className="rounded-2xl border border-rule p-4">
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                        style={{ background: getOwnerColor(group.owner) }}
+                      >
+                        {group.owner.split(" ").map((w) => w[0]).join("")}
+                      </span>
+                      <b className="min-w-0 flex-1 truncate">{group.owner}</b>
+                      <span className="text-[13px] text-ink-soft">
+                        {group.done} of {group.lessons.length} done
+                      </span>
+                    </div>
+                    <ul className="mt-3">
+                      {group.lessons.map((lesson) => (
+                        <li key={lesson.id} className="flex items-center gap-2.5 border-t border-surface py-2 text-sm">
+                          <span
+                            role="img"
+                            aria-label={lesson.done ? "Done" : "In progress"}
+                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white ${lesson.done ? "bg-done" : "bg-pru-red"}`}
+                          >
+                            <Icon name={lesson.done ? "check" : "inProgress"} size={13} strokeWidth={2} />
+                          </span>
+                          <span className="min-w-0 flex-1 truncate" title={lesson.title}>
+                            {lesson.title || `Refresher Q${lesson.quarter}`}
+                          </span>
+                          <span className="shrink-0 rounded-full bg-surface px-2 py-0.5 text-xs font-semibold text-ink-soft">
+                            Q{lesson.quarter}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
       </PageBody>
 
       {/* 7. Delivery Status Modal (POPUP WINDOW - REPLACES BOTTOM SECTION) */}
