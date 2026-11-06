@@ -42,7 +42,7 @@ export function LoginPanel({
         onSuccess?.()
         onClose?.()
       } else {
-        setError(res.error || "อีเมลหรือรหัสผ่านไม่ถูกต้อง")
+        setError(res.error || "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
       }
     } finally {
       setIsSubmitting(false)
@@ -75,11 +75,13 @@ export function LoginPanel({
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-6 pt-5 pb-6">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="admin-email" className="text-[13px] font-bold text-stone-700">
-              Email
+              Username
             </label>
             <input
               id="admin-email"
-              type="email"
+              type="text"
+              autoCapitalize="none"
+              spellCheck={false}
               autoComplete="username"
               autoFocus
               required

@@ -7,8 +7,9 @@ import { useAdminAuth } from "@/hooks/use-admin-auth"
 import { AdminLoginModal } from "@/components/auth/admin-login-modal"
 import { Icon } from "@/components/icon"
 import { PageBody, PageHero, card, cardButtonDark } from "@/components/page-hero"
+import { ChangeLogSection } from "@/components/users/change-log-section"
 import { PickMenu } from "@/components/ui/pick-menu"
-import { DEFAULT_TAB_ACCESS, OPTIONAL_TABS, ROLE_LABEL, Role, TabAccess } from "@/lib/access"
+import { DEFAULT_TAB_ACCESS, OPTIONAL_TABS, ROLE_LABEL, Role, TabAccess, shortLogin, toLoginEmail } from "@/lib/access"
 import {
   ManagedUser,
   fetchTabAccess,
@@ -66,9 +67,9 @@ export function UsersView() {
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault()
-    const clean = email.trim().toLowerCase()
-    if (!clean) return
-    if (users?.some((u) => u.email === clean)) return toast.error("มีอีเมลนี้แล้ว")
+    if (!email.trim()) return
+    const clean = toLoginEmail(email)
+    if (users?.some((u) => u.email === clean)) return toast.error("มีชื่อนี้แล้ว")
     setIsAdding(true)
     const res = await setUserRole(clean, role)
     setIsAdding(false)
@@ -87,7 +88,7 @@ export function UsersView() {
   }
 
   const remove = async (target: string) => {
-    if (!window.confirm(`เอา ${target} ออก?`)) return
+    if (!window.confirm(`เอา ${shortLogin(target)} ออก?`)) return
     const res = await removeUserRole(target)
     if (!res.success) toast.error(res.error || "เอาออกไม่สำเร็จ")
     await reload()
@@ -162,12 +163,14 @@ export function UsersView() {
 
           <form onSubmit={add} className="flex flex-wrap items-center gap-2 rounded-[16px] bg-paper p-3">
             <input
-              type="email"
+              type="text"
               required
+              autoCapitalize="none"
+              spellCheck={false}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="อีเมล"
-              aria-label="อีเมล"
+              placeholder="ชื่อผู้ใช้"
+              aria-label="ชื่อผู้ใช้"
               className="h-10 min-w-[200px] flex-1 rounded-full border-[1.5px] border-rule bg-white px-4 text-sm focus:border-transparent focus:ring-2 focus:ring-brand-ink focus:outline-none"
             />
             <PickMenu
@@ -195,7 +198,7 @@ export function UsersView() {
                   <li key={u.email} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
                     <div className="min-w-0 flex-[1_1_240px]">
                       <b className="block truncate text-[15px] font-semibold text-ink">
-                        {u.email}
+                        {shortLogin(u.email)}
                         {isMe && <span className="ml-2 text-[13px] font-semibold text-ink-soft">คุณ</span>}
                       </b>
                       <span className={`text-[13px] ${u.has_account ? "text-ink-soft" : "font-semibold text-brand-ink"}`}>
@@ -207,7 +210,7 @@ export function UsersView() {
                     ) : (
                       <div className="flex items-center gap-1">
                         <PickMenu
-                          label={`Role ของ ${u.email}`}
+                          label={`Role ของ ${shortLogin(u.email)}`}
                           value={u.role}
                           onChange={(v) => void changeRole(u.email, v as Role)}
                           options={ROLE_OPTIONS}
@@ -217,7 +220,7 @@ export function UsersView() {
                         <button
                           type="button"
                           onClick={() => void remove(u.email)}
-                          aria-label={`เอา ${u.email} ออก`}
+                          aria-label={`เอา ${shortLogin(u.email)} ออก`}
                           className="touch-target flex h-10 w-10 items-center justify-center rounded-full text-ink-soft hover:bg-surface hover:text-brand-ink"
                         >
                           <Icon name="trash" size={17} />
@@ -265,6 +268,8 @@ export function UsersView() {
             </tbody>
           </table>
         </section>
+
+        <ChangeLogSection />
       </PageBody>
     </div>
   )

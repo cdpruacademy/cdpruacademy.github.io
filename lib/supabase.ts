@@ -1,4 +1,4 @@
-import { DEFAULT_TAB_ACCESS, Role, TabAccess } from "./access";
+import { DEFAULT_TAB_ACCESS, Role, TabAccess, toLoginEmail } from "./access";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import type { Partner } from "./partners";
 import { MonthlyStore, getSystemCurrentMonth } from "./timeline-data";
@@ -178,11 +178,11 @@ export async function signInAdmin(
   }
 
   const { error } = await client.auth.signInWithPassword({
-    email: email.trim().toLowerCase(),
+    email: toLoginEmail(email),
     password,
   });
   if (error) {
-    return { success: false, error: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" };
+    return { success: false, error: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" };
   }
 
   roleCache = null;
@@ -230,6 +230,42 @@ export async function removeUserRole(email: string): Promise<{ success: boolean;
   if (!client) return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" };
   const { error } = await client.from("user_roles").delete().eq("email", email);
   return error ? { success: false, error: error.message } : { success: true };
+}
+
+export interface ChangeLogEntry {
+  id: number;
+  changed_at: string;
+  actor: string;
+  month: string | null;
+  project_id: string;
+  project_name: string | null;
+  action: "add" | "edit" | "delete" | "pause" | "resume";
+  changes: { field: string; from: string | null; to: string | null }[];
+}
+
+/** Newest first; superadmins only. `beforeId` continues from the last entry already shown */
+export async function fetchChangeLog(
+  search: string,
+  limit: number,
+  beforeId?: number
+): Promise<ChangeLogEntry[] | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+  let query = client
+    .from("change_log")
+    .select("id, changed_at, actor, month, project_id, project_name, action, changes")
+    .order("id", { ascending: false })
+    .limit(limit);
+  if (beforeId !== undefined) query = query.lt("id", beforeId);
+  // These characters have a meaning in the filter syntax
+  const q = search.trim().replace(/[,()*%"\\]/g, " ").trim();
+  if (q) query = query.or(`project_name.ilike.*${q}*,actor.ilike.*${q}*`);
+  const { data, error } = await query;
+  if (error) {
+    console.warn("fetchChangeLog failed:", error.message);
+    return null;
+  }
+  return data as ChangeLogEntry[];
 }
 
 export async function fetchTabAccess(): Promise<TabAccess | null> {

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import type { AttentionFor } from "@/lib/attention"
 import { ProductItem, TimelineType } from "@/lib/timeline-data"
 import { Icon } from "@/components/icon"
 import { card } from "@/components/page-hero"
@@ -15,9 +16,10 @@ export interface TimelineFilterState {
   query: string
   partnerId: string
   status: StatusFilter
+  attentionOnly: boolean
 }
 
-export const NO_FILTERS: TimelineFilterState = { query: "", partnerId: "all", status: "all" }
+export const NO_FILTERS: TimelineFilterState = { query: "", partnerId: "all", status: "all", attentionOnly: false }
 
 /** Same order as the row colours: finished is green even if it was paused */
 export function statusOf(item: ProductItem, timelineType: TimelineType): Exclude<StatusFilter, "all"> {
@@ -30,10 +32,12 @@ export function applyFilters(
   items: ProductItem[],
   filters: TimelineFilterState,
   partners: Partner[],
-  timelineType: TimelineType
+  timelineType: TimelineType,
+  attentionFor?: AttentionFor
 ): ProductItem[] {
   const q = filters.query.trim().toLowerCase()
   return items.filter((item) => {
+    if (filters.attentionOnly && attentionFor && !attentionFor(item)) return false
     if (filters.status !== "all" && statusOf(item, timelineType) !== filters.status) return false
     if (filters.partnerId !== "all" && partnerOf(item.broker, partners).id !== filters.partnerId) return false
     if (!q) return true
@@ -56,6 +60,7 @@ export function TimelineFilters({
   items,
   timelineType,
   shown,
+  attentionFor,
 }: {
   filters: TimelineFilterState
   onChange: (next: TimelineFilterState) => void
@@ -63,11 +68,15 @@ export function TimelineFilters({
   items: ProductItem[]
   timelineType: TimelineType
   shown: number
+  attentionFor?: AttentionFor
 }) {
   const counts = { all: items.length, active: 0, done: 0, hold: 0 }
   items.forEach((i) => counts[statusOf(i, timelineType)]++)
+  const attentionCount = attentionFor ? items.filter((i) => attentionFor(i)).length : 0
+  // Past months show no labels, so the filter means nothing there
+  const attentionOn = filters.attentionOnly && Boolean(attentionFor)
   const isFiltered =
-    filters.query.trim() !== "" || filters.partnerId !== "all" || filters.status !== "all"
+    filters.query.trim() !== "" || filters.partnerId !== "all" || filters.status !== "all" || attentionOn
   const set = (patch: Partial<TimelineFilterState>) => onChange({ ...filters, ...patch })
 
   return (
@@ -86,6 +95,20 @@ export function TimelineFilters({
         </label>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {(attentionCount > 0 || attentionOn) && (
+            <button
+              type="button"
+              onClick={() => set({ attentionOnly: !filters.attentionOnly })}
+              aria-pressed={attentionOn}
+              className={`inline-flex h-10 items-center gap-1.5 rounded-full border px-4 text-sm font-semibold whitespace-nowrap ${
+                attentionOn ? "border-brand-ink bg-pru-red-soft text-brand-ink" : "border-rule bg-white text-ink hover:bg-surface"
+              }`}
+            >
+              <Icon name="warning" size={16} strokeWidth={2.2} className="text-brand-ink" />
+              Needs attention
+              <span className={attentionOn ? "" : "text-ink-soft"}>{attentionCount}</span>
+            </button>
+          )}
           <PickMenu
             label="Partner"
             value={filters.partnerId}

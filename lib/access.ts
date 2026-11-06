@@ -33,3 +33,14 @@ export function canViewTab(href: string, role: Role, tabs: TabAccess): boolean {
   if (href === "/kpi" || href === "/users") return false
   return tabs[role].includes(href)
 }
+
+const LOGIN_DOMAIN = "@cdteam.test"
+
+/** "surakit" and "surakit@cdteam.test" are the same account; any other email stays as it is */
+export const toLoginEmail = (input: string) => {
+  const clean = input.trim().toLowerCase()
+  return clean.includes("@") ? clean : `${clean}${LOGIN_DOMAIN}`
+}
+
+export const shortLogin = (email: string) =>
+  email.endsWith(LOGIN_DOMAIN) ? email.slice(0, -LOGIN_DOMAIN.length) : email

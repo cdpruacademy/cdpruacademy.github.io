@@ -5,7 +5,8 @@ import { useState } from "react"
 import { ProductItem, TimelineType } from "@/lib/timeline-data"
 import { Icon, PHASE_ICONS } from "@/components/icon"
 import { Partner, partnerOf } from "@/lib/partners"
-import { PHASE_HEADINGS, formatShortDate, stepKinds } from "./timeline-row"
+import type { AttentionFor } from "@/lib/attention"
+import { AttentionBadge, PHASE_HEADINGS, formatShortDate, stepKinds } from "./timeline-row"
 
 interface TimelineMobileListProps {
   items: ProductItem[]
@@ -16,6 +17,7 @@ interface TimelineMobileListProps {
   onPause: (product: ProductItem) => void
   onResume: (product: ProductItem) => void
   onDelete: (product: ProductItem) => void
+  attentionFor?: AttentionFor
 }
 
 /**
@@ -31,6 +33,7 @@ export function TimelineMobileList({
   onPause,
   onResume,
   onDelete,
+  attentionFor,
 }: TimelineMobileListProps) {
   const [openId, setOpenId] = useState<string | null>(null)
   const actionButton =
@@ -44,6 +47,7 @@ export function TimelineMobileList({
         const toneLine = isFinished ? "border-done-line" : item.isPaused ? "border-stone-300" : "border-pru-red-line"
         const partner = partnerOf(item.broker, partners)
         const isOpen = openId === item.id
+        const attention = attentionFor?.(item)
         const panelId = `mobile-steps-${item.id}`
         const currentPhase = current >= 0 ? phases[current] : null
         const launch = item.customRightLabel
@@ -77,6 +81,11 @@ export function TimelineMobileList({
                     <span className="truncate text-xs text-ink-soft">
                       <b className="text-ink">{item.broker}</b> · {item.owner}
                     </span>
+                    {attention && (
+                      <span className="mt-1">
+                        <AttentionBadge text={attention} />
+                      </span>
+                    )}
                   </span>
                 </span>
                 <span className={`flex shrink-0 flex-col items-center overflow-hidden rounded-xl border ${toneLine}`}>

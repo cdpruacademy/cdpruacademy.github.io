@@ -15,6 +15,7 @@ import { TimelineTable, groupByPartner } from "./timeline-summary"
 import { Icon } from "@/components/icon"
 import { card, cardButton } from "@/components/page-hero"
 import { TimelineMobileList } from "./timeline-mobile-list"
+import { AttentionFor, getAttention } from "@/lib/attention"
 import { NO_FILTERS, TimelineFilters, applyFilters } from "./timeline-filters"
 import { TimelineExportBoard } from "./timeline-export-board"
 import { ChannelSummaryExportBoard } from "@/components/analytics/channel-summary-export-board"
@@ -266,8 +267,13 @@ export function ProductTimeline() {
     captureAndUploadSnapshots(true)
   }
 
+  // The labels speak about today, so only the current month shows them
+  const today = new Date()
+  const attentionFor: AttentionFor | undefined = isViewingCurrentMonth
+    ? (item) => getAttention(item, timelineType, today)
+    : undefined
   const groups = groupByPartner(currentItems, partners, timelineType)
-  const shownItems = applyFilters(currentItems, filters, partners, timelineType)
+  const shownItems = applyFilters(currentItems, filters, partners, timelineType, attentionFor)
   const completedCount = currentItems.filter(
     (i) => getProgress(i, timelineType).isFinished
   ).length
@@ -398,6 +404,7 @@ export function ProductTimeline() {
               items={currentItems}
               timelineType={timelineType}
               shown={shownItems.length}
+              attentionFor={attentionFor}
             />
             {shownItems.length === 0 ? (
               <div
@@ -426,6 +433,7 @@ export function ProductTimeline() {
                     timelineType={timelineType}
                     isAdmin={isAdmin}
                     partners={partners}
+                    attentionFor={attentionFor}
                     {...rowHandlers}
                   />
                 </div>
@@ -437,6 +445,7 @@ export function ProductTimeline() {
                         timelineType={timelineType}
                         partners={partners}
                         isAdmin={isAdmin}
+                        attentionFor={attentionFor}
                         {...rowHandlers}
                       />
                     </div>

@@ -1,5 +1,6 @@
 "use client"
 
+import type { AttentionFor } from "@/lib/attention"
 import * as React from "react"
 import {
   ENHANCEMENT_PHASES,
@@ -147,6 +148,7 @@ interface TimelineTableProps {
   onPause?: (p: ProductItem) => void
   onResume?: (p: ProductItem) => void
   compact?: boolean
+  attentionFor?: AttentionFor
 }
 
 const noop = () => {}
@@ -162,6 +164,7 @@ export function TimelineTable({
   onPause = noop,
   onResume = noop,
   compact = false,
+  attentionFor,
 }: TimelineTableProps) {
   const groups = groupByPartner(items, partners, timelineType)
   return (
@@ -181,6 +184,7 @@ export function TimelineTable({
               onPause={onPause}
               onResume={onResume}
               compact={compact}
+              attention={attentionFor?.(item)}
             />
           ))}
         </React.Fragment>

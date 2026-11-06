@@ -23,6 +23,18 @@ interface TimelineRowProps {
   onResume: (product: ProductItem) => void
   /** Smaller paddings for the LINE image */
   compact?: boolean
+  /** Why this project needs a look; the page only, never the LINE image */
+  attention?: string | null
+}
+
+/** Needs attention label, on the table and the phone cards */
+export function AttentionBadge({ text }: { text: string }) {
+  return (
+    <span className="export-hide inline-flex items-center gap-1 rounded-full bg-pru-red-soft px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-brand-ink">
+      <Icon name="warning" size={13} strokeWidth={2.2} />
+      {text}
+    </span>
+  )
 }
 
 // "19 May 2026" -> "19 May"; "TBC" stays
@@ -109,6 +121,7 @@ export function TimelineRow({
   onPause,
   onResume,
   compact = false,
+  attention,
 }: TimelineRowProps) {
   const rowRef = useRef<HTMLDivElement>(null)
   const [isExportingThis, setIsExportingThis] = useState(false)
@@ -224,6 +237,7 @@ export function TimelineRow({
               On hold
             </span>
           )}
+          {attention && <AttentionBadge text={attention} />}
         </span>
       </div>
 
