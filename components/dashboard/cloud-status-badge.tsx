@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Cloud, CheckCircle2, HardDrive, RefreshCw } from "lucide-react"
+import { Cloud, HardDrive, RefreshCw } from "lucide-react"
 
 interface CloudStatusBadgeProps {
   isCloudConnected: boolean

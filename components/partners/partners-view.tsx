@@ -7,7 +7,6 @@ import { useAdminAuth } from "@/hooks/use-admin-auth"
 import { usePartners } from "@/hooks/use-partners"
 import { useProducts } from "@/hooks/use-products"
 import { sortMonthsChronologically } from "@/lib/timeline-data"
-import { AdminLoginModal } from "@/components/auth/admin-login-modal"
 import { Icon } from "@/components/icon"
 import { PickMenu } from "@/components/ui/pick-menu"
 import {
@@ -39,14 +38,13 @@ const slug = (name: string) =>
 
 /** Admin page: partners, their brand colours and the channels under each */
 export function PartnersView() {
-  const { isAdmin, isAuthLoaded, login } = useAdminAuth()
+  const { isAdmin } = useAdminAuth()
   const { partners, savePartners } = usePartners()
   const { monthlyStore } = useProducts()
   const [draft, setDraft] = useState<Partner[] | null>(null)
   const [channelDrafts, setChannelDrafts] = useState<Record<string, string>>({})
   const [form, setForm] = useState({ name: "", color: PRESETS[0], channel: "" })
   const [isSaving, setIsSaving] = useState(false)
-  const [isLoginOpen, setIsLoginOpen] = useState(false)
 
   const list = draft ?? partners
   const isDirty = draft !== null
@@ -130,35 +128,6 @@ export function PartnersView() {
 
   const totalChannels = list.reduce((s, p) => s + p.channels.length, 0)
   const clash = list.some((p) => isNearColor(p.color, form.color))
-
-  // Admins only: everyone else gets the login gate, not the partner list
-  if (!isAdmin) {
-    return (
-      <div>
-        <PageHero>
-          <h1 className="text-[34px] leading-tight font-bold sm:text-[44px]">Partners &amp; Channels</h1>
-        </PageHero>
-        <PageBody>
-          <div className={`${card} mx-auto flex max-w-md flex-col items-center gap-3 px-6 py-10 text-center`}>
-            {isAuthLoaded ? (
-              <>
-                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-pru-red-soft text-brand-ink">
-                  <Icon name="lock" size={28} />
-                </span>
-                <h2 className="text-lg font-bold">เข้าสู่ระบบเพื่อดูหน้านี้</h2>
-                <button type="button" onClick={() => setIsLoginOpen(true)} className={cardButtonDark}>
-                  Log in
-                </button>
-              </>
-            ) : (
-              <Loader2 className="h-6 w-6 animate-spin text-brand-ink" />
-            )}
-          </div>
-        </PageBody>
-        <AdminLoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} onSuccess={() => setIsLoginOpen(false)} loginFn={login} />
-      </div>
-    )
-  }
 
   return (
     <div>
@@ -377,7 +346,6 @@ export function PartnersView() {
         )}
       </PageBody>
 
-      <AdminLoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} onSuccess={() => setIsLoginOpen(false)} loginFn={login} />
     </div>
   )
 }

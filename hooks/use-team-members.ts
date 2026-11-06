@@ -78,7 +78,7 @@ export function useTeamMembers() {
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(team.members))
           localStorage.setItem(MEMBER_COLORS_KEY, JSON.stringify(team.colors))
-        } catch (_) {}
+        } catch {}
       })
     }
     load()

@@ -6,7 +6,6 @@ import { Loader2 } from "lucide-react"
 import { useAdminAuth } from "@/hooks/use-admin-auth"
 import { useProducts } from "@/hooks/use-products"
 import { useTeamMembers } from "@/hooks/use-team-members"
-import { AdminLoginModal } from "@/components/auth/admin-login-modal"
 import { Icon } from "@/components/icon"
 import { PickMenu } from "@/components/ui/pick-menu"
 import { PageBody, PageHero, card, cardButton, cardButtonDark, heroButton, heroButtonSolid } from "@/components/page-hero"
@@ -34,7 +33,7 @@ type Filter = "active" | "done" | "all"
 
 /** KPI for superadmins: one summary page; scoring and points open as dialogs (Refresher is entered on the Timeline page) */
 export function KpiView() {
-  const { isSuperadmin, isAuthLoaded, login } = useAdminAuth()
+  const { isSuperadmin } = useAdminAuth()
   const { monthlyStore, getItemsForMonth, isLoaded } = useProducts()
   const { memberColors } = useTeamMembers()
   const [saved, setSaved] = useState<DifficultyStore | null>(null)
@@ -43,7 +42,6 @@ export function KpiView() {
   const [person, setPerson] = useState<PersonSummary | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
-  const [isLoginOpen, setIsLoginOpen] = useState(false)
   const nowMonth = getSystemCurrentMonth()
   const [year, setYear] = useState(() => parseMonthYear(nowMonth)?.year ?? new Date().getFullYear())
   const [filter, setFilter] = useState<Filter>("active")
@@ -140,39 +138,6 @@ export function KpiView() {
     } finally {
       setIsExporting(false)
     }
-  }
-
-  if (!isSuperadmin) {
-    return (
-      <div>
-        <PageHero>
-          <h1 className="text-[34px] leading-tight font-bold sm:text-[44px]">KPI</h1>
-        </PageHero>
-        <PageBody>
-          <div className={`${card} mx-auto flex max-w-md flex-col items-center gap-3 px-6 py-10 text-center`}>
-            {isAuthLoaded ? (
-              <>
-                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-pru-red-soft text-brand-ink">
-                  <Icon name="lock" size={28} />
-                </span>
-                <h2 className="text-lg font-bold">Superadmin only</h2>
-                <button type="button" onClick={() => setIsLoginOpen(true)} className={cardButtonDark}>
-                  Log in
-                </button>
-              </>
-            ) : (
-              <Loader2 className="h-6 w-6 animate-spin text-ink-soft" />
-            )}
-          </div>
-          <AdminLoginModal
-            isOpen={isLoginOpen}
-            onClose={() => setIsLoginOpen(false)}
-            onSuccess={() => setIsLoginOpen(false)}
-            loginFn={login}
-          />
-        </PageBody>
-      </div>
-    )
   }
 
   const yearOptions = getAvailableYears(monthlyStore).map((y) => ({ value: String(y), label: `${y} (พ.ศ. ${y + 543})` }))

@@ -31,7 +31,7 @@ import {
   CheckCircle2,
   User,
 } from "lucide-react"
-import { motion, AnimatePresence } from "motion/react"
+import { motion } from "motion/react"
 import { DatePicker } from "@/components/ui/date-picker"
 import { cn } from "@/lib/utils"
 import { useDialogA11y } from "@/hooks/use-dialog-a11y"
@@ -182,7 +182,7 @@ export function ProductFormModal({
         )
         if (found && found.value !== "Other") return found.value
       }
-    } catch (_) {}
+    } catch {}
     return isEnhancement ? "ttb" : "New Broker"
   })
 
@@ -379,7 +379,7 @@ export function ProductFormModal({
         if (finalBroker && finalBroker !== "Other") {
           localStorage.setItem("pru_last_used_broker", finalBroker)
         }
-      } catch (_) {}
+      } catch {}
 
       const builtMilestones: Record<string, Pick<MilestoneItem, "date" | "status" | "isElearningIcon">> = {}
       PHASES.forEach((p) => {
@@ -546,7 +546,7 @@ export function ProductFormModal({
                         setCustomBroker("")
                         try {
                           localStorage.setItem("pru_last_used_broker", val)
-                        } catch (_) {}
+                        } catch {}
                       }
                     }}
                   >

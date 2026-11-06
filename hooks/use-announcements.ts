@@ -33,7 +33,7 @@ export function useAnnouncements() {
             setAnnouncements(filterWithinOneYear(parsed));
           }
         }
-      } catch (_) {}
+      } catch {}
 
       // 2. Fetch fresh data from Supabase Cloud DB
       try {
@@ -44,7 +44,7 @@ export function useAnnouncements() {
             setAnnouncements(validItems);
             try {
               localStorage.setItem(ANNOUNCEMENTS_STORAGE_KEY, JSON.stringify(validItems));
-            } catch (_) {}
+            } catch {}
           }
         }
       } catch (err) {
@@ -66,7 +66,7 @@ export function useAnnouncements() {
     setAnnouncements(pruned);
     try {
       localStorage.setItem(ANNOUNCEMENTS_STORAGE_KEY, JSON.stringify(pruned));
-    } catch (_) {}
+    } catch {}
 
     setIsSaving(true);
     try {

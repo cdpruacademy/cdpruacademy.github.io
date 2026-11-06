@@ -17,7 +17,6 @@ import {
   findLatestCopy,
   getPausedItemsForMonth,
   toStoredItem,
-  ALL_YEAR_2026_MONTHS,
   getMonthsForYear,
   getAvailableYears,
 } from "@/lib/timeline-data";
@@ -68,7 +67,7 @@ export function useProducts() {
           try {
             const p = JSON.parse(storedMonths);
             if (Array.isArray(p)) parsedStored = p;
-          } catch (_) {}
+          } catch {}
         }
         let currentAvailable = Array.from(new Set([...AVAILABLE_MONTHS, ...parsedStored]));
         if (!currentAvailable.includes(realMonth)) {
@@ -93,7 +92,7 @@ export function useProducts() {
             setMonthlyStore(parsed);
           }
         }
-      } catch (_) {}
+      } catch {}
 
       // 2. Fetch authoritative single source of truth from Supabase
       const config = getStoredSupabaseConfig();
@@ -165,7 +164,7 @@ export function useProducts() {
             try {
               localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(store));
               localStorage.setItem(AVAILABLE_MONTHS_KEY, JSON.stringify(months));
-            } catch (_) {}
+            } catch {}
           } else {
             // First time setup or empty database: initialize clean structure for available months without dummy data
             const emptyStore: MonthlyStore = {};
@@ -219,7 +218,7 @@ export function useProducts() {
     }
     try {
       localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(cloudData.monthlyStore));
-    } catch (_) {}
+    } catch {}
   }, []);
 
   // Sends a save; a failed one retries by itself until it reaches the server
@@ -318,7 +317,7 @@ export function useProducts() {
     (updatedStore: MonthlyStore, customMonths?: string[], customActiveMonth?: string) => {
       try {
         localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(updatedStore));
-      } catch (_) {}
+      } catch {}
 
       // Async sync to cloud if configured
       if (getStoredSupabaseConfig()) {
@@ -339,7 +338,7 @@ export function useProducts() {
       try {
         sessionStorage.setItem(ACTIVE_MONTH_KEY, newMonth);
         localStorage.setItem(ACTIVE_MONTH_KEY, newMonth);
-      } catch (_) {}
+      } catch {}
 
       // If month doesn't exist in store yet, initialize it
       setMonthlyStore((prev) => {
@@ -383,7 +382,7 @@ export function useProducts() {
         const next = sortMonthsChronologically(Array.from(new Set([...prev, ...yearMonths])));
         try {
           localStorage.setItem(AVAILABLE_MONTHS_KEY, JSON.stringify(next));
-        } catch (_) {}
+        } catch {}
         return next;
       });
 
@@ -401,7 +400,7 @@ export function useProducts() {
         const next = sortMonthsChronologically(Array.from(new Set([...prev, ...yearMonths])));
         try {
           localStorage.setItem(AVAILABLE_MONTHS_KEY, JSON.stringify(next));
-        } catch (_) {}
+        } catch {}
         return next;
       });
     }
@@ -736,7 +735,7 @@ export function useProducts() {
       }
       try {
         localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(cloudData.monthlyStore));
-      } catch (_) {}
+      } catch {}
       setSyncConflict(false);
       setSaveFailed(false);
       unsavedRef.current = null;
@@ -816,7 +815,7 @@ export function useProducts() {
       setAvailableMonths(updatedMonths);
       try {
         localStorage.setItem(AVAILABLE_MONTHS_KEY, JSON.stringify(updatedMonths));
-      } catch (_) {}
+      } catch {}
 
       // Ensure newly added month is initialized and synced with the sorted months list
       setMonthlyStore((prev) => {
@@ -837,7 +836,7 @@ export function useProducts() {
       try {
         sessionStorage.setItem(ACTIVE_MONTH_KEY, clean);
         localStorage.setItem(ACTIVE_MONTH_KEY, clean);
-      } catch (_) {}
+      } catch {}
     },
     [availableMonths, syncStore]
   );
@@ -851,17 +850,17 @@ export function useProducts() {
         setAvailableMonths(months);
         try {
           localStorage.setItem(AVAILABLE_MONTHS_KEY, JSON.stringify(months));
-        } catch (_) {}
+        } catch {}
       }
       if (activeMonth) {
         setSelectedMonth(activeMonth);
         try {
           localStorage.setItem(ACTIVE_MONTH_KEY, activeMonth);
-        } catch (_) {}
+        } catch {}
       }
       try {
         localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(store));
-      } catch (_) {}
+      } catch {}
       setIsCloudConnected(true);
     },
     []

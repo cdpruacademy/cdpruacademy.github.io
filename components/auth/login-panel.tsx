@@ -2,27 +2,14 @@
 
 import * as React from "react"
 import { useState } from "react"
-import { createPortal } from "react-dom"
 import { Loader2 } from "lucide-react"
 import { Icon } from "@/components/icon"
-import { useDialogA11y } from "@/hooks/use-dialog-a11y"
 
-interface AdminLoginModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onSuccess: () => void
-  loginFn: (email: string, pwd: string) => Promise<{ success: boolean; error?: string }>
-}
-
-/** The heading and form, inside the dialog or on the login page */
+/** The heading and form of the login page */
 export function LoginPanel({
-  onClose,
-  onSuccess,
   loginFn,
 }: {
-  onClose?: () => void
-  onSuccess?: () => void
-  loginFn: AdminLoginModalProps["loginFn"]
+  loginFn: (email: string, pwd: string) => Promise<{ success: boolean; error?: string }>
 }) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -39,8 +26,6 @@ export function LoginPanel({
       if (res.success) {
         setError(null)
         setPassword("")
-        onSuccess?.()
-        onClose?.()
       } else {
         setError(res.error || "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
       }
@@ -60,16 +45,6 @@ export function LoginPanel({
               Log in
             </h2>
           </div>
-          {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="ปิด"
-              className="touch-target -mr-2 flex h-10 w-10 items-center justify-center rounded-full text-white hover:bg-white/15"
-            >
-              <Icon name="close" size={20} strokeWidth={2} />
-            </button>
-          )}
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-6 pt-5 pb-6">
@@ -142,28 +117,5 @@ export function LoginPanel({
           </button>
         </form>
     </>
-  )
-}
-
-export function AdminLoginModal({ isOpen, onClose, onSuccess, loginFn }: AdminLoginModalProps) {
-  const dialogRef = useDialogA11y(isOpen, onClose)
-
-  if (!isOpen) return null
-
-  // Portal to <body>: a parent could otherwise trap a fixed overlay
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 animate-in bg-ink/40 fade-in" onClick={onClose} />
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="admin-login-title"
-        className="relative z-10 w-full max-w-[400px] animate-in overflow-hidden rounded-3xl bg-white shadow-[0_24px_64px_-16px_rgba(28,25,23,0.45)] duration-200 zoom-in-95"
-      >
-        <LoginPanel onClose={onClose} onSuccess={onSuccess} loginFn={loginFn} />
-      </div>
-    </div>,
-    document.body
   )
 }

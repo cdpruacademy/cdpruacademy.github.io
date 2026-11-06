@@ -81,8 +81,8 @@ export function TimelineFilters({
 
   return (
     <section aria-label="Filter projects" className={`${card} flex flex-col gap-3 p-3 sm:p-3.5`}>
-      <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
-        <label className="relative flex min-w-0 flex-1 items-center">
+      <div className="flex flex-col gap-2.5 lg:flex-row lg:flex-wrap lg:items-center">
+        <label className="relative flex min-w-0 flex-1 items-center lg:min-w-[260px]">
           <span className="sr-only">Search projects</span>
           <Icon name="search" size={18} className="pointer-events-none absolute left-3.5 text-ink-soft" />
           <input

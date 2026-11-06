@@ -4,7 +4,6 @@ import * as React from "react"
 import { useCallback, useEffect, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { useAdminAuth } from "@/hooks/use-admin-auth"
-import { AdminLoginModal } from "@/components/auth/admin-login-modal"
 import { Icon } from "@/components/icon"
 import { PageBody, PageHero, card, cardButtonDark } from "@/components/page-hero"
 import { ChangeLogSection } from "@/components/users/change-log-section"
@@ -35,14 +34,13 @@ const signedInLabel = (u: ManagedUser) => {
 
 /** Superadmins choose who has which role, and which tabs each role sees */
 export function UsersView() {
-  const { isSuperadmin, isAuthLoaded, login } = useAdminAuth()
+  const { isSuperadmin } = useAdminAuth()
   const [users, setUsers] = useState<ManagedUser[] | null>(null)
   const [tabs, setTabs] = useState<TabAccess>(DEFAULT_TAB_ACCESS)
   const [me, setMe] = useState<string | null>(null)
   const [email, setEmail] = useState("")
   const [role, setRole] = useState<Role>("editor")
   const [isAdding, setIsAdding] = useState(false)
-  const [isLoginOpen, setIsLoginOpen] = useState(false)
 
   const reload = useCallback(async () => {
     const list = await listUsers()
@@ -111,37 +109,6 @@ export function UsersView() {
       <h1 className="text-[34px] leading-tight font-bold sm:text-[44px]">Users</h1>
     </PageHero>
   )
-
-  if (!isSuperadmin) {
-    return (
-      <div>
-        {hero}
-        <PageBody>
-          <div className={`${card} mx-auto flex max-w-md flex-col items-center gap-3 px-6 py-10 text-center`}>
-            {isAuthLoaded ? (
-              <>
-                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-pru-red-soft text-brand-ink">
-                  <Icon name="lock" size={28} />
-                </span>
-                <h2 className="text-lg font-bold">Superadmin only</h2>
-                <button type="button" onClick={() => setIsLoginOpen(true)} className={cardButtonDark}>
-                  Log in
-                </button>
-              </>
-            ) : (
-              <Loader2 className="h-6 w-6 animate-spin text-ink-soft" />
-            )}
-          </div>
-          <AdminLoginModal
-            isOpen={isLoginOpen}
-            onClose={() => setIsLoginOpen(false)}
-            onSuccess={() => setIsLoginOpen(false)}
-            loginFn={login}
-          />
-        </PageBody>
-      </div>
-    )
-  }
 
   return (
     <div>

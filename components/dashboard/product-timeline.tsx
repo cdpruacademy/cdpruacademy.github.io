@@ -25,10 +25,7 @@ import { ProjectActionDialog, ProjectAction } from "./project-action-dialog"
 import { useTeamMembers } from "@/hooks/use-team-members"
 import { usePartners } from "@/hooks/use-partners"
 import { toPng } from "html-to-image"
-import {
-  uploadTimelineSnapshot,
-  saveBothTimelineSnapshots,
-} from "@/lib/supabase"
+import { saveBothTimelineSnapshots } from "@/lib/supabase"
 import { toast } from "@/lib/notify"
 import { Loader2 } from "lucide-react"
 
@@ -42,8 +39,6 @@ export function ProductTimeline() {
     setSelectedYear,
     availableYears,
     goToCurrentMonth,
-    availableMonths,
-    copyFromPreviousMonth,
     asOfText,
     setAsOfText,
     currentItems,
@@ -67,13 +62,7 @@ export function ProductTimeline() {
   const [isRefresherOpen, setIsRefresherOpen] = useState(false)
 
   const { isAdmin } = useAdminAuth()
-  const {
-    teamMembers,
-    addMember,
-    updateMember,
-    deleteMember,
-    resetToDefault: resetTeamMembers,
-  } = useTeamMembers()
+  const { teamMembers } = useTeamMembers()
 
   const { partners } = usePartners()
 

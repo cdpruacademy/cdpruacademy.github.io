@@ -1,18 +1,16 @@
 "use client"
 
 import * as React from "react"
-import { useState, useMemo, useEffect } from "react"
+import { useCallback, useState, useMemo, useEffect } from "react"
 import { useProducts } from "@/hooks/use-products"
 import { useAdminAuth } from "@/hooks/use-admin-auth"
 import { useTeamMembers } from "@/hooks/use-team-members"
 import { DonutChart, DonutChartSegment } from "@/components/ui/donut-chart"
 import { TeamManagementModal } from "@/components/dashboard/team-management-modal"
-import { AdminLoginModal } from "@/components/auth/admin-login-modal"
 import {
   ProductItem,
   PhaseKey,
   getMonthsForYear,
-  MONTH_NAMES,
   parseMonthYear,
   getSystemCurrentMonth,
   checkIsProjectCompleted,
@@ -22,7 +20,6 @@ import { buildMonthlyReport, collectReportData, ReportImage } from "@/lib/report
 import { buildLaunchCalendar } from "@/lib/calendar"
 import { TimelineExportBoard } from "@/components/dashboard/timeline-export-board"
 import { Loader2 } from "lucide-react"
-import Link from "next/link"
 import { toPng } from "html-to-image"
 
 import { usePartners } from "@/hooks/use-partners"
@@ -34,7 +31,6 @@ import {
   PageHero,
   card,
   cardButton,
-  cardButtonDark,
   heroButton,
   heroButtonSolid,
 } from "@/components/page-hero"
@@ -81,10 +77,9 @@ const isOwnerMatch = (itemOwner: string | undefined, memberName: string) => {
 // Helper to check if a date string is in the past or current relative to reference month
 
 export function AnalyticsView() {
-  const { role, isAdmin, login } = useAdminAuth()
+  const { role, isAdmin } = useAdminAuth()
   const {
     monthlyStore,
-    availableMonths,
     getItemsForMonth,
     selectedYear,
     setSelectedYear,
@@ -141,7 +136,6 @@ export function AnalyticsView() {
   // The owner box whose popup is open; member null is the whole team
   const [ownerPopup, setOwnerPopup] = useState<{ member: string | null } | null>(null)
 
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false)
 
   // Dedicated Off-Screen Board for Clean Channel Summary Export
@@ -324,7 +318,7 @@ export function AnalyticsView() {
       rawProducts: ofType("product"),
       rawEnhancements: ofType("enhancement"),
     }
-  }, [monthlyStore, activeYear, isAnnual, selectedPeriod])
+  }, [monthlyStore, getItemsForMonth, activeYear, isAnnual, selectedPeriod])
 
   // A Refresher counts in the last month of its quarter, as it does on the KPI page
   const refreshersOfMonth = (monthIndex: number) =>
@@ -397,7 +391,7 @@ export function AnalyticsView() {
   }, [products, enhancements, refresherItems, selectedTypeFilter])
 
   // Helper to build status detail for each item
-  const buildItemStatus = (item: AggregatedItem) => {
+  const buildItemStatus = useCallback((item: AggregatedItem) => {
     const isCompleted = checkIsProjectCompleted(item, selectedPeriod)
     const isPaused = !isCompleted && Boolean(item.isPaused)
 
@@ -441,7 +435,7 @@ export function AnalyticsView() {
       currentPhaseKey,
       isCoOwned: isItemCoOwned(item.owner),
     }
-  }
+  }, [selectedPeriod])
 
   // Compared with the year before, on the whole year only
   const yearCompare = useMemo(() => {
@@ -555,7 +549,7 @@ export function AnalyticsView() {
       ...tagged(rawEnhancements, "enhancement"),
       ...tagged(rawRefreshers, "refresher"),
     ]
-  }, [rawProducts, rawEnhancements, rawRefreshers])
+  }, [rawProducts, rawEnhancements, rawRefreshers, buildItemStatus])
 
   const allTeamPendingCount = useMemo(
     () =>
@@ -632,35 +626,6 @@ export function AnalyticsView() {
     (s) => s.label === hoveredMember
   )
   const displayMemberVal = activeHoveredMember?.value ?? totalMemberWorkload
-  // Signed out: ask to log in
-  if (!signedIn) {
-    return (
-      <div className="flex min-h-[70vh] items-center justify-center px-4">
-        <div className={`${card} flex w-full max-w-md flex-col items-center gap-3 px-6 py-10 text-center`}>
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-pru-red-soft text-brand-ink">
-            <Icon name="lock" size={28} />
-          </span>
-          <h2 className="text-lg font-bold">เข้าสู่ระบบเพื่อดูหน้านี้</h2>
-          <div className="flex flex-wrap justify-center gap-2.5 pt-1">
-            <button type="button" onClick={() => setIsLoginModalOpen(true)} className={cardButtonDark}>
-              Log in
-            </button>
-            <Link href="/" className={cardButton}>
-              Back to Timeline
-            </Link>
-          </div>
-
-          <AdminLoginModal
-            isOpen={isLoginModalOpen}
-            onClose={() => setIsLoginModalOpen(false)}
-            onSuccess={() => setIsLoginModalOpen(false)}
-            loginFn={login}
-          />
-        </div>
-      </div>
-    )
-  }
-
   const completionPct =
     rawUniqueProjectsCount > 0
       ? Math.round((allTeamCompletedCount / rawUniqueProjectsCount) * 100)

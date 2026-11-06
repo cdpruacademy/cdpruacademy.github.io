@@ -41,7 +41,7 @@ export function getStoredSupabaseConfig(): SupabaseConfig | null {
           return parsed;
         }
       }
-    } catch (_) {}
+    } catch {}
   }
 
   const envUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL;
@@ -152,7 +152,7 @@ export function clearLocalData(): void {
       "pru_member_colors_v1",
     ].forEach((key) => localStorage.removeItem(key));
     sessionStorage.removeItem("pru_active_month_v3");
-  } catch (_) {}
+  } catch {}
 }
 
 /** True for anyone who can edit: superadmin or editor */
@@ -304,7 +304,7 @@ export async function testSupabaseConnection(
       auth: { persistSession: false },
     });
 
-    const { data, error } = await client
+    const { error } = await client
       .from("timeline_store")
       .select("id, updated_at")
       .eq("id", "current")
@@ -806,7 +806,7 @@ export async function saveBothTimelineSnapshots(
         if (existingChData && existingChData.publicUrl) {
           finalChannelUrl = `${existingChData.publicUrl}?t=${timestamp}`;
         }
-      } catch (_) {}
+      } catch {}
     }
 
     // Register into timeline_store with id = 'latest_image'

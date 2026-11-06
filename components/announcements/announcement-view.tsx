@@ -23,10 +23,8 @@ export function AnnouncementView() {
   const { isAdmin } = useAdminAuth()
   const {
     announcements,
-    allCount,
     stats,
     isLoaded,
-    isSaving,
     filterStatus,
     setFilterStatus,
     searchQuery,
