@@ -686,7 +686,7 @@ function replyProjectTimeline(replyToken, projectName) {
     { type: "box", layout: "vertical", spacing: "md", contents: stepRows },
     { type: "separator", color: UI.line },
     flexInfoRow("launch", "Target Launch", launch, launch === "TBC" ? UI.soft : UI.redInk),
-    flexInfoRow("calendar", "Internal", shortDate(item.internalDate) || "TBC")
+    flexInfoRow("calendar", "Internal", shortDate(((item.milestones || {})["internal-training"] || {}).date || item.internalDate) || "TBC")
   ];
 
   const status = finished ? "Completed" : current >= 0 ? "Current: " + STEPS[current].label : "In progress";

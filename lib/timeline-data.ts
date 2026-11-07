@@ -433,3 +433,8 @@ export const DEFAULT_AS_OF_BY_MONTH: Record<string, string> = {
   "NOV 2026": "as of 15 Nov",
   "DEC 2026": "as of 15 Dec",
 };
+
+/** The Internal Training date: step 6 is the one place it is entered; older projects may only have internalDate */
+export function internalTrainingDate(item: ProductItem): string | undefined {
+  return item.milestones?.["internal-training"]?.date?.trim() || item.internalDate;
+}

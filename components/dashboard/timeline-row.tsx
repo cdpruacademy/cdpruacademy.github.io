@@ -8,6 +8,7 @@ import {
   ENHANCEMENT_PHASES,
   TimelineType,
   checkIsProjectCompleted,
+  internalTrainingDate,
 } from "@/lib/timeline-data"
 import { toPng } from "html-to-image"
 import { Icon, PHASE_ICONS } from "@/components/icon"
@@ -106,6 +107,12 @@ export function stepKinds(product: ProductItem, timelineType: TimelineType) {
   return { phases, kinds, current, isFinished, end, reach }
 }
 
+/** The free-text status shown under the Launch box; a plain TBC says nothing the box doesn't */
+export function launchNote(product: ProductItem): string {
+  const note = formatShortDate(product.customRightLabel).replace(/\s+/g, " ")
+  return /^tbc$/i.test(note) ? "" : note
+}
+
 /** "20 Nov" -> { mon: "NOV", day: "20" } */
 function launchParts(text: string) {
   const m = text.match(/^(\d{1,2})\s+([A-Za-z]{3})/)
@@ -156,10 +163,9 @@ export function TimelineRow({
     }
   }
 
-  const launchText = product.customRightLabel
-    ? formatShortDate(product.customRightLabel)
-    : formatShortDate(product.commercialDate) || "TBC"
-  const parts = product.customRightLabel ? null : launchParts(launchText)
+  const launchText = formatShortDate(product.commercialDate) || "TBC"
+  const parts = launchParts(launchText)
+  const note = launchNote(product)
   // One colour per project: red while in progress, green once finished, dark grey on hold
   const tone = isFinished ? "done" : product.isPaused ? "hold" : "active"
   const toneBg = { done: "bg-done", hold: "bg-stone-600", active: "bg-pru-red" }[tone]
@@ -317,9 +323,12 @@ export function TimelineRow({
             {parts ? parts.day : launchText}
           </span>
         </span>
-        {!product.customRightLabel && (
-          <span className={`text-ink-soft ${compact ? "text-[13px]" : "text-[11px]"}`}>
-            Internal {formatShortDate(product.internalDate) || "TBC"}
+        <span className={`text-ink-soft ${compact ? "text-[13px]" : "text-[11px]"}`}>
+          Internal {formatShortDate(internalTrainingDate(product)) || "TBC"}
+        </span>
+        {note && (
+          <span className={`max-w-full text-right leading-snug font-semibold break-words text-ink-soft ${compact ? "text-[13px]" : "text-[11px]"}`}>
+            {note}
           </span>
         )}
         {current >= 0 && (

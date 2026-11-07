@@ -2,11 +2,11 @@
 
 import * as React from "react"
 import { useState } from "react"
-import { ProductItem, TimelineType } from "@/lib/timeline-data"
+import { ProductItem, TimelineType, internalTrainingDate } from "@/lib/timeline-data"
 import { Icon, PHASE_ICONS } from "@/components/icon"
 import { Partner, partnerOf } from "@/lib/partners"
 import type { AttentionFor } from "@/lib/attention"
-import { AttentionBadge, PHASE_HEADINGS, formatShortDate, stepKinds } from "./timeline-row"
+import { AttentionBadge, PHASE_HEADINGS, formatShortDate, launchNote, stepKinds } from "./timeline-row"
 
 interface TimelineMobileListProps {
   items: ProductItem[]
@@ -50,9 +50,8 @@ export function TimelineMobileList({
         const attention = attentionFor?.(item)
         const panelId = `mobile-steps-${item.id}`
         const currentPhase = current >= 0 ? phases[current] : null
-        const launch = item.customRightLabel
-          ? formatShortDate(item.customRightLabel)
-          : formatShortDate(item.commercialDate) || "TBC"
+        const launch = formatShortDate(item.commercialDate) || "TBC"
+        const note = launchNote(item)
 
         return (
           <li
@@ -88,9 +87,16 @@ export function TimelineMobileList({
                     )}
                   </span>
                 </span>
-                <span className={`flex shrink-0 flex-col items-center overflow-hidden rounded-xl border ${toneLine}`}>
-                  <span className={`w-full px-2 text-center text-[10px] font-bold text-white ${toneBg}`}>Launch</span>
-                  <span className="px-2 text-[15px] leading-snug font-bold text-ink">{launch}</span>
+                <span className="flex max-w-[110px] shrink-0 flex-col items-end gap-1">
+                  <span className={`flex flex-col items-center overflow-hidden rounded-xl border ${toneLine}`}>
+                    <span className={`w-full px-2 text-center text-[10px] font-bold text-white ${toneBg}`}>Launch</span>
+                    <span className="px-2 text-[15px] leading-snug font-bold text-ink">{launch}</span>
+                  </span>
+                  {note && (
+                    <span className="max-w-full text-right text-[11px] leading-snug font-semibold break-words text-ink-soft">
+                      {note}
+                    </span>
+                  )}
                 </span>
               </span>
 
@@ -183,7 +189,7 @@ export function TimelineMobileList({
                   })}
                 </ol>
                 <div className="flex justify-between border-t border-surface pt-2.5 text-[13px] text-ink-soft">
-                  <span>Internal {formatShortDate(item.internalDate) || "TBC"}</span>
+                  <span>Internal {formatShortDate(internalTrainingDate(item)) || "TBC"}</span>
                   <span>
                     Target Launch <b className="text-ink">{formatShortDate(item.commercialDate) || "TBC"}</b>
                   </span>

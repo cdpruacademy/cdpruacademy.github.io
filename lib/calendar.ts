@@ -1,4 +1,4 @@
-import { ProductItem, TimelineType, parseTimelineDate } from "@/lib/timeline-data"
+import { ProductItem, TimelineType, internalTrainingDate, parseTimelineDate } from "@/lib/timeline-data"
 
 // An .ics file of launch and Internal Training dates that Outlook can import.
 // Each event has a fixed UID, so importing again updates it instead of adding a copy.
@@ -45,7 +45,7 @@ export function buildLaunchCalendar(
     const kind = type === "product" ? "New Product" : "Enhancement"
     const dates: [string, string, string | undefined][] = [
       ["launch", "Launch", item.commercialDate],
-      ["training", "Internal Training", item.internalDate],
+      ["training", "Internal Training", internalTrainingDate(item)],
     ]
     dates.forEach(([key, label, value]) => {
       const d = dayDate(value)

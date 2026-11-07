@@ -9,6 +9,7 @@ import {
   MilestoneItem,
   MilestoneStatus,
   TimelineType,
+  parseTimelineDate,
 } from "@/lib/timeline-data"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -225,9 +226,6 @@ export function ProductFormModal({
   const [customOwner, setCustomOwner] = useState<string>(
     () => initialOwners.custom
   )
-  const [internalDate, setInternalDate] = useState<string>(
-    () => productToEdit?.internalDate || "TBC"
-  )
   const [commercialDate, setCommercialDate] = useState<string>(
     () => productToEdit?.commercialDate || "TBC"
   )
@@ -237,6 +235,9 @@ export function ProductFormModal({
   const [customRightLabel, setCustomRightLabel] = useState<string>(
     () => productToEdit?.customRightLabel || ""
   )
+
+  // Internal Training is entered on step 6 only; this older field fills it when the step has no date
+  const oldInternalDate = parseTimelineDate(productToEdit?.internalDate) ? productToEdit?.internalDate || "" : ""
 
   interface MilestoneFormState {
     enabled: boolean
@@ -304,7 +305,7 @@ export function ProductFormModal({
       state[p.key] = existing
         ? {
             enabled: true,
-            date: existing.date || "",
+            date: existing.date || (p.key === "internal-training" ? oldInternalDate : ""),
             status: existing.status || "completed",
             isElearningIcon: current === p.key,
           }
@@ -393,11 +394,21 @@ export function ProductFormModal({
         }
       })
 
+      // CODY, the calendar and the month lists still read internalDate
+      const trainingStep = milestonesState["internal-training"]
+      // Keep the old value unless step 6's date changed, so saving an old project can't move it to another month
+      const stepDateChanged =
+        trainingStep.date.trim() !== (productToEdit?.milestones["internal-training"]?.date || "").trim()
+      const finalInternalDate =
+        trainingStep.enabled && (stepDateChanged || !productToEdit)
+          ? trainingStep.date.trim() || "TBC"
+          : productToEdit?.internalDate || "TBC"
+
       const payload: Omit<ProductItem, "id"> = {
         broker: finalBroker,
         name: name.trim(),
         owner: finalOwner,
-        internalDate: internalDate.trim() || undefined,
+        internalDate: finalInternalDate,
         commercialDate: commercialDate.trim() || undefined,
         csDate: csDate.trim() || undefined,
         customRightLabel: customRightLabel.trim() || undefined,
@@ -664,17 +675,6 @@ export function ProductFormModal({
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label>Internal Training Date</Label>
-                  <DatePicker
-                    value={internalDate}
-                    onChange={(val) => setInternalDate(val)}
-                    placeholder="เลือกวันที่ หรือ TBC"
-                    allowTBC
-                    defaultMonth={selectedMonth}
-                  />
-                </div>
-
-                <div className="space-y-1.5">
                   <Label>Target Launch (Commercial)</Label>
                   <DatePicker
                     value={commercialDate}
@@ -696,8 +696,8 @@ export function ProductFormModal({
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label optional>ข้อความสถานะพิเศษทางขวา</Label>
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label optional>ข้อความใต้กล่อง Launch</Label>
                   <Input
                     placeholder="เช่น Sent out : Sep 2026"
                     value={customRightLabel}
@@ -775,7 +775,13 @@ export function ProductFormModal({
                           onClick={() =>
                             setMilestonesState((prev) => ({
                               ...prev,
-                              [phase.key]: { ...prev[phase.key], enabled: !prev[phase.key].enabled },
+                              [phase.key]: {
+                                ...prev[phase.key],
+                                enabled: !prev[phase.key].enabled,
+                                date:
+                                  prev[phase.key].date ||
+                                  (phase.key === "internal-training" ? oldInternalDate : ""),
+                              },
                             }))
                           }
                           className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${ms.enabled ? "bg-ink" : "bg-gray-300"}`}
@@ -788,7 +794,13 @@ export function ProductFormModal({
                       </div>
 
                       {ms.enabled && (
-                        <div className="grid grid-cols-1 gap-2 border-t border-surface px-3 pt-2.5 pb-3 sm:grid-cols-[150px_minmax(0,1fr)] sm:pl-[56px]">
+                        <div
+                          className={`grid grid-cols-1 gap-2 border-t border-surface px-3 pt-2.5 pb-3 sm:pl-[56px] ${
+                            phase.key === "internal-training"
+                              ? "sm:grid-cols-[200px_minmax(0,1fr)]"
+                              : "sm:grid-cols-[150px_minmax(0,1fr)]"
+                          }`}
+                        >
                           <DatePicker
                             value={ms.date}
                             onChange={(val) =>
@@ -798,6 +810,7 @@ export function ProductFormModal({
                               }))
                             }
                             placeholder="วันที่"
+                            allowTBC={phase.key === "internal-training"}
                             defaultMonth={selectedMonth}
                           />
                           <div

@@ -145,12 +145,12 @@ export function DatePicker({
   };
 
   return (
-    <div ref={containerRef} className={cn("relative w-full", className)}>
+    <div ref={containerRef} className={cn("relative flex w-full gap-1.5", className)}>
       <button
         type="button"
         onClick={toggleOpen}
         className={cn(
-          "w-full flex items-center justify-between gap-2 px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white hover:bg-gray-50/80 transition-all shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#ED1B2E]/20 focus:border-[#ED1B2E] text-left",
+          "min-w-0 flex-1 flex items-center justify-between gap-2 px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white hover:bg-gray-50/80 transition-all shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#ED1B2E]/20 focus:border-[#ED1B2E] text-left",
           value ? "text-gray-900 font-medium" : "text-gray-400"
         )}
       >
@@ -171,6 +171,16 @@ export function DatePicker({
           </span>
         )}
       </button>
+
+      {allowTBC && value.trim().toLowerCase() !== "tbc" && (
+        <button
+          type="button"
+          onClick={handleSetTBC}
+          className="shrink-0 rounded-lg border border-gray-300 bg-white px-2.5 text-xs font-semibold text-gray-700 shadow-2xs transition-all hover:bg-gray-50"
+        >
+          TBC
+        </button>
+      )}
 
       {isOpen && (
         <div className="absolute left-0 top-full mt-1 z-50 w-64 bg-white rounded-xl shadow-xl border border-gray-200 p-3 select-none animate-in fade-in-0 zoom-in-95 duration-100">
