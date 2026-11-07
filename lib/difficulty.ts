@@ -67,10 +67,25 @@ export interface Refresher {
   done: boolean
 }
 
+/** Audit work (reviews of old files): in its own row, not on the Timeline */
+export interface AuditWork {
+  id: string
+  /** The year it belongs to until it has a date */
+  year: number
+  title: string
+  owner: string
+  shares?: Record<string, number>
+  /** The day it is submitted, "11 Dec 2026"; it counts in that month */
+  date?: string
+  files: number
+  done: boolean
+}
+
 export interface DifficultyStore {
   weights: DifficultyWeights
   projects: Record<string, ProjectFactors>
   refreshers: Refresher[]
+  audits: AuditWork[]
 }
 
 export const DEFAULT_WEIGHTS: DifficultyWeights = {
@@ -84,10 +99,11 @@ export const DEFAULT_WEIGHTS: DifficultyWeights = {
   perFile: 1,
 }
 
-export const EMPTY_DIFFICULTY: DifficultyStore = { weights: DEFAULT_WEIGHTS, projects: {}, refreshers: [] }
+export const EMPTY_DIFFICULTY: DifficultyStore = { weights: DEFAULT_WEIGHTS, projects: {}, refreshers: [], audits: [] }
 
 const ROW_ID = "difficulty_scores"
 const REFRESHER_ROW_ID = "refreshers"
+const AUDIT_ROW_ID = "audits"
 
 /** First guess from the plan name; the owner corrects it on /kpi */
 export function guessLevel(item: ProductItem, type: TimelineType): Level {
@@ -256,16 +272,50 @@ export async function saveRefreshers(items: Refresher[]): Promise<{ success: boo
   return error ? { success: false, error: error.message } : { success: true }
 }
 
-/** Reads the owner's scores (superadmin only; the row is not public) with the Refresher lessons */
+/** Year and month an Audit counts in; no month until it has a real date */
+export function auditPeriod(a: AuditWork): { year: number; monthIndex: number | null } {
+  const d = parseTimelineDate(a.date)
+  return d ? { year: d.getFullYear(), monthIndex: d.getMonth() } : { year: a.year, monthIndex: null }
+}
+
+export const auditPoints = (a: AuditWork, w: DifficultyWeights) => w.audit + Math.max(0, a.files || 0) * w.perFile
+
+/** Audit work: anyone signed in can read it; superadmins and editors save it */
+export async function fetchAudits(): Promise<AuditWork[] | null> {
+  const client = getSupabaseClient()
+  if (!client) return null
+  const { data, error } = await client.from("timeline_store").select("data").eq("id", AUDIT_ROW_ID).maybeSingle()
+  if (error) {
+    console.warn("fetchAudits error:", error.message)
+    return null
+  }
+  const items = (data?.data as { items?: AuditWork[] } | undefined)?.items
+  return Array.isArray(items) ? items : []
+}
+
+export async function saveAudits(items: AuditWork[]): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient()
+  if (!client) return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" }
+  if (!(await isCurrentUserAdmin())) return { success: false, error: "ต้องเข้าสู่ระบบก่อน" }
+  const now = new Date().toISOString()
+  const { error } = await client.from("timeline_store").upsert(
+    { id: AUDIT_ROW_ID, data: { items, updated_at: now }, updated_at: now, updated_by: "pru_admin" },
+    { onConflict: "id" }
+  )
+  return error ? { success: false, error: error.message } : { success: true }
+}
+
+/** Reads the owner's scores (superadmin only; the row is not public) with the Refresher lessons and Audit work */
 export async function fetchDifficulty(): Promise<DifficultyStore | null> {
   const client = getSupabaseClient()
   if (!client) return null
-  const [{ data, error }, refreshers] = await Promise.all([
+  const [{ data, error }, refreshers, audits] = await Promise.all([
     client.from("timeline_store").select("data").eq("id", ROW_ID).maybeSingle(),
     fetchRefreshers(),
+    fetchAudits(),
   ])
-  if (error || !refreshers) {
-    console.warn("fetchDifficulty error:", error?.message ?? "no refreshers")
+  if (error || !refreshers || !audits) {
+    console.warn("fetchDifficulty error:", error?.message ?? "no refreshers or audits")
     return null
   }
   const raw = data?.data as Partial<DifficultyStore> | undefined
@@ -273,10 +323,11 @@ export async function fetchDifficulty(): Promise<DifficultyStore | null> {
     weights: { ...DEFAULT_WEIGHTS, ...(raw?.weights || {}) },
     projects: raw?.projects && typeof raw.projects === "object" ? raw.projects : {},
     refreshers,
+    audits,
   }
 }
 
-/** Saves the scores and weights; Refresher lessons are saved by saveRefreshers */
+/** Saves the scores and weights; Refresher lessons and Audit work are saved separately */
 export async function saveDifficulty(next: DifficultyStore): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient()
   if (!client) return { success: false, error: "ไม่ได้เชื่อมต่อ Supabase" }

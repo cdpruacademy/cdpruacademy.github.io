@@ -40,12 +40,16 @@ import { subscribeToStoreRow } from "@/lib/supabase"
 import { ChannelSummaryExportBoard } from "./channel-summary-export-board"
 import { OwnerDialog, OwnerItem } from "./owner-dialog"
 import {
+  auditToItem,
   getYearProjects,
   refresherToItem,
   YearProject,
 } from "@/lib/team-metrics"
 import {
+  AuditWork,
   Refresher,
+  auditPeriod,
+  fetchAudits,
   fetchRefreshers,
   refresherMonthIndex,
 } from "@/lib/difficulty"
@@ -55,6 +59,7 @@ const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? ""
 interface AggregatedItem extends ProductItem {
   activeMonths?: string[]
   refresher?: Refresher
+  audit?: AuditWork
 }
 
 // Helper to check if an item is co-owned (multiple persons assigned)
@@ -108,13 +113,15 @@ export function AnalyticsView() {
 
   // Type filter: All vs New Product vs Enhancement
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<
-    "all" | "product" | "enhancement" | "refresher"
+    "all" | "product" | "enhancement" | "refresher" | "audit"
   >("all")
 
-  // Refresher lessons are not on the Timeline; anyone signed in can read them
+  // Refresher lessons and Audit work are not on the Timeline; anyone signed in can read them
   const signedIn = role !== null
   const [refreshers, setRefreshers] = useState<Refresher[]>([])
+  const [audits, setAudits] = useState<AuditWork[]>([])
   const [refreshersFailed, setRefreshersFailed] = useState(false)
+  const [auditsFailed, setAuditsFailed] = useState(false)
   useEffect(() => {
     if (!signedIn) return
     let alive = true
@@ -125,11 +132,21 @@ export function AnalyticsView() {
         setRefreshersFailed(list === null)
       })
     }
+    const loadAudits = () => {
+      fetchAudits().then((list) => {
+        if (!alive) return
+        if (list) setAudits(list)
+        setAuditsFailed(list === null)
+      })
+    }
     load()
+    loadAudits()
     const unsubscribe = subscribeToStoreRow("refreshers", load)
+    const unsubscribeAudits = subscribeToStoreRow("audits", loadAudits)
     return () => {
       alive = false
       unsubscribe()
+      unsubscribeAudits()
     }
   }, [signedIn])
 
@@ -337,20 +354,38 @@ export function AnalyticsView() {
       .map(refresherToItem)
   }, [refreshers, activeYear, isAnnual, selectedPeriod])
 
+  // Audit work counts in the month it is submitted
+  const auditsOfMonth = (monthIndex: number) =>
+    audits.filter((a) => {
+      const p = auditPeriod(a)
+      return p.year === activeYear && p.monthIndex === monthIndex
+    })
+
+  const rawAudits = useMemo<AggregatedItem[]>(() => {
+    const period = isAnnual ? null : parseMonthYear(selectedPeriod)
+    return audits
+      .filter((a) => {
+        const p = auditPeriod(a)
+        return p.year === activeYear && (!period || p.monthIndex === period.monthIndex)
+      })
+      .map(auditToItem)
+  }, [audits, activeYear, isAnnual, selectedPeriod])
+
   // Total Unique Projects in this scope (Unfiltered by member)
   const rawUniqueProjectsCount =
-    rawProducts.length + rawEnhancements.length + rawRefreshers.length
+    rawProducts.length + rawEnhancements.length + rawRefreshers.length + rawAudits.length
 
   // Count co-owned projects
   const coOwnedProjectsCount = useMemo(() => {
-    return [...rawProducts, ...rawEnhancements, ...rawRefreshers].filter((i) =>
+    return [...rawProducts, ...rawEnhancements, ...rawRefreshers, ...rawAudits].filter((i) =>
       isItemCoOwned(i.owner)
     ).length
-  }, [rawProducts, rawEnhancements, rawRefreshers])
+  }, [rawProducts, rawEnhancements, rawRefreshers, rawAudits])
 
   const products = rawProducts
   const enhancements = rawEnhancements
   const refresherItems = rawRefreshers
+  const auditItems = rawAudits
 
   // Monthly stats for the Trend Bar (strictly 12 months of activeYear, includes cross-month carryovers)
   const monthlyStats = useMemo(() => {
@@ -370,25 +405,28 @@ export function AnalyticsView() {
       const productsCount = pList.filter((i) => !i.isPaused).length
       const enhancementsCount = eList.filter((i) => !i.isPaused).length
       const refreshersCount = refreshersOfMonth(monthIndex).length
+      const auditsCount = auditsOfMonth(monthIndex).length
       return {
         month: m,
         productsCount,
         enhancementsCount,
         refreshersCount,
+        auditsCount,
         pausedCount,
-        totalCount: productsCount + enhancementsCount + refreshersCount + pausedCount,
+        totalCount: productsCount + enhancementsCount + refreshersCount + auditsCount + pausedCount,
       }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [monthlyStore, yearMonths, getItemsForMonth, refreshers])
+  }, [monthlyStore, yearMonths, getItemsForMonth, refreshers, audits, activeYear])
 
   // 3. Filtered by type (Product vs Enhancement vs All)
   const activeItems = useMemo(() => {
     if (selectedTypeFilter === "product") return products
     if (selectedTypeFilter === "enhancement") return enhancements
     if (selectedTypeFilter === "refresher") return refresherItems
-    return [...products, ...enhancements, ...refresherItems]
-  }, [products, enhancements, refresherItems, selectedTypeFilter])
+    if (selectedTypeFilter === "audit") return auditItems
+    return [...products, ...enhancements, ...refresherItems, ...auditItems]
+  }, [products, enhancements, refresherItems, auditItems, selectedTypeFilter])
 
   // Helper to build status detail for each item
   const buildItemStatus = useCallback((item: AggregatedItem) => {
@@ -399,9 +437,9 @@ export function AnalyticsView() {
     let currentPhaseKey = isCompleted ? "launch" : "kick-off"
     if (isPaused) {
       currentPhaseLabel = item.pausedSince ? `On hold since ${item.pausedSince}` : "On hold"
-    } else if (!isCompleted && item.refresher) {
+    } else if (!isCompleted && (item.refresher || item.audit)) {
       currentPhaseLabel = "In progress"
-      currentPhaseKey = "refresher"
+      currentPhaseKey = item.audit ? "audit" : "refresher"
     } else if (!isCompleted) {
       const phases: { key: PhaseKey; label: string }[] = [
         { key: "kick-off", label: "Kick-off" },
@@ -451,6 +489,14 @@ export function AnalyticsView() {
           completed: r.done,
           months: [],
         })),
+      ...audits
+        .filter((a) => auditPeriod(a).year === year)
+        .map((a) => ({
+          item: auditToItem(a),
+          type: "audit" as const,
+          completed: a.done,
+          months: [],
+        })),
     ]
     const prev = ofYear(activeYear - 1).filter(keep)
     if (prev.length === 0) return null
@@ -461,9 +507,10 @@ export function AnalyticsView() {
       product: list.filter((p) => p.type === "product").length,
       enhancement: list.filter((p) => p.type === "enhancement").length,
       refresher: list.filter((p) => p.type === "refresher").length,
+      audit: list.filter((p) => p.type === "audit").length,
     })
     return { now: count(now), prev: count(prev) }
-  }, [monthlyStore, isAnnual, activeYear, selectedTypeFilter, refreshers])
+  }, [monthlyStore, isAnnual, activeYear, selectedTypeFilter, refreshers, audits])
 
   // Launch and Internal Training dates as an .ics file for Outlook (follows the filters)
   const handleDownloadCalendar = () => {
@@ -486,10 +533,11 @@ export function AnalyticsView() {
   }
 
   // Total KPIs (paused projects still count: the team did work on them this year)
-  const totalProjects = products.length + enhancements.length + refresherItems.length
+  const totalProjects = products.length + enhancements.length + refresherItems.length + auditItems.length
   const newProductCount = products.length
   const enhancementCount = enhancements.length
   const refresherCount = refresherItems.length
+  const auditCount = auditItems.length
 
   // 5. Channel Breakdown Segments
   const channelCounts = useMemo(() => {
@@ -548,8 +596,9 @@ export function AnalyticsView() {
       ...tagged(rawProducts, "product"),
       ...tagged(rawEnhancements, "enhancement"),
       ...tagged(rawRefreshers, "refresher"),
+      ...tagged(rawAudits, "audit"),
     ]
-  }, [rawProducts, rawEnhancements, rawRefreshers, buildItemStatus])
+  }, [rawProducts, rawEnhancements, rawRefreshers, rawAudits, buildItemStatus])
 
   const allTeamPendingCount = useMemo(
     () =>
@@ -795,6 +844,13 @@ export function AnalyticsView() {
           </div>
         )}
 
+        {auditsFailed && (
+          <div role="alert" className="flex items-center gap-2.5 rounded-xl bg-pru-red-soft px-4 py-3 text-sm font-semibold text-brand-ink lg:col-span-12">
+            <Icon name="info" size={18} className="shrink-0" />
+            อ่านข้อมูล Audit ไม่สำเร็จ ตัวเลขในหน้านี้ยังไม่รวม Audit กรุณารีโหลดหน้า
+          </div>
+        )}
+
         {/* Compared with last year */}
         {yearCompare && (
           <section className={`${kpiCard} lg:col-span-12`}>
@@ -807,6 +863,7 @@ export function AnalyticsView() {
               ["New Product", "product"],
               ["Enhancement", "enhancement"],
               ["Refresher", "refresher"],
+              ["Audit", "audit"],
             ] as const).map(([label, key]) => {
               const diff = yearCompare.now[key] - yearCompare.prev[key]
               return (
@@ -839,10 +896,11 @@ export function AnalyticsView() {
               </h2>
               <p className="mt-1 text-xs text-ink-soft">project ที่ทำข้ามเดือน นับทุกเดือน</p>
             </div>
-            <span className="flex gap-4 text-[13px]">
+            <span className="flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
               <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] bg-pru-red" />New Product</span>
               <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] bg-enhancement" />Enhancement</span>
               <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] bg-ink" />Refresher</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] bg-stone-400" />Audit</span>
               <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] bg-gray-300" />On hold</span>
             </span>
           </div>
@@ -866,6 +924,7 @@ export function AnalyticsView() {
                         <span className="bg-pru-red" style={{ height: h(stat.productsCount) }} />
                         <span className="bg-enhancement" style={{ height: h(stat.enhancementsCount) }} />
                         <span className="bg-ink" style={{ height: h(stat.refreshersCount) }} />
+                        <span className="bg-stone-400" style={{ height: h(stat.auditsCount) }} />
                         <span className="bg-gray-300" style={{ height: h(stat.pausedCount) }} />
                       </span>
                     </span>
@@ -880,12 +939,13 @@ export function AnalyticsView() {
         </section>
 
         {/* Type filter */}
-        <div className="flex w-fit gap-0.5 rounded-full bg-rule p-1 lg:col-span-12">
+        <div className="flex w-fit max-w-full flex-wrap gap-0.5 rounded-[22px] bg-rule p-1 lg:col-span-12">
           {[
             { v: "all" as const, label: `All (${totalProjects})`, dot: "" },
             { v: "product" as const, label: `New Product (${newProductCount})`, dot: "bg-pru-red" },
             { v: "enhancement" as const, label: `Enhancement (${enhancementCount})`, dot: "bg-enhancement" },
             { v: "refresher" as const, label: `Refresher (${refresherCount})`, dot: "bg-ink" },
+            { v: "audit" as const, label: `Audit (${auditCount})`, dot: "bg-stone-400" },
           ].map((o) => (
             <button
               key={o.v}

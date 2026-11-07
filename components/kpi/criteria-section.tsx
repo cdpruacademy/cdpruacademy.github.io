@@ -124,7 +124,7 @@ export function CriteriaSection({ weights: w, onEdit }: { weights: DifficultyWei
           <Row
             lead={iconLead("folder")}
             title="Audit"
-            note="แก้ไฟล์เก่า: ประสานงาน 1 ครั้ง และตามจำนวนไฟล์"
+            note="กรอกจากปุ่ม Audit ในหน้า Timeline: ได้ 1 ครั้งต่องาน และตามจำนวนไฟล์"
             points={`+${fmt(w.audit)}`}
             sub={`+${fmt(w.perFile)} ต่อไฟล์`}
           />

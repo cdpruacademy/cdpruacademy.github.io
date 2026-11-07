@@ -154,6 +154,9 @@ export function ProductFormModal({
         color: resolveBrokerColor(productToEdit.broker, availableBrokers),
       })
     }
+    if (productToEdit?.broker?.toLowerCase() !== "audit") {
+      list = list.filter((b) => b.value.toLowerCase() !== "audit")
+    }
     list.push({ value: "Other", label: "อื่นๆ (ระบุเอง)", color: "#64748B" })
     return list
   // eslint-disable-next-line react-hooks/exhaustive-deps

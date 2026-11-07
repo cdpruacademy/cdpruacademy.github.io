@@ -90,25 +90,6 @@ export function ProjectRow({ project: p, onChange }: { project: ScoredProject; o
           New content
         </label>
 
-        {!isProduct && (
-          <label className="inline-flex items-center gap-2 text-[13px] font-semibold" title="งาน Audit: จำนวนไฟล์เก่าที่แก้">
-            <Icon name="folder" size={15} />
-            Audit files
-            <input
-              type="number"
-              min={0}
-              max={500}
-              value={p.factors.files ?? ""}
-              placeholder="0"
-              onChange={(e) => {
-                const v = Math.round(Number(e.target.value))
-                onChange({ ...p.factors, files: Number.isFinite(v) && v > 0 ? v : undefined })
-              }}
-              className="h-8 w-16 rounded-lg border-[1.5px] border-rule bg-white px-2 text-right tabular-nums focus:border-ink focus:outline-none"
-            />
-          </label>
-        )}
-
         <div role="group" aria-label="ปรับคะแนน" className="inline-flex items-center gap-0.5 rounded-full bg-surface p-[3px]">
           {ADJUST.map((v) => (
             <button

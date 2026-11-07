@@ -21,6 +21,7 @@ import { TimelineExportBoard } from "./timeline-export-board"
 import { ChannelSummaryExportBoard } from "@/components/analytics/channel-summary-export-board"
 import { ProductFormModal } from "./product-form-modal"
 import { RefresherDialog } from "./refresher-dialog"
+import { AuditDialog } from "./audit-dialog"
 import { ProjectActionDialog, ProjectAction } from "./project-action-dialog"
 import { useTeamMembers } from "@/hooks/use-team-members"
 import { usePartners } from "@/hooks/use-partners"
@@ -60,6 +61,7 @@ export function ProductTimeline() {
   } = useProducts()
   const [isReloading, setIsReloading] = useState(false)
   const [isRefresherOpen, setIsRefresherOpen] = useState(false)
+  const [isAuditOpen, setIsAuditOpen] = useState(false)
 
   const { isAdmin } = useAdminAuth()
   const { teamMembers } = useTeamMembers()
@@ -303,6 +305,7 @@ export function ProductTimeline() {
           }
           onAddClick={handleOpenAdd}
           onRefresherClick={() => setIsRefresherOpen(true)}
+          onAuditClick={() => setIsAuditOpen(true)}
           onExportAllClick={handleExportAll}
           onSendLineClick={isAdmin ? handleSendToLine : undefined}
           isSendingLine={isSendingLine}
@@ -532,6 +535,14 @@ export function ProductTimeline() {
           year={selectedYear}
           teamMembers={teamMembers}
           onClose={() => setIsRefresherOpen(false)}
+        />
+      )}
+
+      {isAuditOpen && isAdmin && (
+        <AuditDialog
+          year={selectedYear}
+          teamMembers={teamMembers}
+          onClose={() => setIsAuditOpen(false)}
         />
       )}
 

@@ -85,7 +85,7 @@ export function KpiView() {
   const projects = useMemo(() => score(data), [monthlyStore, nowMonth, data, activeIds])
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const savedProjects = useMemo(() => score(base), [monthlyStore, nowMonth, base, activeIds])
-  const summary = useMemo(() => summarize(savedProjects, base.refreshers, base.weights, year), [savedProjects, base, year])
+  const summary = useMemo(() => summarize(savedProjects, base.refreshers, base.audits, base.weights, year), [savedProjects, base, year])
 
   const doneThisYear = (p: ScoredProject) => Boolean(p.completedMonth && parseMonthYear(p.completedMonth)?.year === year)
   const counts = {

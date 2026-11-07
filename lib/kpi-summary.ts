@@ -1,11 +1,14 @@
 import { MONTH_NAMES, parseMonthYear } from "./timeline-data"
 import {
+  AuditWork,
   DifficultyWeights,
   KpiProject,
   LEVEL_LABEL,
   ProjectFactors,
   Refresher,
   ScoreBreakdown,
+  auditPeriod,
+  auditPoints,
   refresherMonthIndex,
   sharesOf,
 } from "./difficulty"
@@ -17,9 +20,9 @@ export interface ScoredProject extends KpiProject {
   isActiveNow: boolean
 }
 
-/** One piece of work in a person's list: a project or a Refresher */
+/** One piece of work in a person's list: a project, a Refresher or Audit work */
 export interface WorkRow {
-  kind: "New Product" | "Enhancement" | "Refresher"
+  kind: "New Product" | "Enhancement" | "Refresher" | "Audit"
   name: string
   channel: string
   level: string
@@ -50,6 +53,7 @@ export interface PersonSummary {
 export function summarize(
   projects: ScoredProject[],
   refreshers: Refresher[],
+  audits: AuditWork[],
   weights: DifficultyWeights,
   year: number
 ): { people: PersonSummary[]; team: Omit<PersonSummary, "name" | "rows"> } {
@@ -119,6 +123,27 @@ export function summarize(
         r.shares
       )
     )
+
+  audits.forEach((a) => {
+    const period = auditPeriod(a)
+    if (period.year !== year) return
+    const done = a.done && period.monthIndex !== null
+    add(
+      {
+        kind: "Audit",
+        name: a.title,
+        channel: `${a.files || 0} ไฟล์`,
+        level: "–",
+        elearning: false,
+        done,
+        when: done ? `${MONTH_NAMES[period.monthIndex as number]} ${year}` : "In progress",
+        monthIndex: done ? period.monthIndex : null,
+        points: auditPoints(a, weights),
+      },
+      a.owner,
+      a.shares
+    )
+  })
 
   const list = Array.from(people.values())
     .filter((p) => p.name !== "—")

@@ -74,6 +74,7 @@ interface TimelineHeroProps {
   counts?: { total: number; completed: number; inProgress: number; onHold: number }
   onAddClick: () => void
   onRefresherClick?: () => void
+  onAuditClick?: () => void
   onExportAllClick: () => void
   onSendLineClick?: () => void
   isSendingLine?: boolean
@@ -128,6 +129,7 @@ export function TimelineHero({
   counts,
   onAddClick,
   onRefresherClick,
+  onAuditClick,
   onExportAllClick,
   onSendLineClick,
   isSendingLine = false,
@@ -268,6 +270,12 @@ export function TimelineHero({
                       label: "Refresher",
                       hint: "กรอกบทเรียน ไม่แสดงใน Timeline",
                       onClick: onRefresherClick,
+                    },
+                    isAdmin && onAuditClick && {
+                      icon: "approval",
+                      label: "Audit",
+                      hint: "กรอกงาน Audit ไม่แสดงใน Timeline",
+                      onClick: onAuditClick,
                     },
                     onSendLineClick && {
                       icon: "send",
@@ -470,6 +478,12 @@ export function TimelineHero({
             <button type="button" onClick={onRefresherClick} className={cardButton}>
               <Icon name="training" size={18} />
               Refresher
+            </button>
+          )}
+          {isAdmin && onAuditClick && (
+            <button type="button" onClick={onAuditClick} className={cardButton}>
+              <Icon name="approval" size={18} />
+              Audit
             </button>
           )}
           <button type="button" onClick={onExportAllClick} disabled={isExporting} className={cardButton}>

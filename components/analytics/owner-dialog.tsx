@@ -5,17 +5,18 @@ import { useMemo, useState } from "react"
 import { Icon } from "@/components/icon"
 import { KpiDialog } from "@/components/kpi/kpi-dialog"
 import { Partner, inkOf, partnerOf } from "@/lib/partners"
-import type { RefresherItem } from "@/lib/team-metrics"
+import type { AuditItem, RefresherItem } from "@/lib/team-metrics"
 import type { PhaseKey, ProductItem, TimelineType } from "@/lib/timeline-data"
 
 export interface OwnerItem extends ProductItem {
-  type: TimelineType | "refresher"
+  type: TimelineType | "refresher" | "audit"
   isCompleted: boolean
   isPaused: boolean
   isCoOwned: boolean
   currentPhaseLabel: string
   currentPhaseKey: string
   refresher?: RefresherItem["refresher"]
+  audit?: AuditItem["audit"]
 }
 
 // A step the project skips is left off its progress line
@@ -33,6 +34,7 @@ const TYPES = [
   { key: "product", label: "New Product", dot: "bg-pru-red", text: "text-brand-ink" },
   { key: "enhancement", label: "Enhancement", dot: "bg-enhancement", text: "text-enhancement" },
   { key: "refresher", label: "Refresher", dot: "bg-ink", text: "text-ink" },
+  { key: "audit", label: "Audit", dot: "bg-stone-400", text: "text-ink-soft" },
 ] as const
 
 type Status = "now" | "done" | "hold"
@@ -89,7 +91,7 @@ export function OwnerDialog({
       onClose={onClose}
       toolbar={
         <div className="flex flex-col gap-3.5">
-          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
             {TYPES.map((t) => (
               <div key={t.key} className="rounded-2xl bg-paper px-3 py-3 sm:px-4">
                 <span className="flex items-center gap-1.5 text-xs font-semibold text-ink-soft sm:text-[13px]">
@@ -165,7 +167,7 @@ export function OwnerDialog({
                   </span>
                 </div>
                 <div className="min-w-[190px] flex-[0_1_230px]">
-                  {!item.refresher && (
+                  {!item.refresher && !item.audit && (
                     <span className="flex items-center" aria-hidden="true">
                       {steps.map((key, i) => {
                         const isNow = !item.isCompleted && i === currentIndex
@@ -188,7 +190,7 @@ export function OwnerDialog({
                   <span
                     className={`mt-1.5 block text-[13px] font-semibold ${item.isCompleted ? "text-done" : item.isPaused ? "text-ink-soft" : "text-brand-ink"}`}
                   >
-                    {item.currentPhaseLabel}
+                    {item.audit ? `${item.audit.files || 0} ไฟล์ · ${item.currentPhaseLabel}` : item.currentPhaseLabel}
                   </span>
                 </div>
                 <b className={`w-16 shrink-0 text-right text-[15px] font-bold whitespace-nowrap tabular-nums ${when === "TBC" ? "text-ink-soft" : "text-ink"}`}>

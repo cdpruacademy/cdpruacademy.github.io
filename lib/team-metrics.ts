@@ -10,7 +10,7 @@ import {
   getSystemCurrentMonth,
   parseTimelineDate,
 } from "@/lib/timeline-data"
-import type { Refresher } from "@/lib/difficulty"
+import type { AuditWork, Refresher } from "@/lib/difficulty"
 
 const DAY_MS = 86_400_000
 const daysBetween = (a: Date, b: Date) =>
@@ -144,9 +144,26 @@ export function refresherToItem(r: Refresher): RefresherItem {
   }
 }
 
+/** Audit work as a row of the Analytics lists; it is never on the Timeline */
+export interface AuditItem extends ProductItem {
+  audit: AuditWork
+}
+
+export function auditToItem(a: AuditWork): AuditItem {
+  return {
+    id: a.id,
+    broker: "Audit",
+    name: a.title,
+    owner: a.owner,
+    commercialDate: a.date || "TBC",
+    milestones: { launch: { phase: "launch", status: a.done ? "completed" : "pending" } },
+    audit: a,
+  }
+}
+
 export interface YearProject {
   item: ProductItem
-  type: TimelineType | "refresher"
+  type: TimelineType | "refresher" | "audit"
   completed: boolean
   /** Months of the year with a saved copy, oldest first */
   months: string[]
