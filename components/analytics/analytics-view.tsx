@@ -37,6 +37,7 @@ import {
 import { updateChannelSummarySnapshot } from "@/lib/supabase"
 import { toast } from "@/lib/notify"
 import { subscribeToStoreRow } from "@/lib/supabase"
+import { isEmbedMode } from "@/lib/embed"
 import { ChannelSummaryExportBoard } from "./channel-summary-export-board"
 import { OwnerDialog, OwnerItem } from "./owner-dialog"
 import {
@@ -117,7 +118,8 @@ export function AnalyticsView() {
   >("all")
 
   // Refresher lessons and Audit work are not on the Timeline; anyone signed in can read them
-  const signedIn = role !== null
+  // The embed page has no role, but its link reads these rows too
+  const signedIn = role !== null || isEmbedMode()
   const [refreshers, setRefreshers] = useState<Refresher[]>([])
   const [audits, setAudits] = useState<AuditWork[]>([])
   const [refreshersFailed, setRefreshersFailed] = useState(false)

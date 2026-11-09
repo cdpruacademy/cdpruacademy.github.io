@@ -10,7 +10,7 @@ import {
   parseTimelineDate,
   sortMonthsChronologically,
 } from "./timeline-data"
-import { getCurrentRole, getSupabaseClient, isCurrentUserAdmin } from "./supabase"
+import { getCurrentRole, getSupabaseClient, isCurrentUserAdmin, readStoreRow } from "./supabase"
 
 /**
  * How hard a New Product is. Enhancements are always "low".
@@ -251,7 +251,7 @@ export const refresherMonthIndex = (r: Refresher) => r.quarter * 3 - 1
 export async function fetchRefreshers(): Promise<Refresher[] | null> {
   const client = getSupabaseClient()
   if (!client) return null
-  const { data, error } = await client.from("timeline_store").select("data").eq("id", REFRESHER_ROW_ID).maybeSingle()
+  const { data, error } = await readStoreRow(REFRESHER_ROW_ID, "data")
   if (error) {
     console.warn("fetchRefreshers error:", error.message)
     return null
@@ -284,7 +284,7 @@ export const auditPoints = (a: AuditWork, w: DifficultyWeights) => w.audit + Mat
 export async function fetchAudits(): Promise<AuditWork[] | null> {
   const client = getSupabaseClient()
   if (!client) return null
-  const { data, error } = await client.from("timeline_store").select("data").eq("id", AUDIT_ROW_ID).maybeSingle()
+  const { data, error } = await readStoreRow(AUDIT_ROW_ID, "data")
   if (error) {
     console.warn("fetchAudits error:", error.message)
     return null

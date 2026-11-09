@@ -4,6 +4,7 @@ import type { Partner } from "./partners";
 import { MonthlyStore, getSystemCurrentMonth } from "./timeline-data";
 import { mergeStores } from "./timeline-merge";
 import { AnnouncementItem, filterWithinOneYear, mergeBotResults } from "./announcement-data";
+import { embedToken, isEmbedMode } from "./embed";
 
 /** Message from anything thrown: an Error, a Supabase error object or a string */
 function errorMessage(err: unknown, fallback: string): string {
@@ -79,8 +80,10 @@ export function getSupabaseClient(): SupabaseClient | null {
   }
 
   try {
+    // The embed page never signs in, even in a browser where someone on the team is signed in
+    const persist = !isEmbedMode();
     cachedClient = createClient(config.url, config.anonKey, {
-      auth: { persistSession: true, autoRefreshToken: true },
+      auth: { persistSession: persist, autoRefreshToken: persist },
     });
     currentClientUrl = config.url;
     currentClientKey = config.anonKey;
@@ -93,6 +96,83 @@ export function getSupabaseClient(): SupabaseClient | null {
 }
 
 const NOT_ADMIN_ERROR = "ต้องเข้าสู่ระบบก่อนบันทึกข้อมูล";
+
+/** One row of timeline_store, as the pages read it */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type StoreRow = { id?: string; data?: any; available_months?: string[]; active_month?: string; updated_at?: string };
+
+let embedCache: { at: number; result: Promise<Record<string, StoreRow> | null> } | null = null;
+const EMBED_FRESH_MS = 30_000;
+
+/**
+ * The rows the embed page shows, through its link code. null when the code is wrong or the link was turned off;
+ * throws when the check itself failed. Shared by every reader for 30 seconds, so the page makes one call.
+ */
+export function fetchEmbedRows(): Promise<Record<string, StoreRow> | null> {
+  if (!embedCache || Date.now() - embedCache.at > EMBED_FRESH_MS) {
+    const client = getSupabaseClient();
+    const result = (async () => {
+      if (!client) throw new Error("ไม่ได้เชื่อมต่อ Supabase");
+      const { data, error } = await client.rpc("embed_data", { p_token: embedToken() ?? "" });
+      if (error) {
+        embedCache = null;
+        throw new Error(error.message);
+      }
+      return ((data as { rows?: Record<string, StoreRow> } | null)?.rows ?? null) as Record<string, StoreRow> | null;
+    })();
+    embedCache = { at: Date.now(), result };
+  }
+  return embedCache.result;
+}
+
+/** One timeline_store row: on the embed page from its link, everywhere else read directly (RLS decides) */
+export async function readStoreRow(id: string, columns: string): Promise<{ data: StoreRow | null; error: { message: string } | null }> {
+  if (isEmbedMode()) {
+    try {
+      const rows = await fetchEmbedRows();
+      if (!rows) return { data: null, error: { message: "ลิงก์นี้ใช้ไม่ได้แล้ว" } };
+      return { data: rows[id] ? { id, ...rows[id] } : null, error: null };
+    } catch (err) {
+      return { data: null, error: { message: errorMessage(err, "อ่านข้อมูลไม่สำเร็จ") } };
+    }
+  }
+  const client = getSupabaseClient();
+  if (!client) return { data: null, error: { message: "ไม่ได้เชื่อมต่อ Supabase" } };
+  const { data, error } = await client.from("timeline_store").select(columns).eq("id", id).maybeSingle();
+  return { data: data as unknown as StoreRow | null, error };
+}
+
+/** The embed page has no realtime (it has no role), so it checks for changes every minute */
+function embedPoll(onChange: () => void): () => void {
+  const timer = window.setInterval(onChange, 60_000);
+  return () => window.clearInterval(timer);
+}
+
+/** The superadmin's view of the embed link: its code and when it was made, or null when it is off */
+export async function getEmbedLink(): Promise<{ token: string; created_at: string } | null> {
+  const client = getSupabaseClient();
+  if (!client) throw new Error("ไม่ได้เชื่อมต่อ Supabase");
+  const { data, error } = await client.rpc("get_embed_link");
+  if (error) throw new Error(error.message);
+  return (data as { token: string; created_at: string } | null) ?? null;
+}
+
+/** A new code for the embed link; the old link stops working */
+export async function newEmbedLink(): Promise<{ token: string; created_at: string }> {
+  const client = getSupabaseClient();
+  if (!client) throw new Error("ไม่ได้เชื่อมต่อ Supabase");
+  const { data, error } = await client.rpc("new_embed_link");
+  if (error) throw new Error(error.message);
+  return data as { token: string; created_at: string };
+}
+
+/** Turns the embed link off */
+export async function stopEmbedLink(): Promise<void> {
+  const client = getSupabaseClient();
+  if (!client) throw new Error("ไม่ได้เชื่อมต่อ Supabase");
+  const { error } = await client.rpc("stop_embed_link");
+  if (error) throw new Error(error.message);
+}
 
 // Role cached per signed-in user so every hook instance shares one RPC call
 let roleCache: { userId: string; result: Promise<Role | null> } | null = null;
@@ -346,11 +426,7 @@ export async function fetchTimelineFromCloud(): Promise<CloudTimelinePayload | n
   if (!client) return null;
 
   try {
-    const { data, error } = await client
-      .from("timeline_store")
-      .select("id, data, available_months, active_month, updated_at")
-      .eq("id", "current")
-      .maybeSingle();
+    const { data, error } = await readStoreRow("current", "id, data, available_months, active_month, updated_at");
 
     if (error) {
       console.warn("Cloud DB fetch error:", error.message);
@@ -534,11 +610,7 @@ export async function saveTimelineToCloud(payload: CloudTimelinePayload): Promis
 export async function fetchTimelineIfChanged(): Promise<CloudTimelinePayload | null> {
   const client = getSupabaseClient();
   if (!client || pendingSaves > 0) return null;
-  const { data, error } = await client
-    .from("timeline_store")
-    .select("updated_at")
-    .eq("id", "current")
-    .maybeSingle();
+  const { data, error } = await readStoreRow("current", "updated_at");
   if (error || !data?.updated_at) return null;
   if (knownTimelineVersion && normalizeVersion(data.updated_at) === normalizeVersion(knownTimelineVersion)) {
     return null;
@@ -550,6 +622,7 @@ let rowChannelCount = 0;
 
 /** Calls back when a timeline_store row changes. RLS decides whether this user receives it. */
 export function subscribeToStoreRow(id: string, onChange: () => void): () => void {
+  if (isEmbedMode()) return embedPoll(onChange);
   const client = getSupabaseClient();
   if (!client) return () => {};
   rowChannelCount += 1;
@@ -573,6 +646,7 @@ export function subscribeToTimelineCloud(
   onUpdate: (payload: CloudTimelinePayload) => void,
   onReconnect?: () => void
 ): (() => void) | null {
+  if (isEmbedMode()) return onReconnect ? embedPoll(onReconnect) : null;
   const client = getSupabaseClient();
   if (!client) return null;
 
@@ -1058,11 +1132,7 @@ export async function fetchPartnersFromCloud(): Promise<Partner[] | null> {
   const client = getSupabaseClient();
   if (!client) return null;
   try {
-    const { data, error } = await client
-      .from("timeline_store")
-      .select("data")
-      .eq("id", "partners")
-      .maybeSingle();
+    const { data, error } = await readStoreRow("partners", "data");
     if (error || !data?.data || !Array.isArray(data.data.items)) return null;
     return data.data.items as Partner[];
   } catch (err) {
@@ -1108,7 +1178,7 @@ export interface TeamStore {
 export async function fetchTeamFromCloud(): Promise<TeamStore | null> {
   const client = getSupabaseClient();
   if (!client) return null;
-  const { data, error } = await client.from("timeline_store").select("data").eq("id", TEAM_ROW_ID).maybeSingle();
+  const { data, error } = await readStoreRow(TEAM_ROW_ID, "data");
   if (error || !data?.data) return null;
   const raw = data.data as Partial<TeamStore>;
   if (!Array.isArray(raw.members) || raw.members.length === 0) return null;

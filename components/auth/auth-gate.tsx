@@ -11,6 +11,7 @@ import { card, cardButton } from "@/components/page-hero"
 import { useAdminAuth } from "@/hooks/use-admin-auth"
 import { tabOfPath } from "@/lib/access"
 import { clearLocalData } from "@/lib/supabase"
+import { isEmbedPath } from "@/lib/embed"
 
 function Centered({ children }: { children: React.ReactNode }) {
   return <div className="flex min-h-[70vh] items-center justify-center px-4 py-8">{children}</div>
@@ -19,6 +20,12 @@ function Centered({ children }: { children: React.ReactNode }) {
 /** Pages only load, and read data, for someone signed in with a role who may see that tab */
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  // The embed page has its own check: the database reads its link code
+  if (isEmbedPath(pathname)) return <>{children}</>
+  return <SignedInGate pathname={pathname}>{children}</SignedInGate>
+}
+
+function SignedInGate({ pathname, children }: { pathname: string; children: React.ReactNode }) {
   const { role, isAuthLoaded, authFailed, canView, login } = useAdminAuth()
   const signedOut = isAuthLoaded && !role && !authFailed
 

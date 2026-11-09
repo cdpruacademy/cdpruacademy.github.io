@@ -7,6 +7,7 @@ import { useAdminAuth } from "@/hooks/use-admin-auth"
 import { Icon } from "@/components/icon"
 import { PageBody, PageHero, card, cardButtonDark } from "@/components/page-hero"
 import { ChangeLogSection } from "@/components/users/change-log-section"
+import { EmbedLinkSection } from "@/components/users/embed-link-section"
 import { PickMenu } from "@/components/ui/pick-menu"
 import { DEFAULT_TAB_ACCESS, OPTIONAL_TABS, ROLE_LABEL, Role, TabAccess, shortLogin, toLoginEmail } from "@/lib/access"
 import {
@@ -235,6 +236,8 @@ export function UsersView() {
             </tbody>
           </table>
         </section>
+
+        <EmbedLinkSection />
 
         <ChangeLogSection />
       </PageBody>

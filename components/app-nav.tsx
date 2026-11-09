@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useAdminAuth } from "@/hooks/use-admin-auth"
 import { ROLE_LABEL } from "@/lib/access"
+import { isEmbedPath } from "@/lib/embed"
 import { Icon, IconName } from "./icon"
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? ""
@@ -28,6 +29,12 @@ const NAV_ITEMS: NavItem[] = [
 
 export function AppNav() {
   const pathname = usePathname()
+  // The embed page sits inside another website, which has its own menu
+  if (isEmbedPath(pathname)) return null
+  return <MainNav pathname={pathname} />
+}
+
+function MainNav({ pathname }: { pathname: string }) {
   const { role, canView, logout } = useAdminAuth()
   // Signed out: only the logo, with the login page under it
   const items = role ? NAV_ITEMS.filter((i) => canView(i.href)) : []
