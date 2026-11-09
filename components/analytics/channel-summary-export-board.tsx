@@ -75,7 +75,7 @@ export const ChannelSummaryExportBoard = React.forwardRef<
     { label: "New Product", short: "NP", count: products.length, key: "newProduct" as const, tint: 0 },
     { label: "Enhancement", short: "Enh", count: enhancements.length, key: "enhancement" as const, tint: 0.35 },
     { label: "Refresher", short: "Ref", count: refreshers.length, key: "refresher" as const, tint: 0.62 },
-    { label: "Audit", short: "Audit", count: audits.length, key: "audit" as const, tint: 0.82 },
+    { label: "Audit", short: "Audit", count: audits.length, key: "audit" as const, tint: 0.16 },
   ].filter((k) => k.count > 0 || k.key === "newProduct" || k.key === "enhancement")
   const pct = (n: number) => (total > 0 ? Math.round((n / total) * 100) : 0)
   const shade = (color: string, tint: number) => (tint ? tintOf(color, tint) : color)
@@ -130,10 +130,9 @@ export const ChannelSummaryExportBoard = React.forwardRef<
             </div>
           ))}
           <div className="flex gap-6 px-6 py-3 text-[13px] text-ink-soft">
-            {kinds.map((k, i) => (
+            {kinds.map((k) => (
               <span key={k.key} className="inline-flex items-center gap-1.5">
                 <span className="inline-block h-3 w-5 rounded-sm" style={{ background: shade("#4E565C", k.tint) }} />
-                {i === 0 ? "เข้มสุด = " : ""}
                 {k.label}
               </span>
             ))}
