@@ -12,6 +12,9 @@ interface ChannelSummaryExportBoardProps {
   isAnnual: boolean
   products: ProductItem[]
   enhancements: ProductItem[]
+  /** Refresher and Audit work, counted like Analytics does */
+  refreshers?: ProductItem[]
+  audits?: ProductItem[]
   partners: Partner[]
 }
 
@@ -20,6 +23,8 @@ interface PartnerStat {
   total: number
   newProduct: number
   enhancement: number
+  refresher: number
+  audit: number
   channels: { name: string; total: number }[]
 }
 
@@ -27,21 +32,25 @@ interface PartnerStat {
 export const ChannelSummaryExportBoard = React.forwardRef<
   HTMLDivElement,
   ChannelSummaryExportBoardProps
->(({ selectedPeriod, products, enhancements, partners }, ref) => {
+>(({ selectedPeriod, products, enhancements, refreshers = [], audits = [], partners }, ref) => {
   const { rows, total } = React.useMemo(() => {
     const map = new Map<string, PartnerStat>()
-    const add = (item: ProductItem, kind: "np" | "enh") => {
+    const add = (item: ProductItem, kind: "np" | "enh" | "ref" | "aud") => {
       const partner = partnerOf(item.broker, partners)
       const row = map.get(partner.id) || {
         partner,
         total: 0,
         newProduct: 0,
         enhancement: 0,
+        refresher: 0,
+        audit: 0,
         channels: [],
       }
       row.total += 1
       if (kind === "np") row.newProduct += 1
-      else row.enhancement += 1
+      else if (kind === "enh") row.enhancement += 1
+      else if (kind === "ref") row.refresher += 1
+      else row.audit += 1
       const name = (item.broker || "Other").trim()
       const ch = row.channels.find((c) => c.name === name)
       if (ch) ch.total += 1
@@ -50,17 +59,26 @@ export const ChannelSummaryExportBoard = React.forwardRef<
     }
     products.forEach((p) => add(p, "np"))
     enhancements.forEach((e) => add(e, "enh"))
+    refreshers.forEach((r) => add(r, "ref"))
+    audits.forEach((a) => add(a, "aud"))
     const order = [...partners, UNASSIGNED_PARTNER].map((p) => p.id)
     return {
       rows: Array.from(map.values()).sort(
         (a, b) => b.total - a.total || order.indexOf(a.partner.id) - order.indexOf(b.partner.id)
       ),
-      total: products.length + enhancements.length,
+      total: products.length + enhancements.length + refreshers.length + audits.length,
     }
-  }, [products, enhancements, partners])
+  }, [products, enhancements, refreshers, audits, partners])
 
   const maxTotal = Math.max(1, ...rows.map((r) => r.total))
-  const npPct = total > 0 ? Math.round((products.length / total) * 100) : 0
+  const kinds = [
+    { label: "New Product", short: "NP", count: products.length, key: "newProduct" as const, tint: 0 },
+    { label: "Enhancement", short: "Enh", count: enhancements.length, key: "enhancement" as const, tint: 0.35 },
+    { label: "Refresher", short: "Ref", count: refreshers.length, key: "refresher" as const, tint: 0.62 },
+    { label: "Audit", short: "Audit", count: audits.length, key: "audit" as const, tint: 0.82 },
+  ].filter((k) => k.count > 0 || k.key === "newProduct" || k.key === "enhancement")
+  const pct = (n: number) => (total > 0 ? Math.round((n / total) * 100) : 0)
+  const shade = (color: string, tint: number) => (tint ? tintOf(color, tint) : color)
 
   return (
     <div ref={ref} style={{ width: "1200px" }} className="flex flex-col bg-paper font-sans text-ink">
@@ -72,7 +90,7 @@ export const ChannelSummaryExportBoard = React.forwardRef<
             <span className="pb-1 text-[26px] leading-tight font-bold">
               Projects
               <span className="block text-[15px] font-medium">
-                New Product {products.length} ({npPct}%) · Enhancement {enhancements.length} ({total > 0 ? 100 - npPct : 0}%)
+                {kinds.map((k) => `${k.label} ${k.count} (${pct(k.count)}%)`).join(" · ")}
               </span>
             </span>
           </div>
@@ -99,20 +117,26 @@ export const ChannelSummaryExportBoard = React.forwardRef<
                 </span>
               </span>
               <span className="flex h-6 overflow-hidden rounded-lg bg-surface">
-                <span style={{ width: `${(r.newProduct / maxTotal) * 100}%`, background: r.partner.color }} />
-                <span style={{ width: `${(r.enhancement / maxTotal) * 100}%`, background: tintOf(r.partner.color, 0.35) }} />
+                {kinds.map((k) => (
+                  <span key={k.key} style={{ width: `${(r[k.key] / maxTotal) * 100}%`, background: shade(r.partner.color, k.tint) }} />
+                ))}
               </span>
               <span className="text-right">
                 <b className="text-[26px] leading-none">{r.total}</b>
                 <span className="block text-xs text-ink-soft">
-                  NP {r.newProduct} · Enh {r.enhancement}
+                  {kinds.filter((k) => r[k.key] > 0 || k.key === "newProduct" || k.key === "enhancement").map((k) => `${k.short} ${r[k.key]}`).join(" · ")}
                 </span>
               </span>
             </div>
           ))}
           <div className="flex gap-6 px-6 py-3 text-[13px] text-ink-soft">
-            <span>Dark bar = New Product</span>
-            <span>Light bar = Enhancement</span>
+            {kinds.map((k, i) => (
+              <span key={k.key} className="inline-flex items-center gap-1.5">
+                <span className="inline-block h-3 w-5 rounded-sm" style={{ background: shade("#4E565C", k.tint) }} />
+                {i === 0 ? "เข้มสุด = " : ""}
+                {k.label}
+              </span>
+            ))}
           </div>
         </div>
       </div>

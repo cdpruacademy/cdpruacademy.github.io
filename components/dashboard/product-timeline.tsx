@@ -24,6 +24,7 @@ import { RefresherDialog } from "./refresher-dialog"
 import { AuditDialog } from "./audit-dialog"
 import { ProjectActionDialog, ProjectAction } from "./project-action-dialog"
 import { useTeamMembers } from "@/hooks/use-team-members"
+import { useYearExtras } from "@/hooks/use-year-extras"
 import { usePartners } from "@/hooks/use-partners"
 import { toPng } from "html-to-image"
 import { saveBothTimelineSnapshots } from "@/lib/supabase"
@@ -67,6 +68,8 @@ export function ProductTimeline() {
   const { teamMembers } = useTeamMembers()
 
   const { partners } = usePartners()
+  // Refresher and Audit work of the year, so the partner image counts the same projects as Analytics
+  const extras = useYearExtras(selectedYear, isAdmin)
 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [productToEdit, setProductToEdit] = useState<ProductItem | null>(null)
@@ -161,7 +164,7 @@ export function ProductTimeline() {
   // so browsing an older month must not replace the images it sends
   const isViewingCurrentMonth = selectedMonth === getSystemCurrentMonth()
   useEffect(() => {
-    if (!isAdmin || !isViewingCurrentMonth || !isLoaded || !monthlyStore) return
+    if (!isAdmin || !isViewingCurrentMonth || !isLoaded || !monthlyStore || !extras.ready) return
 
     const timer = setTimeout(() => {
       captureAndUploadSnapshots(false)
@@ -177,6 +180,9 @@ export function ProductTimeline() {
     isLoaded,
     selectedYear,
     captureAndUploadSnapshots,
+    extras.ready,
+    extras.refreshers,
+    extras.audits,
   ])
 
   const handleOpenAdd = () => {
@@ -589,6 +595,8 @@ export function ProductTimeline() {
             isAnnual={true}
             products={annualProducts}
             enhancements={annualEnhancements}
+            refreshers={extras.refreshers}
+            audits={extras.audits}
             partners={partners}
           />
         )}

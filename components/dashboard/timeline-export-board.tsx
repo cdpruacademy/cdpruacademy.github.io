@@ -3,7 +3,7 @@
 import * as React from "react"
 import { TimelineTypeBadge, monthLabel } from "./timeline-header"
 import { getProgress } from "./timeline-row"
-import { PartnerMix, StepTiles, TimelineTable, groupByPartner } from "./timeline-summary"
+import { PartnerMix, TimelineTable, groupByPartner } from "./timeline-summary"
 import { ProductItem, TimelineType } from "@/lib/timeline-data"
 import { Partner } from "@/lib/partners"
 import { Icon } from "@/components/icon"
@@ -74,7 +74,6 @@ export const TimelineExportBoard = React.forwardRef<HTMLDivElement, TimelineExpo
         </div>
 
         <div className="-mt-14 flex flex-col gap-4 px-10">
-          <StepTiles items={items} timelineType={timelineType} compact />
           <div className="overflow-hidden rounded-[20px] bg-white shadow-[var(--shadow-card)]">
             {items.length === 0 ? (
               <div className="py-12 text-center text-base text-ink-soft">No projects this month</div>

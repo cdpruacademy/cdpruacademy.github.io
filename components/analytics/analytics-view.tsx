@@ -1148,6 +1148,8 @@ export function AnalyticsView() {
           isAnnual={isAnnual}
           products={rawProducts}
           enhancements={rawEnhancements}
+          refreshers={rawRefreshers}
+          audits={rawAudits}
           partners={partners}
         />
         {/* Images for the monthly slides, only while they are being made */}
